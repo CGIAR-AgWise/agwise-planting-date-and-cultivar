@@ -1,0 +1,60 @@
+from AgWise_download import *
+
+# --- Kenya config ---
+KEN = {
+    "dir_s2s": "/home/jovyan/agwise-planting-date-and-cultivar/Data/useCase_Kenya_KALRO_app2/Maize/Forecast/KEN",
+    "extent_model": [5.5, 33.5, -4.7, 42.0],
+    "year_start_model": 2014,
+    "year_end_model": 2016,
+    "forecast_year": 2025,
+    "init_month": 3,
+    "init_day": 1,
+}
+
+leadtime_hour = [str(h) for h in range(24, 5161, 24)]
+
+downloader = AgWise_Download()
+
+# =================
+# 1) Hindcast rerun
+# =================
+downloader.AgWise_Download_Models_Daily(
+    dir_to_save=f"{KEN['dir_s2s']}/daily_model_data",
+    center_variable=[
+        "ECMWF_51.PRCP",
+        "ECMWF_51.TMAX",
+        "ECMWF_51.TMIN",
+        "ECMWF_51.SRAD",
+        "ECMWF_51.TEMP",
+    ],
+    month_of_initialization=KEN["init_month"],
+    day_of_initialization=KEN["init_day"],
+    leadtime_hour=leadtime_hour,
+    year_start_hindcast=KEN["year_start_model"],
+    year_end_hindcast=KEN["year_end_model"],
+    area=KEN["extent_model"],
+    year_forecast=None,
+    force_download=True,
+)
+
+# =================
+# 2) Forecast rerun
+# =================
+downloader.AgWise_Download_Models_Daily(
+    dir_to_save=f"{KEN['dir_s2s']}/daily_model_data",
+    center_variable=[
+        "ECMWF_51.PRCP",
+        "ECMWF_51.TMAX",
+        "ECMWF_51.TMIN",
+        "ECMWF_51.SRAD",
+        "ECMWF_51.TEMP",
+    ],
+    month_of_initialization=KEN["init_month"],
+    day_of_initialization=KEN["init_day"],
+    leadtime_hour=leadtime_hour,
+    year_start_hindcast=None,
+    year_end_hindcast=None,
+    area=KEN["extent_model"],
+    year_forecast=KEN["forecast_year"],
+    force_download=True,
+)

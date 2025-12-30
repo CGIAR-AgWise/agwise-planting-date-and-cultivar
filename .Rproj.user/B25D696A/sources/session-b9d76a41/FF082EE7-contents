@@ -1,0 +1,21 @@
+# TODO: TRY TO RUN THE OLD CODE OR ADD THIS FIX LATER?
+
+library(ncdf4)
+
+nc <- nc_open(hind_file, write = TRUE)
+
+# Read original variable and permute to [lon, lat, time]
+var <- ncvar_get(nc)
+var <- aperm(var, c(3, 2, 1))
+ncvar_put(nc, "mx2t24", var)
+
+# Define time variable correctly
+start_date <- as.Date("2014-03-01")
+N <- dim(var)[3]
+time_numeric <- as.numeric(start_date + 0:(N-1) - as.Date("1970-01-01"))  # days since 1970-01-01
+
+ncvar_put(nc, "time", time_numeric)
+ncatt_put(nc, "time", "units", "days since 1970-01-01")
+ncatt_put(nc, "time", "calendar", "proleptic_gregorian")
+
+nc_close(nc)

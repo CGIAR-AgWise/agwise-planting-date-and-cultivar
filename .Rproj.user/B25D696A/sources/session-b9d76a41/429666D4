@@ -1,0 +1,26 @@
+{
+    "id": "429666D4",
+    "path": "~/agwise-planting-date-and-cultivar/Data/useCase_Kenya_KALRO_app2/Maize/Forecast/python/AgWise_download.py",
+    "project_path": "Data/useCase_Kenya_KALRO_app2/Maize/Forecast/python/AgWise_download.py",
+    "type": "python",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1766490552445.0,
+    "source_on_save": false,
+    "relative_order": 12,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "43,15",
+        "scrollLine": "0"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1766490492,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1766490492,
+    "read_only": false,
+    "read_only_alternatives": []
+}

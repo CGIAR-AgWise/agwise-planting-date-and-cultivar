@@ -1,0 +1,26 @@
+{
+    "id": "92DC8B14",
+    "path": "~/agwise-planting-date-and-cultivar/Scripts/useCases/UseCase_Country_Templates/Maize/DSSAT/03_merge_dssat_outputs.R",
+    "project_path": "Scripts/useCases/UseCase_Country_Templates/Maize/DSSAT/03_merge_dssat_outputs.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1765890197248.0,
+    "source_on_save": false,
+    "relative_order": 4,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Sourceb2gszpwiturr",
+        "cursorPosition": "8,15",
+        "scrollLine": "0"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1765994853,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1765994853440,
+    "read_only": false,
+    "read_only_alternatives": []
+}

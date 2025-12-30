@@ -1,0 +1,176 @@
+# #################################################################################################################
+# ## Create experimental data in DSSAT format (RS-bounded planting windows)
+# #################################################################################################################
+suppressPackageStartupMessages({
+  library(readr)
+  library(dplyr)
+  library(tidyr)
+  library(geodata)
+  library(lubridate)
+  library(purrr)
+  library(stringr)
+})
+
+# load generator
+source("~/agwise-potentialyield/dataops/potentialyield/Script/generic/DSSAT/Testing/dssat_expfile_zone_RS_Date_ranges_fert_trt.R")
+
+# # Ensure usage of dplyr library instead of plyr
+mutate <- dplyr::mutate
+rename <- dplyr::rename
+
+#  explicit run settings
+country <- "Rwanda"
+useCaseName <- "RAB"
+Crop <- "Maize"
+filex_temp <- "KEAGFERT.MZX"
+fert_file <- "fert_rec_RWA.csv"
+
+fertilizer <- TRUE
+fert_factorial <- TRUE
+AOI <- TRUE
+season <- 1
+pathIn_zone <- TRUE
+level2 <- NA
+
+# month-day placeholders; real planting dates come from rs_schedule_df below
+Planting_month_date <- "08-01"; Harvest_month_date <- "06-30"
+plantingWindow <- 4  # ignored when rs_schedule_df is provided
+ID <- "TLID"
+index_soilwat <- 1
+geneticfiles <- "MZCER048"
+
+
+n_trt <- 3 * 4  # Treatments 1:n_trt will be run. n_trt should be = fertilizer levels * planting levels
+### CURRENTLY THE dssat.exec IS SET TO RUN ONLY THE FIRST VARIETY
+
+varieties <- c("890011", "890012", "890013", "890014")
+
+countryShp <- geodata::gadm(country, level = 2, path = ".")
+prov <- unique(countryShp$NAME_1)
+
+path.to.extdata <- paste(
+  "/home/jovyan/agwise-potentialyield/dataops/potentialyield/Data/useCase_",
+  country, "_", useCaseName, "/", Crop, "/transform/DSSAT/AOI/", sep = ""
+)
+if (!dir.exists(path.to.extdata)) dir.create(path.to.extdata, recursive = TRUE)
+
+log_file <- file.path(path.to.extdata, "progress_log_create_exp_file.txt")
+if (file.exists(log_file)) file.remove(log_file)
+
+start_time <- Sys.time()
+
+# RS date ranges (coordinate-specific
+# Helper: DOY -> Date (year is arbitrary; DSSAT uses mm-dd derived from these Dates)
+doy_to_date <- function(x, year = 2000L) {
+  x <- suppressWarnings(as.integer(x))
+  as.Date(x - 1L, origin = paste0(year, "-01-01"))
+}
+
+RS_Date_Range <- read_csv(
+  "~/agwise-potentialyield/dataops/potentialyield/Data/useCase_Rwanda_CMRS/Maize/result/RSPlantingDate/Rwanda_CMRS_Maize_Coordinates_SpatialCropModelling_with_RSPlantingDates_Quantiles.csv",
+  show_col_types = FALSE
+)
+
+# Normalize lon/lat names, fill missing quantiles, convert to Dates, build 4 planting dates
+# and add rounded join keys (lon_r, lat_r) for robust matching.
+Coordinate_Date_Range <- RS_Date_Range %>%
+  {
+    nm <- names(.)
+    if ("lon" %in% nm)  rename(., longitude = lon) else .
+  } %>%
+  {
+    nm <- names(.)
+    if ("lat" %in% nm)  rename(., latitude  = lat) else .
+  } %>%
+  select(longitude, latitude, q25, q50, q75) %>%
+  mutate(
+    longitude = as.numeric(longitude),
+    latitude  = as.numeric(latitude)
+  ) %>%
+  fill(q25, q50, q75, .direction = "downup") %>%
+  mutate(
+    q25_date = doy_to_date(q25),
+    q75_date = doy_to_date(q75)
+  ) %>%
+  rowwise() %>%
+  mutate(
+    planting_dates = list(seq(q25_date, q75_date, length.out = 4)),
+    startingDate   = min(planting_dates) %m-% months(1),
+    harvestDate    = max(planting_dates) %m+% months(8)
+  ) %>%
+  ungroup() %>%
+  mutate(
+    lon_r = round(longitude, 3),
+    lat_r = round(latitude, 3)
+  ) %>%
+  select(longitude, latitude, lon_r, lat_r, planting_dates, startingDate, harvestDate)
+rs_schedule_df <- Coordinate_Date_Range
+
+
+# ------------------------------------------------------------------------------------------------
+# --- RUN: per variety x province (dssat.expfile consumes rs_schedule_df) ------------------------
+# ------------------------------------------------------------------------------------------------
+for (j in seq_along(varieties[1])) {
+  for (i in seq_along(prov[1])) {
+    invisible(
+      dssat.expfile(
+        country = country, useCaseName = useCaseName, Crop = Crop, AOI = AOI,
+        filex_temp = filex_temp,
+        # month-day placeholders; real planting dates come from rs_schedule_df below
+        Planting_month_date = Planting_month_date,
+        Harvest_month_date  = Harvest_month_date,
+        ID = ID, season = season,
+        plantingWindow = plantingWindow,  # ignored when rs_schedule_df is provided
+        varietyid = varieties[j],
+        zone = prov[i], level2 = level2, fertilizer = fertilizer,
+        fert_factorial = fert_factorial, fert_file = fert_file,
+        geneticfiles = geneticfiles, index_soilwat = index_soilwat,
+        pathIn_zone = pathIn_zone,
+        # >>> RS-bounded planting dates per coordinate (+ rounded join keys) <<<
+        rs_schedule_df = Coordinate_Date_Range
+      )
+    )
+
+    cat(paste(
+      "Province finished:", i, "/", length(prov), "|",
+      "name:", prov[i], "| variety:", varieties[j], "| time:", format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+    ),
+    "\n", file = log_file, append = TRUE)
+  }
+}
+
+end_time <- Sys.time()
+duration <- end_time - start_time
+cat(duration, "\n", file = log_file, append = TRUE)
+
+
+
+# #################################################################################################################
+# ## Run the DSSAT model
+# #################################################################################################################
+
+prov <- list.files('~/agwise-potentialyield/dataops/potentialyield/Data/useCase_Rwanda_RAB/Maize/transform/DSSAT/AOI/890011/')
+varieties <- c("890011","890012","890013","890014")
+path.to.extdata <- paste("/home/jovyan/agwise-potentialyield/dataops/potentialyield/Data/useCase_",
+                         country, "_",useCaseName, "/", Crop, "/transform/DSSAT/AOI/", sep="")
+
+log_file <- paste(path.to.extdata, "progress_log_execute.txt", sep='/')
+
+if (file.exists(log_file)) {
+ file.remove(log_file)
+}
+
+start_time <- Sys.time()
+source("~/agwise-potentialyield/dataops/potentialyield/Script/generic/DSSAT/dssat_exec.R")
+
+for (i in 1:length(prov[1])){
+ execmodel_AOI <- dssat.exec(country = country,  useCaseName = useCaseName, 
+                             Crop = Crop, AOI = AOI, TRT = 1:n_trt, 
+                             varietyid = varieties[1], zone = prov[i])
+
+ message <- paste("Province finished:", i, Sys.time())
+ cat(message, "\n", file = log_file, append = TRUE)
+}
+end_time <- Sys.time()
+duration <- end_time - start_time
+cat(duration, "\n", file = log_file, append = TRUE)

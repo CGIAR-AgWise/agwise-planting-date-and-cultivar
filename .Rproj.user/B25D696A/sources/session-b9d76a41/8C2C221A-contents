@@ -1,0 +1,128 @@
+#!/usr/bin/env Rscript
+
+# TODO: This needs to be read automatically
+# Same as in 02_*.py
+lonLim <- c(33.5 , 42.0)
+latLim <- c(-4.7, 5.5)
+# latLim <- c(-0.425, 0.075)
+# lonLim <- c(34.375, 35.750)
+years_obs <- 1985:2024
+years_calib <- 2014:2016
+forecast_years <- c(2025, 2025)
+
+options(java.parameters = "-Xmx64g")
+
+###############################################################
+# Load required libraries
+###############################################################
+library(ncdf4)
+library(terra)
+library(loadeR)
+library(transformeR)
+library(downscaleR)
+library(loadeR.2nc)
+library(visualizeR)
+library(parallel)
+library(gridExtra)
+
+###############################################################
+# 1. Source country configuration (paths & domain)
+###############################################################
+## Switch this for other countries: 00_config_ETH.R, etc.
+source("/home/jovyan/agwise-planting-date-and-cultivar/Data/useCase_Kenya_KALRO_app2/Maize/Forecast/python/00_config_KEN.R")
+
+
+###############################################################
+# 2. Variable configuration (AgWise obs + S2S models)
+###############################################################
+# TODO: This should be integrated with the part below. Also addressed for models (e.g., "tp")
+obs_var_map <- list(
+  PRCP = "Precipitation_Flux",
+  TMAX = "Temperature_Air_2m_Max_24h",
+  TMIN = "Temperature_Air_2m_Min_24h",
+  TEMP = "Temperature_Air_2m_Mean_24h",
+  SRAD = "Solar_Radiation_Flux"
+)
+model_var_map <- list(
+  PRCP = "tp",
+  TMAX = "mx2t24",
+  TMIN = "mn2t24",
+  TEMP = "",
+  SRAD = "ssrd"
+)
+
+VAR_CONFIG <- list(
+  PRCP = list(
+    obs_file_pattern = "Daily_PRCP_%d_%d.nc",
+    obs_var          = "Precipitation_Flux",          # from AgWise_AgroIndicators (AGRO.PRCP)
+    model_var        = "tp",         # from AgWise_Download_Models_Daily
+    is_precip        = TRUE,
+    scaling.type     = "multiplicative",
+    units            = "mm/day",
+    brks_bias        = seq(-7, 7, by = 1)
+  ),
+  TMAX = list(
+    obs_file_pattern = "Daily_TMAX_%d_%d.nc",
+    obs_var          = "Temperature_Air_2m_Max_24h",
+    model_var        = "mx2t24",
+    is_precip        = FALSE,
+    scaling.type     = "additive",
+    units            = "degC",
+    brks_bias        = seq(-4, 4, by = 0.5)
+  ),
+  TMIN = list(
+    obs_file_pattern = "Daily_TMIN_%d_%d.nc",
+    obs_var          = "Temperature_Air_2m_Min_24h",
+    model_var        = "mn2t24",
+    is_precip        = FALSE,
+    scaling.type     = "additive",
+    units            = "degC",
+    brks_bias        = seq(-4, 4, by = 0.5)
+  ),
+  TEMP = list(
+    obs_file_pattern = "Daily_TEMP_%d_%d.nc",
+    obs_var          = "Temperature_Air_2m_Mean_24h",
+    model_var        = "",
+    is_precip        = FALSE,
+    scaling.type     = "additive",
+    units            = "degC",
+    brks_bias        = seq(-4, 4, by = 0.5)
+  ),
+  SRAD = list(
+    obs_file_pattern = "Daily_SRAD_%d_%d.nc",
+    obs_var          = "Solar_Radiation_Flux",
+    model_var        = "ssrd",
+    is_precip        = FALSE,
+    scaling.type     = "multiplicative",
+    units            = "MJ/m2/day",                   # Python already J→MJ
+    brks_bias        = seq(-6, 6, by = 0.5)
+  )
+)
+
+## Variables to process
+variables_to_bc <- c("PRCP", "TMAX", "TMIN", "TEMP", "SRAD")
+variables_to_bc <- intersect(variables_to_bc, names(VAR_CONFIG))
+
+if (length(variables_to_bc) == 0) {
+  stop("No valid variables selected for bias correction.")
+}
+
+#############################################################
+# 2 Run Python multi-country downloader BEFORE bias correction
+###############################################################
+
+message("Running AgWise Python downloader for country: ", country_code)
+
+# Build the system command
+py_script <- file.path(base_dir, "python", "02_run_agwise_multi_country.py")
+
+# cmd <- sprintf("python %s --countries %s", py_script, country_code)
+cmd <- sprintf("/opt/conda/bin/python %s --countries %s", py_script, country_code)
+
+# Execute command
+status <- system(cmd, intern = TRUE)
+
+message("Python downloader output:")
+print(status)
+
+message("Downloader finished. Proceeding to bias correction...")

@@ -1,0 +1,17 @@
+{
+    "sortOrder": [
+        {
+            "columnIndex": 2,
+            "ascending": true
+        },
+        {
+            "columnIndex": 3,
+            "ascending": false
+        },
+        {
+            "columnIndex": 4,
+            "ascending": false
+        }
+    ],
+    "path": "~/agwise-planting-date-and-cultivar/Data/useCase_Kenya_KALRO_app2/Maize/Forecast/python"
+}

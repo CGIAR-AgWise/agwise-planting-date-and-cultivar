@@ -1,0 +1,26 @@
+{
+    "id": "FC5987AB",
+    "path": "~/agwise-planting-date-and-cultivar/Scripts/useCases/UseCase_Country_Templates/Maize/DSSAT/01_get_CM_geo_KALRO_Maize.R",
+    "project_path": "Scripts/useCases/UseCase_Country_Templates/Maize/DSSAT/01_get_CM_geo_KALRO_Maize.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1765890184378.0,
+    "source_on_save": false,
+    "relative_order": 3,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Sourceb2gszpwiturr",
+        "cursorPosition": "10,0",
+        "scrollLine": "0"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1765891535,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1765891535304,
+    "read_only": false,
+    "read_only_alternatives": []
+}

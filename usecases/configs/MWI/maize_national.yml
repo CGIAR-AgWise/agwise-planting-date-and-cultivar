@@ -1,0 +1,29 @@
+name: Malawi maize seasonal forecast to DSSAT
+country_code: MWI
+country_name: Malawi
+use_case_name: National
+crop: Maize
+zones:
+  - Northern
+  - Central
+  - Southern
+season_start_month: 11
+season_start_day: 1
+season_year: 2025
+season_length_months: 5
+lead_months: 1
+n_cores: 4
+variables:
+  - PRCP
+  - TMAX
+  - TMIN
+  - SRAD
+manual_extent: true
+extent:
+  - -9.2
+  - 32.6
+  - -17.2
+  - 36.0
+skip_dssat: false
+create_dssat_weather_files: false
+varietyid: 999993

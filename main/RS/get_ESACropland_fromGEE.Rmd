@@ -1,0 +1,108 @@
+---
+title: "Get ESA Cropland"
+author: "Leroux Louise, EiA2030"
+date: "2024-04-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+ This script allows to download the ESA World Cover Cropland resample at the MODIS spatial resolution for the targeted use case:  
+1. Read and prepare the relevant boundary data  
+2. Prepare the ESA World Cover data  
+3. Export the ESA World Cover data at 250-m  
+ 
+ Pre-requisites:  
+ 1. Create a Google Earth Engine Account  
+ 2. Connect to your Google Earth Engine Account  
+ 3. Create a new script on the Earth Engine Code Editor : [link](https://code.earthengine.google.com/)  
+ 4. Copy-paste the following script and make the required changes
+ 
+# Google Earth Engine Script
+## 1 - Importing and visualizing the data
+### 1a - Use case Boundary
+The following lines need to be adapted and specified by the user.  
+
+#### Import Use Case boundary  
+The FAO GAUL dataset is used. It provides information at the country level (level0), N-1 level (level1 eg Province) and N-2 level (level2 eg County).
+*If the use case is at the National scale, please adapt and run the following lines.*
+```
+var target_values1 = ee.Filter.inList('ADM0_NAME', ['Kenya']);  
+var country = ee.FeatureCollection('FAO/GAUL/2015/level0').filter(target_values1);
+```
+*If the use case is at the administrative Level 1, please adapt and run the following lines.*
+```
+var target_values1 = ee.Filter.inList('ADM0_NAME', ['Kenya']);  
+var target_values2 = ee.Filter.inList('ADM1_NAME', ['Coast']); // To work at Province level
+var country = ee.FeatureCollection('FAO/GAUL/2015/level1').filter(target_values1)filter(target_values2);
+```
+*If the use case is at the administrative Level 2, please adapt and run the following lines.*
+```
+var target_values1 = ee.Filter.inList('ADM0_NAME', ['Kenya']);  
+var target_values2 = ee.Filter.inList('ADM2_NAME', ['Kitui']); // To work at County level
+var country = ee.FeatureCollection('FAO/GAUL/2015/level2').filter(target_values1)filter(target_values2);
+```
+
+**DO NOT MODIFY FROM HERE**
+
+#### Convert the Use Case boundary feature collection to a line for map display    
+```
+var countryBorder =
+    ee.Image().byte().paint({featureCollection: country, color: 1, width: 3});
+Map.setOptions('SATELLITE');
+Map.centerObject(country);
+Map.addLayer(countryBorder, null, 'Country border');
+```
+
+### 1b - ESA World Cover
+The ESA World Cover documentation is available [here](https://developers.google.com/earth-engine/datasets/catalog/ESA_WorldCover_v200#description).  
+The cropland class is coded as 40.  
+
+#### Import ESA World Cover 
+```
+var dataset = ee.ImageCollection('ESA/WorldCover/v200').first();
+```
+
+## 2 - Preparing the ESA World Cover Data  
+#### Crop the ESA World Cover with the Use Case Boundary
+```
+var esalc = dataset.clipToCollection(country);
+```
+
+#### Create a binary mask crop (1) / non crop (0)
+```
+var crop=esalc.eq(40); // Cropland class value = 40
+
+var imgMasked = esalc.updateMask(crop);
+Map.addLayer(imgMasked, {palette: ['yellow']}, 'Cropland Only')
+```
+
+#### Reproject the binary mask and change the spatial resolution from 10-m to 250-m
+```
+var imgMaskedP = imgMasked.reproject('EPSG:4326',null, 250)
+Map.addLayer(imgMaskedP, {palette: ['yellow']}, 'cropland at MODIS resolution');
+print(imgMaskedP);
+```
+
+## 3 - Export the ESA World Cover Crop data at 250-m  
+#### Export cropland map at 250-m to Google Drive; alter the command to export to other endpoints
+The description parameter needs to be change to set the appropriate output name.   
+Open the tasks tab and click on **RUN** to submit the task and launch the export of the resulting map. 
+
+```
+Export.image.toDrive({
+image: imgMaskedP,
+description: 'CropMask_ESAWC_Kenya_Kitui_250m',
+scale: 250,
+region: country,
+maxPixels: 1e13,
+});
+```
+
+**The final crop mask has to be uploaded under CGlabs following that direction:**
+```
+/home/jovyan/agwise-planting-date-and-cultivar/Data/'useCaseName'/RS/raw/CropMask/CropMask_ESAWC_'useCaseName'_250m.tif
+```

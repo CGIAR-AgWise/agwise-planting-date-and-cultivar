@@ -1,0 +1,31 @@
+name: Ethiopia maize seasonal forecast to DSSAT
+country_code: ETH
+country_name: Ethiopia
+use_case_name: National
+crop: Maize
+zones:
+  - Amhara
+  - Oromia
+  - SNNPR
+  - Somali
+  - Tigray
+season_start_month: 6
+season_start_day: 1
+season_year: 2025
+season_length_months: 4
+lead_months: 1
+n_cores: 4
+variables:
+  - PRCP
+  - TMAX
+  - TMIN
+  - SRAD
+manual_extent: true
+extent:
+  - 15.5
+  - 32.8
+  - 3.0
+  - 48.2
+skip_dssat: false
+create_dssat_weather_files: false
+varietyid: 999993

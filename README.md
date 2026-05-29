@@ -70,7 +70,6 @@ data/
   usecases/                  DSSAT templates and generated crop-model files
   archive/                   Archived legacy, stale, or metadata files
 
-docs/                        Additional documentation
 tests/                       Smoke and validation checks
 archive/                     Archived legacy scripts and unused code
 ```
@@ -221,7 +220,7 @@ The Kenya example includes a step-by-step script for users who prefer running
 the workflow from RStudio:
 
 ```text
-usecases/07_kenya_maize_example_rstudio_workflow.R
+usecases/07_kenya_maize_example_workflow.R
 ```
 
 This script demonstrates how to:
@@ -244,7 +243,7 @@ RUN_MODE <- "forecast_and_dssat_files"
 
 Recommended RStudio workflow:
 
-1. Open `usecases/07_kenya_maize_example_rstudio_workflow.R`.
+1. Open `usecases/07_kenya_maize_example_workflow.R`.
 2. Keep `RUN_MODE <- "dry_run"` for the first run.
 3. Check the printed command, extent, zone, and selected variety.
 4. Change to `RUN_MODE <- "forecast"` when CDS credentials and dependencies
@@ -295,7 +294,7 @@ usecases/03_ghana_maize_forecast.R
 usecases/04_malawi_maize_forecast.R
 usecases/05_multi_country_maize_forecast.R
 usecases/06_kenya_maize_example_forecast.R
-usecases/07_kenya_maize_example_rstudio_workflow.R
+usecases/07_kenya_maize_example_workflow.R
 ```
 
 The wrapper scripts call the same YAML-driven runner. They are provided for
@@ -650,7 +649,6 @@ Set the selected cultivar with `varietyid` in the YAML config.
 Additional documentation:
 
 ```text
-docs/pipeline_overview.md
 data/README.md
 usecases/README.md
 main/Forecast/README.md

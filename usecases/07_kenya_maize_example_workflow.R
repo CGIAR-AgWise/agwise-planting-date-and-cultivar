@@ -1,5 +1,5 @@
 ###############################################################################
-# Script: 07_kenya_maize_example_rstudio_workflow.R
+# Script: 07_kenya_maize_example_workflow.R
 # Purpose:
 #   RStudio-friendly end-to-end Kenya maize example workflow. The script shows
 #   how a local user can inspect DSSAT variety options, create/update the YAML

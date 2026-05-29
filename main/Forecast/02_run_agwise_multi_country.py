@@ -293,7 +293,7 @@ def run_country_pipeline(country_code: str, nb_cores: int = 10, force_download: 
         force_download=force_download,
     )
 
-    season_year = int(cfg.get("forecast_year", datetime.now().year))
+    season_year = int(cfg.get("forecast_year", datetime.datetime.now().year))
     target_obs_year = max(season_year, int(cfg.get("forecast_init_year", season_year)))
     downloader.AgWise_Download_AgroIndicators_daily(
         dir_to_save=dir_to_save_obs,

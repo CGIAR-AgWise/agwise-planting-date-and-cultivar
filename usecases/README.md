@@ -68,7 +68,7 @@ configs/ETH/maize_national.yml
 configs/GHA/maize_national.yml
 configs/MWI/maize_national.yml
 06_kenya_maize_example_forecast.R
-07_kenya_maize_example_rstudio_workflow.R
+07_kenya_maize_example_workflow.R
 01_rwanda_maize_forecast.R
 02_ethiopia_maize_forecast.R
 03_ghana_maize_forecast.R

@@ -1,5 +1,5 @@
 # Ignore the heavy data subfolders
-data/global/
+data/
 data/archive/
 archive/
 

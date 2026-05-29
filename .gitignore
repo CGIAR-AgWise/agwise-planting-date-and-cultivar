@@ -3,6 +3,8 @@ data/global/
 data/archive/
 archive/
 
+**/*.nc
+
 # History files
 .Rhistory
 .Rapp.history

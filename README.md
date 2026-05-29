@@ -464,36 +464,6 @@ DSSAT handoff outputs are written to:
 data/countries/<ISO3>/forecast/dssat_handoff/
 ```
 
-## ECMWF Accumulation and Unit Conversion
-
-ECMWF and DSSAT use different conventions for precipitation and solar
-radiation. ECMWF seasonal forecast files can store precipitation and solar
-radiation as accumulated values across forecast steps. DSSAT requires isolated
-daily values.
-
-Daily total:
-
-```text
-Daily total = current cumulative value - previous cumulative value
-```
-
-Day 1 uses the step-0 baseline, normally zero.
-
-Solar radiation conversion:
-
-```text
-SRAD = (SSRD_step_n - SSRD_step_n-24) / 1,000,000
-```
-
-Rainfall conversion:
-
-```text
-RAIN = (TP_step_n - TP_step_n-24) * 1,000
-```
-
-These conversions must happen before DSSAT weather preparation. Negative SRAD
-usually indicates an accumulation or step-ordering problem.
-
 ## DSSAT Handoff and Formatting
 
 The forecast bridge writes handoff files such as:
@@ -578,7 +548,6 @@ After running the pipeline, confirm:
 - Bias-corrected files exist under `forecast/bias_corrected/`.
 - DSSAT handoff RDS files exist under `forecast/dssat_handoff/`.
 - `manifest.csv` lists the expected zones.
-- SRAD values are non-negative.
 - RAIN values are daily totals, not cumulative totals.
 - TMAX is generally greater than or equal to TMIN.
 - WTH files contain daily rows for the expected forecast horizon.
@@ -643,17 +612,6 @@ Example:
 5.57,33.40,-5.23,42.43
 ```
 
-### Negative SRAD
-
-SRAD should not be negative in DSSAT-ready weather data. Negative values usually
-mean accumulated ECMWF solar radiation was differenced incorrectly.
-
-Check:
-
-```text
-SRAD = (current cumulative SSRD - previous cumulative SSRD) / 1,000,000
-```
-
 ### Rainfall is cumulative
 
 Rainfall should be a daily total. If it grows every day like a cumulative
@@ -686,15 +644,6 @@ data/usecases/useCase_<Country>_<UseCaseName>/<Crop>/DSSAT/
 The pipeline reads cultivar options from `INGENO` and the variety/name column.
 Set the selected cultivar with `varietyid` in the YAML config.
 
-### macOS metadata files
-
-On external drives, macOS may create AppleDouble files named `._*` and
-`.DS_Store`. These are not pipeline inputs. Active folders should stay clean;
-metadata artifacts should be archived under:
-
-```text
-data/archive/apple_metadata/
-```
 
 ## Documentation
 

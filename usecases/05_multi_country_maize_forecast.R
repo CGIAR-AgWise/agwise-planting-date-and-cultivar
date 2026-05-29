@@ -13,13 +13,20 @@ file_arg <- grep("^--file=", commandArgs(FALSE), value = TRUE)
 script_dir <- if (length(file_arg)) dirname(normalizePath(sub("^--file=", "", file_arg[[1]]), mustWork = TRUE)) else "usecases"
 source(file.path(script_dir, "00_usecase_helpers.R"))
 
-configs <- c(
-  "configs/KEN/maize_example.yml",
-  "configs/RWA/maize_rab.yml",
-  "configs/ETH/maize_national.yml",
-  "configs/GHA/maize_national.yml",
-  "configs/MWI/maize_national.yml"
+repo_root <- usecase_repo_root()
+configs <- list.files(
+  file.path(repo_root, "usecases", "configs"),
+  pattern = "[.]ya?ml$",
+  recursive = TRUE,
+  full.names = TRUE
 )
+configs <- configs[vapply(configs, function(config) {
+  identical(read_usecase_yaml(config)$crop, "Maize")
+}, logical(1))]
+
+if (!length(configs)) {
+  stop("No maize YAML configs found under usecases/configs/<ISO3>/")
+}
 
 for (config in configs) {
   run_usecase_config(config)

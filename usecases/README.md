@@ -28,20 +28,32 @@ Run all configured country scenarios:
 Rscript usecases/run_multi_country.R
 ```
 
-Create a new YAML config:
+Create a new country/crop use case without editing `main/Forecast` or
+`main/DSSAT`:
 
 ```bash
 Rscript usecases/create_usecase_config.R \
-  --country RWA \
-  --country-name Rwanda \
-  --use-case RAB \
+  --country TZA \
+  --country-name Tanzania \
+  --use-case National \
   --crop Maize \
-  --zones Amajyaruguru,Amajyepfo,Iburasirazuba \
-  --season-start-month 9 \
-  --season-year 2025 \
+  --zones Arusha,Dodoma \
+  --season-start-month 11 \
+  --season-year 2026 \
   --season-length-months 4 \
   --lead-months 1 \
-  --extent -0.8,28.7,-2.9,31.1
+  --n-cores 4 \
+  --extent -1.234,29.123,-11.222,40.987
+```
+
+The creator writes `usecases/configs/<ISO3>/<crop_usecase>.yml`, creates the
+standard data folders, and writes a thin wrapper script in `usecases/`. It also
+normalizes the CDS extent to the required `0.01` degree grid.
+
+Validate the generated use case:
+
+```bash
+Rscript usecases/run_usecase.R usecases/configs/TZA/maize_national.yml --dry-run --n-cores 4
 ```
 
 Common overrides:

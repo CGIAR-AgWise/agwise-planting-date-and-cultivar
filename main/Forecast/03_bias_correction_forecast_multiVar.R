@@ -248,11 +248,18 @@ run_agwise_seasonal_forecast_BC <- function(
       if (!isTRUE(export_dssat)) return(invisible(NULL))
       message("Preparing DSSAT geo RDS forecast inputs for readGeo_CM_zone.R...")
       t_dssat <- Sys.time()
-      dssat_cmd <- sprintf(
-        "Rscript %s --config %s --overwrite",
-        shQuote(dssat_geo_script), shQuote(config_json_path)
+      tmp_dir <- Sys.getenv(
+        "TMPDIR",
+        unset = "/Volumes/T7/tmp"
       )
-      dssat_status <- system(dssat_cmd, intern = TRUE)
+      dir.create(tmp_dir, recursive = TRUE, showWarnings = FALSE)
+      dssat_status <- system2(
+        "Rscript",
+        args = c(dssat_geo_script, "--config", config_json_path, "--overwrite"),
+        stdout = TRUE,
+        stderr = TRUE,
+        env = paste0("TMPDIR=", tmp_dir)
+      )
       dssat_exit <- attr(dssat_status, "status")
       message("DSSAT geo input preparation output:")
       print(dssat_status)
@@ -328,7 +335,7 @@ run_agwise_seasonal_forecast_BC <- function(
         ")"
       )
       env <- c(
-        paste0("TMPDIR=", Sys.getenv("TMPDIR", unset = "/tmp")),
+        paste0("TMPDIR=", Sys.getenv("TMPDIR", unset = "/Volumes/T7/tmp")),
         "OMP_NUM_THREADS=1",
         "OPENBLAS_NUM_THREADS=1",
         "MKL_NUM_THREADS=1",

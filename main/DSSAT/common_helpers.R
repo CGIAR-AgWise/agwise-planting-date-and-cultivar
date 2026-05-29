@@ -194,32 +194,77 @@ getGridCoordinates <- function(
 }
 
 
-### Plan multisession
-plan_multisession <- function(per_worker_gb) {
-  # Detect RAM limits (container-aware)
+detect_available_ram_gb <- function() {
   ram_limit_file <- "/sys/fs/cgroup/memory/memory.limit_in_bytes"
   if (file.exists(ram_limit_file)) {
-    ram_limit_bytes <- as.numeric(readLines(ram_limit_file))
+    ram_limit_bytes <- suppressWarnings(as.numeric(readLines(ram_limit_file, warn = FALSE)))
     if (!is.na(ram_limit_bytes) && ram_limit_bytes < 2 ^ 60) {
-      available_ram_gb <- ram_limit_bytes / 1024 ^ 3
-    } else {
-      available_ram_gb <- as.numeric(system("grep MemAvailable /proc/meminfo | awk '{print $2}'", intern=TRUE)) / 1024 / 1024
+      return(ram_limit_bytes / 1024 ^ 3)
     }
-  } else {
-    available_ram_gb <- as.numeric(system("grep MemAvailable /proc/meminfo | awk '{print $2}'", intern=TRUE)) / 1024 / 1024
   }
+
+  if (file.exists("/proc/meminfo")) {
+    mem_line <- grep("^MemAvailable:", readLines("/proc/meminfo", warn = FALSE), value = TRUE)
+    mem_kb <- suppressWarnings(as.numeric(sub("^MemAvailable:[[:space:]]+([0-9]+).*", "\\1", mem_line[1])))
+    if (length(mem_kb) && is.finite(mem_kb)) return(mem_kb / 1024 / 1024)
+  }
+
+  sysctl_bytes <- suppressWarnings(as.numeric(system2("sysctl", c("-n", "hw.memsize"), stdout = TRUE, stderr = FALSE)))
+  if (length(sysctl_bytes) && is.finite(sysctl_bytes)) return(sysctl_bytes / 1024 ^ 3)
+
+  NA_real_
+}
+
+### Plan multisession
+plan_multisession <- function(per_worker_gb, max_workers = NULL) {
+  requested_workers <- max_workers
+  if (is.null(requested_workers)) {
+    env_workers <- Sys.getenv("AGWISE_N_CORES", unset = NA_character_)
+    requested_workers <- suppressWarnings(as.integer(env_workers))
+  }
+  if (!length(requested_workers) || is.na(requested_workers) || requested_workers < 1) {
+    requested_workers <- NULL
+  }
+
+  available_ram_gb <- detect_available_ram_gb()
   
   # Compute safe number of workers
-  workers <- floor(available_ram_gb / per_worker_gb)
+  memory_workers <- if (is.finite(available_ram_gb)) {
+    max(1L, floor(available_ram_gb / per_worker_gb))
+  } else {
+    Inf
+  }
   detected_cores <- suppressWarnings(availableCores())
   if (is.na(detected_cores)) detected_cores <- 1
-  workers <- min(workers, detected_cores - 3)
-  workers <- max(workers, 1)
+  detected_cores <- max(1L, as.integer(detected_cores))
+
+  if (is.null(requested_workers)) {
+    workers <- min(memory_workers, max(1L, detected_cores - 1L))
+  } else {
+    workers <- min(as.integer(requested_workers), memory_workers)
+  }
+  workers <- max(1L, as.integer(workers))
   
   # Activate plan
-  suppressWarnings(plan(multisession, workers = workers))
+  if (!is.null(requested_workers)) {
+    options(parallelly.maxWorkers.localhost = Inf)
+  }
+  backend <- if (
+    workers > 1L &&
+      .Platform$OS.type != "windows" &&
+      isTRUE(future::supportsMulticore())
+  ) {
+    future::multicore
+  } else {
+    future::multisession
+  }
+  backend_name <- if (identical(backend, future::multicore)) "multicore" else "multisession"
+  suppressWarnings(plan(backend, workers = workers))
   
-  message("Parallel plan: ", workers, " workers, estimated per-worker RAM: ", per_worker_gb, " GB")
+  message(
+    "Parallel plan: ", workers, " workers (", backend_name,
+    "), estimated per-worker RAM: ", per_worker_gb, " GB"
+  )
 }
 
 

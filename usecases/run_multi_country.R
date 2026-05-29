@@ -13,8 +13,8 @@ file_arg <- grep("^--file=", commandArgs(FALSE), value = TRUE)
 script_dir <- if (length(file_arg)) dirname(normalizePath(sub("^--file=", "", file_arg[[1]]), mustWork = TRUE)) else "usecases"
 source(file.path(script_dir, "00_usecase_helpers.R"))
 
-args <- commandArgs(trailingOnly = TRUE)
-config_args <- args[!startsWith(args, "--")]
+cli <- parse_usecase_args()
+config_args <- cli[[".positionals"]] %||% character()
 repo_root <- usecase_repo_root()
 
 if (!length(config_args)) {

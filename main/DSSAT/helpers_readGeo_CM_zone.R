@@ -268,7 +268,7 @@ build_DSSAT_WTH <- function(TMAX, TMIN, SRAD, RAIN) {
     mutate(
       DATE = as.POSIXct(Date, format = "%Y-%m-%d", tz = "UTC")
     ) %>%
-    dplyr::select(DATE, TMAX, TMIN, SRAD, RAIN) %>%
+    dplyr::select(DATE, SRAD, TMAX, TMIN, RAIN) %>%
     mutate(across(c(TMAX, TMIN, SRAD, RAIN), as.numeric)) %>%
     mutate(
       TMAX_RAW = TMAX,

@@ -332,7 +332,7 @@ extent:
   - -5.23
   - 42.43
 skip_dssat: false
-create_dssat_weather_files: false
+create_dssat_weather_files: true
 varietyid: 999993
 ```
 
@@ -361,44 +361,68 @@ varietyid                    DSSAT cultivar/variety code
 
 ## Creating a New Country or Crop Use Case
 
-Create a new YAML config with:
+New countries are added from `usecases/` only. Do not edit scripts in
+`main/Forecast/` or `main/DSSAT/`; those are shared production engines.
+
+Create a new YAML config, folder scaffold, and optional wrapper script with:
 
 ```bash
 Rscript usecases/create_usecase_config.R \
-  --country KEN \
-  --country-name Kenya \
-  --use-case Example \
+  --country TZA \
+  --country-name Tanzania \
+  --use-case National \
   --crop Maize \
-  --zones Kisumu \
-  --season-start-month 10 \
+  --zones Arusha,Dodoma \
+  --season-start-month 11 \
   --season-start-day 1 \
-  --season-year 2025 \
-  --season-length-months 3 \
+  --season-year 2026 \
+  --season-length-months 4 \
   --lead-months 1 \
   --n-cores 4 \
-  --extent 5.57,33.40,-5.23,42.43 \
+  --extent -1.234,29.123,-11.222,40.987 \
   --varietyid 999993
 ```
 
-Then prepare the required folders:
+The creator validates the config, expands the CDS bounding box outward to the
+nearest `0.01` degree, writes:
+
+```text
+usecases/configs/<ISO3>/<crop_usecase>.yml
+usecases/<country>_<crop>_<usecase>_forecast.R
+```
+
+and prepares the folder scaffold:
 
 ```text
 data/countries/<ISO3>/
 data/usecases/useCase_<Country>_<UseCaseName>/<Crop>/DSSAT/
 ```
 
+Run the generated use case without editing main scripts:
+
+```bash
+Rscript usecases/run_usecase.R usecases/configs/TZA/maize_national.yml --dry-run --n-cores 4
+Rscript usecases/run_usecase.R usecases/configs/TZA/maize_national.yml --n-cores 4
+```
+
+or use the generated wrapper:
+
+```bash
+Rscript usecases/tanzania_maize_national_forecast.R --dry-run --n-cores 4
+```
+
 Minimum adaptation checklist:
 
 1. Choose country ISO3, country name, use-case name, crop, and zones.
-2. Prepare or verify country observations under `data/countries/<ISO3>/`.
-3. Add DSSAT templates under the matching `data/usecases/` folder.
-4. Add local cultivar rows to the DSSAT template CSV.
-5. Confirm the CDS extent uses `North, West, South, East`.
-6. Start with `--dry-run`.
-7. Run the forecast and bias correction.
-8. Inspect forecast logs and output folders.
-9. Confirm DSSAT handoff RDS files were created.
-10. Run DSSAT formatting if WTH and SOL files are needed.
+2. Create the YAML with `usecases/create_usecase_config.R`.
+3. Confirm the CDS extent uses `North, West, South, East`.
+4. Start with `--dry-run`.
+5. Run the forecast and bias correction.
+6. Inspect forecast logs and output folders.
+7. Confirm DSSAT handoff RDS files were created.
+8. Add DSSAT templates under `data/usecases/.../DSSAT/` before enabling WTH/SOL formatting.
+9. Add local cultivar rows to the DSSAT template CSV.
+10. Set `create_dssat_weather_files: true` or use `--format-zones` when WTH and SOL files are needed.
 
 ## One-Month Forecast Lead Time
 

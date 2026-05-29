@@ -14,6 +14,10 @@
 }
 
 usecase_script_dir <- function() {
+  env_dir <- Sys.getenv("AGWISE_USECASES_DIR", unset = NA_character_)
+  if (!is.na(env_dir) && file.exists(file.path(env_dir, "00_usecase_helpers.R"))) {
+    return(normalizePath(env_dir, mustWork = TRUE))
+  }
   file_arg <- grep("^--file=", commandArgs(FALSE), value = TRUE)
   if (length(file_arg)) {
     return(dirname(normalizePath(sub("^--file=", "", file_arg[[1]]), mustWork = TRUE)))
@@ -23,6 +27,12 @@ usecase_script_dir <- function() {
 
 usecase_repo_root <- function() {
   normalizePath(file.path(usecase_script_dir(), ".."), mustWork = TRUE)
+}
+
+agwise_tmp_dir <- function() {
+  tmp_dir <- Sys.getenv("AGWISE_TMPDIR", unset = "/Volumes/T7/tmp")
+  dir.create(tmp_dir, recursive = TRUE, showWarnings = FALSE)
+  normalizePath(tmp_dir, mustWork = FALSE)
 }
 
 parse_usecase_args <- function(args = commandArgs(trailingOnly = TRUE)) {
@@ -36,7 +46,10 @@ parse_usecase_args <- function(args = commandArgs(trailingOnly = TRUE)) {
       next
     }
     name <- sub("^--", "", key)
-    if (name %in% c("dry-run", "force-download", "skip-dssat", "format-zones")) {
+    if (name %in% c(
+      "dry-run", "force-download", "skip-dssat", "format-zones",
+      "overwrite", "no-wrapper", "no-folders", "create-dssat-weather-files"
+    )) {
       out[[name]] <- TRUE
       i <- i + 1L
     } else {
@@ -234,8 +247,7 @@ run_forecast_usecase <- function(usecase, cli = parse_usecase_args(), repo_root 
 
   if (isTRUE(cli[["dry-run"]])) return(invisible(args))
 
-  tmp_dir <- file.path(repo_root, "tmp")
-  dir.create(tmp_dir, recursive = TRUE, showWarnings = FALSE)
+  tmp_dir <- agwise_tmp_dir()
   status <- system2("Rscript", args = args, env = paste0("TMPDIR=", tmp_dir))
   if (!identical(as.integer(status), 0L)) {
     stop("Forecast use case failed with exit status ", status, ": ", usecase$name %||% usecase$country_code)
@@ -247,9 +259,15 @@ format_dssat_zones <- function(usecase, cli = parse_usecase_args(), repo_root = 
   if (!isTRUE(usecase$create_dssat_weather_files) && !isTRUE(cli[["format-zones"]])) {
     return(invisible(NULL))
   }
+  if (isTRUE(cli[["dry-run"]])) {
+    zones <- usecase$zones %||% "auto/from forecast manifest"
+    message("Dry run: would format DSSAT weather/soil files for zone(s): ", paste(zones, collapse = ", "))
+    return(invisible(zones))
+  }
 
-  project_root <- repo_root
-  source(file.path(repo_root, "main", "DSSAT", "readGeo_CM_zone.R"))
+  dssat_env <- new.env(parent = globalenv())
+  dssat_env$project_root <- repo_root
+  sys.source(file.path(repo_root, "main", "DSSAT", "readGeo_CM_zone.R"), envir = dssat_env)
 
   forecast_path <- file.path(
     repo_root, "data", "countries", usecase$country_code,
@@ -262,9 +280,20 @@ format_dssat_zones <- function(usecase, cli = parse_usecase_args(), repo_root = 
   }
 
   init <- forecast_init_from_usecase(usecase)
+  old_n_cores <- Sys.getenv("AGWISE_N_CORES", unset = NA_character_)
+  requested_n_cores <- cli[["n-cores"]] %||% usecase$n_cores %||% 1
+  Sys.setenv(AGWISE_N_CORES = as.character(requested_n_cores))
+  on.exit({
+    if (is.na(old_n_cores)) {
+      Sys.unsetenv("AGWISE_N_CORES")
+    } else {
+      Sys.setenv(AGWISE_N_CORES = old_n_cores)
+    }
+  }, add = TRUE)
+
   for (zone in zones) {
     message("Formatting DSSAT weather/soil files for zone: ", zone)
-    readGeo_CM_zone(
+    dssat_env$readGeo_CM_zone(
       country = usecase$country_name,
       useCaseName = usecase$use_case_name,
       Crop = usecase$crop,
@@ -282,7 +311,7 @@ format_dssat_zones <- function(usecase, cli = parse_usecase_args(), repo_root = 
       forecast_pathIn = forecast_path
     )
   }
-  future::plan(future::sequential)
+  if (requireNamespace("future", quietly = TRUE)) future::plan(future::sequential)
   invisible(zones)
 }
 

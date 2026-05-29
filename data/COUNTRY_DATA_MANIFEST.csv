@@ -1,0 +1,7 @@
+country_code,country_name,config_path,season,season_year,season_start,forecast_init,lead_months,status,notes
+KEN,Kenya,data/countries/KEN/config/KEN_config_agwise.json,OND,2025,2025-10-01,2025-09-01,1,configured_waiting_for_new_download,"Run usecases/configs/KEN/maize_example.yml or the RStudio workflow; previous Oct1 raw/BC/DSSAT outputs archived under data/archive/legacy_20260528/KEN/pre_one_month_lead_oct_init"
+RWA,Rwanda,data/countries/RWA/config/RWA_config_agwise.json,SOND,2025,2025-09-01,2025-08-01,1,usecase_scaffold,"Run usecases/configs/RWA/maize_rab.yml through usecases/run_usecase.R to create the config and populate forecast outputs"
+ETH,Ethiopia,data/countries/ETH/config/ETH_config_agwise.json,JJAS,2025,2025-06-01,2025-05-01,1,usecase_scaffold,"Run usecases/configs/ETH/maize_national.yml through usecases/run_usecase.R to create the config and populate forecast outputs"
+GHA,Ghana,data/countries/GHA/config/GHA_config_agwise.json,MJJAS,2025,2025-05-01,2025-04-01,1,usecase_scaffold,"Run usecases/configs/GHA/maize_national.yml through usecases/run_usecase.R to create the config and populate forecast outputs"
+MWI,Malawi,data/countries/MWI/config/MWI_config_agwise.json,NDJFM,2025,2025-11-01,2025-10-01,1,usecase_scaffold,"Run usecases/configs/MWI/maize_national.yml through usecases/run_usecase.R to create the config and populate forecast outputs"
+ZMB,Zambia,data/countries/ZMB/config/ZMB_config_agwise.json,JFM,2026,2026-01-01,2025-12-01,1,config_test_only,"Used to validate country-agnostic cross-year lead-time configuration"

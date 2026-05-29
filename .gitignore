@@ -1,4 +1,6 @@
-data/
+# Ignore the heavy data subfolders
+data/global/
+data/archive/
 archive/
 
 # History files

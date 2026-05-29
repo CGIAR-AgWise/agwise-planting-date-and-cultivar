@@ -1,2 +1,0 @@
-usecase_id,country,country_code,use_case_name,crop,path,status,notes
-useCase_Kenya_Example,Kenya,KEN,Example,Maize,data/usecases/useCase_Kenya_Example,active_template,"DSSAT template files for Kenya example use case; generated transform outputs are recreated by the DSSAT formatter"

@@ -3,10 +3,6 @@
 # Script: 04_prepare_dssat_geo_inputs.R
 # Purpose: Prepare AgWISE forecast point-data RDS files for readGeo_CM_zone.R.
 #
-# Author: Jemal S. Ahmed
-# Email: jemal.ahmed@cgiar.org
-# Institution: Alliance of Bioversity International and CIAT (CGIAR)
-# Date: 2026-05-29
 #
 # This is the bridge between the climate forecast pipeline and the existing
 # DSSAT formatter. It samples daily bias-corrected forecast NetCDF files at the
@@ -20,6 +16,11 @@
 #
 # Default output:
 #   data/countries/<ISO3>/forecast/dssat_handoff/
+#
+# Author: Jemal S. Ahmed
+# Email: jemal.ahmed@cgiar.org
+# Institution: Alliance of Bioversity International and CIAT (CGIAR)
+# Date: 2026-05-29
 ###############################################################################
 
 suppressPackageStartupMessages({

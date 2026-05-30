@@ -1,10 +1,6 @@
 """
 AgWise dailly Seasonal & Agro-Meteorological Data Acquisition Module
 ====================================================================
-Author: Jemal S. Ahmed
-Email: jemal.ahmed@cgiar.org
-Institution: Alliance of Bioversity International and CIAT (CGIAR)
-Date: 2026-05-29
 
 This script provides a unified, reproducible framework for downloading,
 standardizing, and preparing agro-climate datasets used in the AgWise and
@@ -31,13 +27,11 @@ This script functions as a foundational component within broader national and
 regional digital agro-climate ecosystems, where reliability, repeatability, and
 traceability of climate input data are essential.
 
-Author
-------
-Jemal Seid Ahmed  
-Alliance of Bioversity International & CIAT (CGIAR)  
+Author: Jemal S. Ahmed
 Email: jemal.ahmed@cgiar.org
+Institution: Alliance of Bioversity International and CIAT (CGIAR)
+Date: 2026-05-29
 
-Date: 12 Jun 2025
 Version: 1.5
 """
 

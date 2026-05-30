@@ -3,11 +3,6 @@
 #
 # Project: AgWISE – Planting Date & Cultivar Advisory System
 #
-# Author: Jemal S. Ahmed
-# Email: jemal.ahmed@cgiar.org
-# Institution: Alliance of Bioversity International and CIAT (CGIAR)
-# Date: 2026-05-29
-#
 # Purpose:
 #   Generate standardized, country-level JSON configuration files for the
 #   AgWISE climate–agronomy pipeline. The configuration defines spatial domain,
@@ -108,11 +103,11 @@
 #   - Explicit: each input is applied only under clearly defined conditions.
 #   - Pipeline-agnostic: usable by both R and Python workflows.
 #
-# Author:
-#   Jemal Ahmed (J.Ahmed@cgiar.org)
+# Author: Jemal S. Ahmed
+# Email: jemal.ahmed@cgiar.org
+# Institution: Alliance of Bioversity International and CIAT (CGIAR)
+# Date: 2026-05-29
 #
-# Last Updated:
-#   2025-10-04
 ###############################################################################
 
 load_packages_install <- function(pkgs) {

@@ -8,9 +8,12 @@
 
 # Introduction: 
 # This script allows the creation of weather and soil files up to administrative level 2
-# Authors : A. Carmona-Cabrero, P.Moreno, A. Sila, S. Mkuhlani, E.Bendito Garcia 
-# Credentials : EiA, 2026
-# Last modified February 05, 2026 
+# Modified Authors : A. Carmona-Cabrero, P.Moreno, A. Sila, S. Mkuhlani, E.Bendito Garcia 
+# Modified Author: Jemal S. Ahmed
+# Credentials : SFP & CASP 2026
+# Email: jemal.ahmed@cgiar.org
+# Institution: Alliance of Bioversity International and CIAT (CGIAR)
+# Last modified Date: 2026-05-29
 
 ### Load required packages
 source(paste0(project_root, '/main/DSSAT/common_helpers.R'))

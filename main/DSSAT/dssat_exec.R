@@ -1,16 +1,15 @@
 # Script: dssat_exec.R
 # Purpose: Create DSSAT batch files and run DSSAT simulations.
 #
-# Author: Jemal S. Ahmed
-# Email: jemal.ahmed@cgiar.org
-# Institution: Alliance of Bioversity International and CIAT (CGIAR)
-# Date: 2026-05-29
 
 # Introduction: 
 # This script allows the creation of Batch file and run the model
-# Authors : A. Carmona-Cabrero, A. Sila, S. Mkuhlani, E.Bendito Garcia 
-# Credentials : EiA, 2026
-# Last modified February, 2026
+# Original Authors : A. Carmona-Cabrero, A. Sila, S. Mkuhlani, E.Bendito Garcia 
+# Modified Author: Jemal S. Ahmed
+# Credentials : SFP & CASP 2026
+# Email: jemal.ahmed@cgiar.org
+# Institution: Alliance of Bioversity International and CIAT (CGIAR)
+# Last modified Date: 2026-05-29
 
 ### Load required packages
 packages_required <- c(

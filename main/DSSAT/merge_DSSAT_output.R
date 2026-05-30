@@ -9,8 +9,11 @@
 # Introduction: 
 # This script allows Merge output of the DSSAT simulations for diverse locations
 # Authors: A. Carmona-Cabrero, P.Moreno, , L. Leroux A. Sila, S. Mkuhlani, E.Bendito Garcia 
-# Credentials : EiA, 2026
-# Last modified February, 2026 
+# Modified Author: Jemal S. Ahmed
+# Credentials : SFP & CASP 2026
+# Email: jemal.ahmed@cgiar.org
+# Institution: Alliance of Bioversity International and CIAT (CGIAR)
+# Last modified Date: 2026-05-29
 
 #################################################################################################################
 ## sourcing required packages

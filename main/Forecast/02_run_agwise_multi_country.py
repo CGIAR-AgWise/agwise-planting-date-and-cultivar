@@ -2,10 +2,6 @@
 """
 AgWise Multi-Country daily S2S Seasonal forecast ensemble Data Preparation
 ==========================================================================
-Author: Jemal S. Ahmed
-Email: jemal.ahmed@cgiar.org
-Institution: Alliance of Bioversity International and CIAT (CGIAR)
-Date: 2026-05-29
 
 This script orchestrates downloading and preparing observation + model data
 (hindcast + forecast) across multiple countries.
@@ -19,6 +15,11 @@ CLI:
   python 02_run_agwise_multi_country.py --data-dir /path/to/data
   python 02_run_agwise_multi_country.py --data-dir /path/to/data --countries ETH GHA
   python 02_run_agwise_multi_country.py --data-dir /path/to/data --season DJFM
+
+Author: Jemal S. Ahmed
+Email: jemal.ahmed@cgiar.org
+Institution: Alliance of Bioversity International and CIAT (CGIAR)
+Date: 2026-05-29
 """
 
 from __future__ import annotations

@@ -4,11 +4,6 @@
 # AgWise Bias Correction & Statistical Downscaling Module
 # =======================================================
 #
-# Author: Jemal S. Ahmed
-# Email: jemal.ahmed@cgiar.org
-# Institution: Alliance of Bioversity International and CIAT (CGIAR)
-# Date: 2026-05-29
-#
 # Concept
 # -------
 # This script performs bias correction and statistical downscaling
@@ -75,13 +70,11 @@
 #   - Advisory products and decision-support tools,
 #   - Skill assessment and verification workflows.
 #
-# Author
-# ------
-# Jemal Seid Ahmed, Wuletaw Abera
-# Alliance of Bioversity International & CIAT (CGIAR)
-# Email: jemal.ahmed@cgiar.org
 #
-# Date: July 2025
+# Author: Jemal S. Ahmed
+# Email: jemal.ahmed@cgiar.org
+# Institution: Alliance of Bioversity International and CIAT (CGIAR)
+# Date: 2026-05-29
 # Version: 1.5
 ###############################################################
 options(warn = -1)

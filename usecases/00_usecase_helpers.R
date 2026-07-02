@@ -221,7 +221,7 @@ usecase_runner_args <- function(usecase, cli, repo_root) {
     "--n-cores", as.character(cli[["n-cores"]] %||% usecase$n_cores %||% 1),
     "--variables", as_cli_vars(usecase$variables %||% c("PRCP", "TMAX", "TMIN", "SRAD")),
     "--base-dir", cli[["base-dir"]] %||% file.path(repo_root, "data"),
-    "--py-path", cli[["py-path"]] %||% usecase$py_path %||% "/opt/anaconda3/envs/WASS2S/bin/python"
+    "--py-path", cli[["py-path"]] %||% usecase$py_path %||% "/home/jovyan/.conda-envs/agwise_fcst/bin/python"
   )
 
   if (isTRUE(usecase$manual_extent)) {

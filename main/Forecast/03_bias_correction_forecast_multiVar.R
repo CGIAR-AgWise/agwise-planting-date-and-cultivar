@@ -4,6 +4,11 @@
 # AgWise Bias Correction & Statistical Downscaling Module
 # =======================================================
 #
+# Author: Jemal S. Ahmed
+# Email: jemal.ahmed@cgiar.org
+# Institution: Alliance of Bioversity International and CIAT (CGIAR)
+# Date: 2026-05-29
+#
 # Concept
 # -------
 # This script performs bias correction and statistical downscaling
@@ -70,11 +75,13 @@
 #   - Advisory products and decision-support tools,
 #   - Skill assessment and verification workflows.
 #
-#
-# Author: Jemal S. Ahmed
+# Author
+# ------
+# Jemal Seid Ahmed, Wuletaw Abera
+# Alliance of Bioversity International & CIAT (CGIAR)
 # Email: jemal.ahmed@cgiar.org
-# Institution: Alliance of Bioversity International and CIAT (CGIAR)
-# Date: 2026-05-29
+#
+# Date: July 2025
 # Version: 1.5
 ###############################################################
 options(warn = -1)
@@ -82,8 +89,6 @@ source("00_config_function.R")
 
 ###############################################################
 
-
-# Path
 
 run_agwise_seasonal_forecast_BC <- function(
     country_code = "KEN",
@@ -96,7 +101,7 @@ run_agwise_seasonal_forecast_BC <- function(
     manual_domain_name = "User_Domain",
     base_dir=normalizePath("../../data", mustWork = FALSE),
     main_script_dir = normalizePath(".", mustWork = TRUE),
-    py_path = "/opt/anaconda3/envs/WASS2S/bin/python",
+    py_path = "/home/jovyan/.conda-envs/agwise_fcst/bin/python",
     py_script = file.path(main_script_dir, "02_run_agwise_multi_country.py"),
     dssat_geo_script = file.path(main_script_dir, "04_prepare_dssat_geo_inputs.R"),
     variables_to_bc = c("PRCP", "TMAX", "TMIN", "TEMP", "SRAD"),
@@ -241,18 +246,11 @@ run_agwise_seasonal_forecast_BC <- function(
       if (!isTRUE(export_dssat)) return(invisible(NULL))
       message("Preparing DSSAT geo RDS forecast inputs for readGeo_CM_zone.R...")
       t_dssat <- Sys.time()
-      tmp_dir <- Sys.getenv(
-        "TMPDIR",
-        unset = "/Volumes/T7/tmp"
+      dssat_cmd <- sprintf(
+        "Rscript %s --config %s --overwrite",
+        shQuote(dssat_geo_script), shQuote(config_json_path)
       )
-      dir.create(tmp_dir, recursive = TRUE, showWarnings = FALSE)
-      dssat_status <- system2(
-        "Rscript",
-        args = c(dssat_geo_script, "--config", config_json_path, "--overwrite"),
-        stdout = TRUE,
-        stderr = TRUE,
-        env = paste0("TMPDIR=", tmp_dir)
-      )
+      dssat_status <- system(dssat_cmd, intern = TRUE)
       dssat_exit <- attr(dssat_status, "status")
       message("DSSAT geo input preparation output:")
       print(dssat_status)
@@ -268,7 +266,7 @@ run_agwise_seasonal_forecast_BC <- function(
     #############################################################
     
     bc_var_cfg <- list(
-      PRCP = list(obs_file_pattern="Daily_PRCP_%d_%d.nc", obs_var="precip",
+      PRCP = list(obs_file_pattern="Daily_PRCP_%d_%d.nc", obs_var="PRCP",
                   model_var="PRCP", is_precip=TRUE, method="ptr",
                   scaling.type="multiplicative", units="mm/day"),
       TMAX = list(obs_file_pattern="Daily_TMAX_%d_%d.nc", obs_var="TMAX",
@@ -328,7 +326,7 @@ run_agwise_seasonal_forecast_BC <- function(
         ")"
       )
       env <- c(
-        paste0("TMPDIR=", Sys.getenv("TMPDIR", unset = "/Volumes/T7/tmp")),
+        paste0("TMPDIR=", Sys.getenv("TMPDIR", unset = "/tmp")),
         "OMP_NUM_THREADS=1",
         "OPENBLAS_NUM_THREADS=1",
         "MKL_NUM_THREADS=1",
@@ -493,9 +491,17 @@ run_agwise_seasonal_forecast_BC <- function(
 
       nc_bc_rast <- terra::rast(grid2sp(nc_fcst_bc_interp))
       time(nc_bc_rast) <- as.Date(nc_fcst_bc_interp$Dates$start)
-
-      aoi <- terra::vect(file.path(aoi_config$dir_raw_admin, "gadm",
-                                   paste0("gadm41_", country_code, "_0_pk.rds")))
+      
+      aoi_file <- file.path(aoi_config$dir_raw_admin, "gadm",
+                            paste0("gadm41_", country_code, "_0_pk.rds"))
+      
+      if (file.exists(aoi_file)) {
+        aoi <- terra::vect(aoi_file)
+      } else {
+        aoi <- geodata::gadm(
+          country_code, level = 0, path = aoi_config$dir_raw_admin)
+      }
+      
       nc_bc_rast_masked <- terra::mask(nc_bc_rast, aoi)
 
       terra::writeCDF(x = nc_bc_rast_masked, filename = outFile,

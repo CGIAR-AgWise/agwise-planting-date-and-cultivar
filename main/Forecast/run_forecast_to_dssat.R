@@ -72,7 +72,7 @@ n_cores <- as_int(arg(args, "n-cores", "1"), "n-cores")
 variables <- as_vars(arg(args, "variables", "PRCP,TMAX,TMIN,SRAD"))
 
 base_dir <- normalizePath(arg(args, "base-dir", file.path(script_dir, "..", "..", "data")), mustWork = FALSE)
-py_path <- arg(args, "py-path", "/opt/anaconda3/envs/WASS2S/bin/python")
+py_path <- arg(args, "py-path", "/home/jovyan/.conda-envs/agwise_fcst/bin/python")
 force_download <- isTRUE(args[["force-download"]])
 export_dssat <- !isTRUE(args[["skip-dssat"]])
 use_manual_extent <- isTRUE(args[["manual-extent"]])

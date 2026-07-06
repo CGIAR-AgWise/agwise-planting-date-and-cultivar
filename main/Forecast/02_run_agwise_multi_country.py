@@ -2,6 +2,10 @@
 """
 AgWise Multi-Country daily S2S Seasonal forecast ensemble Data Preparation
 ==========================================================================
+Author: Jemal S. Ahmed
+Email: jemal.ahmed@cgiar.org
+Institution: Alliance of Bioversity International and CIAT (CGIAR)
+Date: 2026-05-29
 
 This script orchestrates downloading and preparing observation + model data
 (hindcast + forecast) across multiple countries.
@@ -15,11 +19,6 @@ CLI:
   python 02_run_agwise_multi_country.py --data-dir /path/to/data
   python 02_run_agwise_multi_country.py --data-dir /path/to/data --countries ETH GHA
   python 02_run_agwise_multi_country.py --data-dir /path/to/data --season DJFM
-
-Author: Jemal S. Ahmed
-Email: jemal.ahmed@cgiar.org
-Institution: Alliance of Bioversity International and CIAT (CGIAR)
-Date: 2026-05-29
 """
 
 from __future__ import annotations
@@ -27,7 +26,7 @@ from __future__ import annotations
 # from dask.distributed import LocalCluster, Client, as_completed  # not used
 
 from AgWise_download import *   # provides AgWise_Download, plot_map, etc.
-import datetime
+from datetime import datetime
 from pathlib import Path
 import warnings
 import gc
@@ -294,7 +293,7 @@ def run_country_pipeline(country_code: str, nb_cores: int = 10, force_download: 
         force_download=force_download,
     )
 
-    season_year = int(cfg.get("forecast_year", datetime.datetime.now().year))
+    season_year = int(cfg.get("forecast_year", datetime.now().year))
     target_obs_year = max(season_year, int(cfg.get("forecast_init_year", season_year)))
     downloader.AgWise_Download_AgroIndicators_daily(
         dir_to_save=dir_to_save_obs,

@@ -1,6 +1,10 @@
 """
 AgWise dailly Seasonal & Agro-Meteorological Data Acquisition Module
 ====================================================================
+Author: Jemal S. Ahmed
+Email: jemal.ahmed@cgiar.org
+Institution: Alliance of Bioversity International and CIAT (CGIAR)
+Date: 2026-05-29
 
 This script provides a unified, reproducible framework for downloading,
 standardizing, and preparing agro-climate datasets used in the AgWise and
@@ -27,11 +31,13 @@ This script functions as a foundational component within broader national and
 regional digital agro-climate ecosystems, where reliability, repeatability, and
 traceability of climate input data are essential.
 
-Author: Jemal S. Ahmed
+Author
+------
+Jemal Seid Ahmed  
+Alliance of Bioversity International & CIAT (CGIAR)  
 Email: jemal.ahmed@cgiar.org
-Institution: Alliance of Bioversity International and CIAT (CGIAR)
-Date: 2026-05-29
 
+Date: 12 Jun 2025
 Version: 1.5
 """
 
@@ -519,7 +525,16 @@ class AgWise_Download:
                 # Take in account level pressure for some variables in this part
                 ##########################################################
                  
-                ds = xr.open_dataset(temp_file)
+                
+                ds = xr.open_dataset(temp_file, decode_cf=False)
+                
+                # Safely delete the problematic metadata attribute from the variable if it exists
+                if 'forecast_period' in ds.variables and 'dtype' in ds['forecast_period'].attrs:
+                    del ds['forecast_period'].attrs['dtype']
+                
+                # Now decode the CF conventions manually
+                ds = xr.decode_cf(ds)
+                
                 if v in ["PRCP", "SRAD", "DLWR"]:
                     ds = self._daily_increment_by_lead(ds)
                 time = (ds['forecast_reference_time'] + ds['forecast_period']).data

@@ -26,4 +26,5 @@ extent:
   - 36.0
 skip_dssat: false
 create_dssat_weather_files: false
-varietyid: 999993
+varietyids:
+  - 999993

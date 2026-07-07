@@ -54,3 +54,6 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+
+# Jupyter server files
+*.ipynb_checkpoints

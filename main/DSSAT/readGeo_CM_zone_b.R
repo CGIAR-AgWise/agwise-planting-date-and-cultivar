@@ -1,15 +1,21 @@
-###############################################################################
-# Script: readGeo_CM_zone.R
-# Purpose: Create weather and soil files in DSSAT format.
-#
-# Authors: Alvaro Carmona-Cabrero, Jemal S. Ahmed (jemal.ahmed@cgiar.org), P. Moreno, A. Sila, S. Mkuhlani, E. Bendito Garcia
-# Institution: Alliance of Bioversity International and CIAT (CGIAR)
-# Date: 2026-06-07
-###############################################################################
+# Create weather and soil files in DSSAT format
+
+# Introduction: 
+# This script allows the creation of weather and soil files up to administrative level 2
+# Authors : A. Carmona-Cabrero, P.Moreno, A. Sila, S. Mkuhlani, E.Bendito Garcia 
+# Credentials : EiA, 2026
+# Last modified February 05, 2026 
+
+### Load required packages
+packages_required <- c(
+  "terra", "sf", "rgl", "sp", "geodata", "tidyverse", "countrycode", "lubridate",
+  "dplyr", "parallel", "foreach")
+
+invisible(lapply(packages_required, load_or_install))
 
 
 ### Source helper functions
-source(paste0(project_root, '/main/DSSAT/helpers_readGeo_CM_zone.R'))
+source(paste0(project_root, '/Scripts/generic/DSSAT/helpers_readGeo_CM_zone.R'))
 
 
 #' Function that creates the soil and weather file for one location/folder
@@ -32,11 +38,11 @@ source(paste0(project_root, '/main/DSSAT/helpers_readGeo_CM_zone.R'))
 #' @examples process_grid_element(1)
             
 process_grid_element <- function(
-    i, country, path.to.extdata, path.to.temdata, TemperatureMax,
-    TemperatureMin, SolarRadiation, Rainfall, coords, Soil, AOI, varietyid,
+    i, country, path.to.extdata, path.to.temdata, TemperatureMax, 
+    TemperatureMin, SolarRadiation, Rainfall, coords, Soil, AOI, varietyid, 
     zone, level2 = NA, Depth = c(5, 15, 30, 60, 100, 200)) {
 
-  pathOUT <- define_pathOUT(path.to.extdata = path.to.extdata, i = i,
+  pathOUT <- define_pathOUT(path.to.extdata = path.to.extdata, i = i, 
                             zone = zone, level2 = level2)
   setwd(pathOUT)
 
@@ -64,7 +70,7 @@ process_grid_element <- function(
                          SRAD = SolarRadiation_i, RAIN = Rainfall_i)
 
   # Add station information
-  general_new <- get_DSSAT_WTH_header(tst = tst, location = location, i = i, coords = coords)
+  general_new <- get_DSSAT_WTH_header(tst = tst, location = location, i = i)
   attr(tst, "GENERAL") <- general_new
 
   
@@ -193,59 +199,58 @@ process_grid_element <- function(
 #'
 #' @examples readGeo_CM(country = "Kenya",  useCaseName = "KALRO", Crop = "Maize", AOI = TRUE, season=1, Province = "Kiambu")
 readGeo_CM_zone <- function(
-  country, useCaseName, Crop, project_root, AOI = FALSE, season = 1, zone,
-  level2 = NA, varietyid, pathIn_zone = TRUE,
-  Depth = c(5, 15, 30, 60, 100, 200), Forecast = FALSE, fc_month = NULL,
-  fc_year = NULL, forecast_pathIn = NULL,
-  datasourcing_path = "~/agwise-datasourcing/dataops/datasourcing") {
+    country, useCaseName, Crop, project_root, AOI = FALSE, season = 1, zone, 
+    level2 = NA, varietyid, pathIn_zone = TRUE,
+    Depth = c(5, 15, 30, 60, 100, 200), Forecast = FALSE, 
+    forecast_inputs = NULL,
+    datasourcing_path = "~/agwise-datasourcing/dataops/datasourcing"
+    )
+  {
 
   # General input path with all the weather data
   # Define data input path based on the organization of the folders by zone and level2
   if (!Forecast) {
-    general_pathIn <- file.path(
-      project_usecase_dir(project_root, country, useCaseName),
-      Crop, "result", "geo_4cropModel")
+    general_pathIn <- paste0(
+      datasourcing_path, "/Data/useCase_", country, "_",
+      useCaseName, "/", Crop, "/result/geo_4cropModel")
   } else if (Forecast) {
-    if (!is.null(forecast_pathIn)) {
-      general_pathIn <- forecast_pathIn
-    } else {
-      general_pathIn <- file.path(
-        project_usecase_dir(project_root, country, useCaseName),
-        Crop, "transform", "FC"
-      )
-    }
+    general_pathIn <- paste0(
+      project_root, '/Data/useCase_', country, "_", useCaseName, "/", Crop, 
+      "/transform/FC")
+    
+    country_code <- forecast_inputs$country_code
+    
+    get_bc_forecast_data(
+      project_root, country, useCaseName, Crop, zone,
+      forecast_inputs = forecast_inputs, season = season)
   }
   
-  pathIn <- define_pathIn(general_pathIn, level2, zone, pathIn_zone, Forecast)
-  forecast_prefix <- ""
-  if (Forecast && !is.null(fc_month) && !is.null(fc_year)) {
-    forecast_prefix <- paste0("FC_", fc_month, "-", fc_year, "_")
-  }
-  input_file <- function(name) {
-    primary <- file.path(pathIn, paste0(forecast_prefix, name))
-    fallback <- file.path(pathIn, name)
-    if (Forecast && nzchar(forecast_prefix) && !file.exists(primary) && file.exists(fallback)) {
-      fallback
-    } else {
-      primary
-    }
-  }
+  pathIn <- define_pathIn(
+    general_pathIn, level2, zone, pathIn_zone, Forecast,
+    forecast_inputs$forecast_year, forecast_inputs$init_month)
   # Define RS file paths based on AOI
   if (AOI) {
-    Rainfall_file <- input_file(paste0("Rainfall_Season_", season, "_PointData_AOI.RDS"))
-    SolarRadiation_file <- input_file(paste0("solarRadiation_Season_", season, "_PointData_AOI.RDS"))
-    TemperatureMax_file <- input_file(paste0("temperatureMax_Season_", season, "_PointData_AOI.RDS"))
-    TemperatureMin_file <- input_file(paste0("temperatureMin_Season_", season, "_PointData_AOI.RDS"))
+    Rainfall_file <- paste0(pathIn, "Rainfall_Season_", season, 
+                            "_PointData_AOI.RDS")
+    SolarRadiation_file <- paste0(pathIn, "solarRadiation_Season_", season, 
+                                  "_PointData_AOI.RDS")
+    TemperatureMax_file <- paste0(pathIn, "temperatureMax_Season_", season, 
+                                  "_PointData_AOI.RDS")
+    TemperatureMin_file <- paste0(pathIn, "temperatureMin_Season_", season, 
+                                  "_PointData_AOI.RDS")
     # Read ISDA or ISRIC soil file
     if (length(Depth) == 2) {
       # ISDA
-      Soil_file <- input_file("ISDA_SoilDEM_PointData_AOI_profile.RDS")
+      Soil_file <- paste0(pathIn, "ISDA_SoilDEM_PointData_AOI_profile.RDS")
       if (!file.exists(Soil_file)) get_ISDA_soilRDS(
         country = country, useCaseName = useCaseName, Crop = Crop)
       
     } else {
       # ISRIC
-      Soil_file <- input_file("SoilDEM_PointData_AOI_profile.RDS")  
+      Soil_pathIn <- paste0(
+        datasourcing_path, "/Data/useCase_", country, "_",
+        useCaseName, "/", Crop, "/result/geo_4cropModel/", zone, "/")
+      Soil_file <- paste0(Soil_pathIn, "SoilDEM_PointData_AOI_profile.RDS")  
     }
     
   } else {
@@ -254,11 +259,16 @@ readGeo_CM_zone <- function(
     TemperatureMax_file <- paste0(pathIn, "temperatureMax_PointData_trial.RDS")
     TemperatureMin_file <- paste0(pathIn, "temperatureMin_PointData_trial.RDS")
     if (length(Depth) == 2) {
+      # ISDA
       Soil_file <- paste0(pathIn, "ISDA_SoilDEM_PointData_trial_profile.RDS")
       if (!file.exists(Soil_file)) get_ISDA_soilRDS(
         country = country, useCaseName = useCaseName, Crop = Crop)
-    } else {      
-      Soil_file <- paste0(pathIn, "SoilDEM_PointData_trial_profile.RDS")
+    } else {
+      # ISRIC
+      Soil_pathIn <- paste0(
+        datasourcing_path, "/Data/useCase_", country, "_",
+        useCaseName, "/", Crop, "/result/geo_4cropModel/", zone, "/")
+      Soil_file <- paste0(Soil_pathIn, "SoilDEM_PointData_trial_profile.RDS")
     }
   }
   
@@ -284,18 +294,28 @@ readGeo_CM_zone <- function(
     zone = zone,
     level2 = level2)
   
+  # # TODO: Remove this temporary fix once the Forecast data starts in the 1st day of the month
+  # if (Forecast) {
+  #   Rainfall <- fix_forecast_dataset(Rainfall, "Rainfall", forecast_inputs$forecast_year, fc_month)
+  #   SolarRadiation <- fix_forecast_dataset(SolarRadiation, "SolarRadiation", fc_year, fc_month)
+  #   TemperatureMax <- fix_forecast_dataset(TemperatureMax, "TemperatureMax", fc_year, fc_month)
+  #   TemperatureMin <- fix_forecast_dataset(TemperatureMin, "TemperatureMin", fc_year, fc_month)
+  # }
+  
+  
   # Get metadata
   metaData <- get_metadata(AOI, Rainfall, Soil)
-
   # Keep Soil observations with available Rainfall data
   Soil <- filter_soil_by_meta(Soil, metaData)
-
+  
+  
   # Keep weather observations with available Soil data
   Rainfall <- filter_by_metadata(Rainfall, metaData)
   SolarRadiation <- filter_by_metadata(SolarRadiation, metaData)
   TemperatureMax <- filter_by_metadata(TemperatureMax, metaData)
   TemperatureMin <- filter_by_metadata(TemperatureMin, metaData)
 
+  
   # Working directory for Weather and Soil data in DSSAT format
   path.to.extdata <- create_extdata_path(
     project_root, country, useCaseName, Crop, varietyid, AOI)
@@ -322,11 +342,7 @@ readGeo_CM_zone <- function(
     file.remove(log_file)
   }
   
-  # Parallel processing (for more efficient processing)
-  # num_cores <- max(1, availableCores() - 3)
-  # plan(multisession, workers = num_cores)
-  # 
-  
+
   plan_multisession(per_worker_gb = 3)
   
   messages_list <- future_lapply(

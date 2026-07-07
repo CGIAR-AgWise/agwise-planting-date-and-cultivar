@@ -1,12 +1,6 @@
-###############################################################################
-# Script: helpers_readGeo_CM_zone.R
-# Purpose: Helper functions for preparing DSSAT weather and soil files.
-#
-# Authors: Alvaro Carmona-Cabrero, Jemal S. Ahmed (jemal.ahmed@cgiar.org)
-# Institution: Alliance of Bioversity International and CIAT (CGIAR)
-# Date: 2026-06-07
-###############################################################################
-
+####################
+# Helper functions #
+####################
 
 # Read RS data and filter observations. Filtering seems unnecessary due to data storage (by zone)
 read_and_filter <- function(file, zone = NA, level2 = NA) {
@@ -35,26 +29,15 @@ read_and_filter <- function(file, zone = NA, level2 = NA) {
 
 # Define pathIn and check for existence
 define_pathIn <- function(general_pathIn, level2, zone, pathIn_zone, Forecast, 
-                          create_path = F) {
-  if (pathIn_zone && Forecast) {
-    pathIn <- file.path(general_pathIn, zone)
-    if (!dir.exists(pathIn)) {
-      stop(
-        "Input path does not exist: ", pathIn, "\n",
-        "Please provide a forecast folder containing the required RDS input data."
-      )
-    }
-    return(paste0(pathIn, "/"))
-  }
-  
+                          fc_year, fc_month, create_path = FALSE) {
   if (pathIn_zone) {
     if (!is.na(level2) && !is.na(zone)) {
       pathIn <- file.path(general_pathIn, zone, level2)
     } else if (is.na(level2) && !is.na(zone)) {
       # Common path
       pathIn <- file.path(general_pathIn, zone)
-      if (create_path == T & !dir.exists(pathIn)) {
-        dir.create(pathIn, recursive = T)
+      if (create_path == TRUE & !dir.exists(pathIn)) {
+        dir.create(pathIn, recursive = TRUE)
       }
     } else if (!is.na(level2) && is.na(zone)) {
       stop("You need to define first a zone (administrative level 1) ",
@@ -66,7 +49,7 @@ define_pathIn <- function(general_pathIn, level2, zone, pathIn_zone, Forecast,
     pathIn <- general_pathIn
   }
   if (!dir.exists(pathIn)) {
-    dir.create(pathIn, recursive = T)
+    dir.create(pathIn, recursive = TRUE)
     stop(
       "Input path does not exist: ", pathIn, "\n",
       "Please provide a path containing the required RDS input data."
@@ -75,48 +58,25 @@ define_pathIn <- function(general_pathIn, level2, zone, pathIn_zone, Forecast,
   if (!Forecast) {
     paste0(pathIn, "/")
   } else if (Forecast) {
-    pathIn
+    paste0(pathIn, "/", "FC_", fc_month, "-", fc_year, "_")
   }
-}
-
-
-### Define output path ----
-define_pathOUT <- function(path.to.extdata, i, zone = NA, level2 = NA) {
-  if (!is.na(level2) && is.na(zone)) {
-    stop(
-      "You need to define a zone (administrative level 1) ",
-      "to get data for level 2 (administrative level 2)."
-    )
-  }
-  exte_id <- paste0(
-    "EXTE",
-    formatC(as.integer(i), width = 4, flag = "0")
-  )
-  pathOUT <- if (!is.na(zone) && !is.na(level2)) {
-    file.path(path.to.extdata, zone, level2, exte_id)
-  } else if (!is.na(zone)) {
-    file.path(path.to.extdata, zone, exte_id)
-  } else {
-    file.path(path.to.extdata, exte_id)
-  }
-  if (!dir.exists(pathOUT)) {
-    dir.create(pathOUT, recursive = TRUE)
-  }
-  return(pathOUT)
 }
 
 
 # Get metadata for weather (Rainfall) and Soil data
 get_metadata <- function(AOI, Rainfall, Soil) {
   if(AOI) {
-    metaDataWeather <- as.data.frame(Rainfall[, c(
-      "longitude", 'latitude', "startingDate", "endDate", "NAME_1", "NAME_2")])
+    metaDataWeather <- Rainfall %>%
+      select(any_of(c("longitude", 'latitude', "startingDate", "endDate",
+                      "NAME_1", "NAME_2")))
   } else {
-    metaDataWeather <- as.data.frame(Rainfall[, c(
-      "longitude", 'latitude', "startingDate", "endDate", "NAME_1", "NAME_2", 
-      "yearPi", "yearHi", "pl_j", "hv_j")])
+    metaDataWeather <- Rainfall %>%
+      select(any_of(c(
+        "longitude", 'latitude', "startingDate", "endDate", "NAME_1", "NAME_2", 
+        "yearPi", "yearHi", "pl_j", "hv_j")))
   }
-  metaData_Soil <- Soil[, c("longitude", "latitude", "NAME_1", "NAME_2")]
+  metaData_Soil <- Soil %>% 
+    select(all_of(c("longitude", "latitude", "NAME_1", "NAME_2")))
   # General metadata that has unique virtual experiments with unique weather, soil, planting and harvesting date
   metaData <- merge(metaDataWeather, metaData_Soil)
   metaData
@@ -168,7 +128,7 @@ depth_names <- function(var_name, depths) {
 #' @export
 slu1 <- function(clay1, sand1) {
   ifelse(sand1 >= 80, (20 - 0.15 * sand1),
-         ifelse(clay1 >= 50,(11 - 0.06 * clay1),
+         ifelse(clay1 >= 50, (11 - 0.06 * clay1),
                 (8 - 0.08 * clay1)))
 }
 
@@ -223,19 +183,22 @@ texture_class <- function (usda_clay, usda_silt) {
 
 # Initialize folders for varieties
 copy_WTH_SOIL_data_for_variety <- function(
-    country, useCaseName, Crop, project_root, AOI = F, varietyids) {
+    country, useCaseName, Crop, project_root, AOI = FALSE, varietyids) {
   for (varietyid in varietyids[-1]) {
-    usecase_dir <- project_usecase_dir(project_root, country, useCaseName)
     if (AOI) {
-      from_path <- file.path(
-        usecase_dir, Crop, "transform", "DSSAT", "AOI", varietyids[1])
-      to_path <- file.path(
-        usecase_dir, Crop, "transform", "DSSAT", "AOI", varietyid)  
+      from_path <- paste0(
+        project_root, "/Data/useCase_", country, "_", useCaseName, "/", Crop,
+        "/transform/DSSAT/AOI/", varietyids[1])
+      to_path <- paste0(
+        project_root, "/Data/useCase_", country, "_", useCaseName, "/", Crop,
+        "/transform/DSSAT/AOI/", varietyid)  
     } else if (!AOI) {
-      from_path <- file.path(
-        usecase_dir, Crop, "transform", "DSSAT", "fieldData", varietyids[1])
-      to_path <- file.path(
-        usecase_dir, Crop, "transform", "DSSAT", "fieldData", varietyid)
+      from_path <- paste0(
+        project_root, "/Data/useCase_", country, "_", useCaseName, "/", Crop,
+        "/transform/DSSAT/fieldData/", varietyids[1])
+      to_path <- paste0(
+        project_root, "/Data/useCase_", country, "_", useCaseName, "/", Crop,
+        "/transform/DSSAT/fieldData/", varietyid)
     }
     cmd <- sprintf('cp -r "%s/" "%s/"', from_path, to_path)
     system(cmd)
@@ -264,17 +227,17 @@ pivot_weather <- function(df, value_name, AOI = TRUE) {
   
   out <- tidyr::pivot_longer(
     df,
-    cols = -all_of(id_cols),
+    cols = -any_of(id_cols),
     names_to = c("Variable", "Date"),
     names_sep = "_",
     values_to = value_name
   )  %>%
-    dplyr::select(-ID)
+    dplyr::select(-any_of("ID"))
   
   if (AOI) {
-    out <- unique(dplyr::select(out, -Variable, -startingDate, -endDate))
+    out <- unique(dplyr::select(out, -any_of(c("Variable", "startingDate", "endDate"))))
   } else {
-    out <- dplyr::select(out, -Variable)
+    out <- dplyr::select(out, -any_of("Variable"))
   }
   
   out
@@ -290,31 +253,30 @@ build_DSSAT_WTH <- function(TMAX, TMIN, SRAD, RAIN) {
     mutate(
       DATE = as.POSIXct(Date, format = "%Y-%m-%d", tz = "UTC")
     ) %>%
-    dplyr::select(DATE, SRAD, TMAX, TMIN, RAIN) %>%
+    dplyr::select(DATE, TMAX, TMIN, SRAD, RAIN) %>%
     mutate(across(c(TMAX, TMIN, SRAD, RAIN), as.numeric)) %>%
+    rowwise() %>%
     mutate(
-      TMAX_RAW = TMAX,
-      TMIN_RAW = TMIN,
-      TMAX = pmax(TMAX_RAW, TMIN_RAW, na.rm = TRUE),
-      TMIN = pmin(TMAX_RAW, TMIN_RAW, na.rm = TRUE)
+      TMAX = max(TMAX, TMIN),
+      TMIN = min(TMAX, TMIN)
     ) %>%
-    dplyr::select(-TMAX_RAW, -TMIN_RAW)
+    ungroup()
   
   tst
 }
 
 
 # Get general information table for DSSAT WTH file
-get_DSSAT_WTH_header <- function(tst, location, i, coords) {
+get_DSSAT_WTH_header <- function(tst, location, i) {
   # Calculate long-term average temperature (TAV)
   tav <- tst %>%
-    summarise(TAV = mean((TMAX + TMIN) / 2, na.rm = T))
+    summarise(TAV = mean((TMAX + TMIN) / 2, na.rm = TRUE))
   
   # Calculate monthly temperature amplitude (AMP)
   amp <- tst %>%
     mutate(month = lubridate::month(DATE)) %>%
     group_by(month) %>%
-    dplyr::summarise(monthly_avg = mean((TMAX + TMIN) / 2, na.rm = T)) %>%
+    dplyr::summarise(monthly_avg = mean((TMAX + TMIN) / 2, na.rm = TRUE)) %>%
     dplyr::summarise(AMP = (max(monthly_avg) - min(monthly_avg)) / 2)
   
   # Location name
@@ -408,7 +370,7 @@ get_texture_params <- function(LCL, LSI, Sand, Depth) {
 modify_ex_profile <- function(
     template_ex_profile, texture_soil, texture, location, country, lat, lon,
     ALB, SLU, LRO, LDR, Depth, LL15, SAT, DUL, SSS, BDM, LOC, LCL, LSI, LNI,
-    LHW, CEC, RGF, i, soil_p = F, P_data = NULL
+    LHW, CEC, RGF, i, soil_p = FALSE, P_data = NULL
 ) {
   soilid <- template_ex_profile %>%
     mutate(PEDON = paste0('TRAN', formatC(width = 5, (as.integer(i)), flag = "0")),
@@ -423,7 +385,7 @@ modify_ex_profile <- function(
            SLU1 = list(SLU),
            SLRO = list(LRO),
            # SMPX = "SA013",  # Mehlich-3. Requires more variables for running P.
-           SMPX = "SA001",  # Olsen. Requires conversion from Mehlich-3 (SoilGrids 0-30cm) using the AgWISE soil phosphorus helper equation.
+           SMPX = "SA001",  # Olsen. Requires conversion from Mehlich-3 (SoilGrids 0-30cm) using an empirical equation in ~/agwise-datasourcing/dataops/datasourcing/Scripts/generic/get_geoSpatialData_V2_phosphorus.R
            SLDR = list(LDR),
            SLB = list(Depth),
            SLMH = list(rep(-99, length(Depth))),  # No data about master horizon
@@ -518,104 +480,6 @@ get_var_name <- function(var, Depth) {
 }
 
 
-# Produce AOI_GPS.RDS file in a project subdirectory
-getGridCoordinates <- function(
-    country, useCaseName, Crop, project_root, resltn = 0.05, provinces = NULL, 
-    district = NULL) { 
-  
-  pathOut <- file.path(
-    project_usecase_dir(project_root, country, useCaseName),
-    Crop, "data_curation", country)
-  
-  if (!dir.exists(pathOut)) {
-    dir.create(file.path(pathOut), recursive = T)
-  }
-  
-  ## get country abbreviation to used in gdam function
-  # countryCC <- countrycode(country, origin = 'country.name', destination = 'iso3c')
-  
-  ## read the relevant shape file from gdam to be used to crop the global data
-  countrySpVec <- geodata::gadm(country, level = 2, path = '.')
-  
-  if(!is.null(provinces)){
-    level3 <- countrySpVec[countrySpVec$NAME_1 %in% provinces ]
-  }else if (!is.null(district)){
-    level3 <- countrySpVec[countrySpVec$NAME_2 %in% district, ]
-  }else{
-    level3 <- countrySpVec
-  }
-  
-  plot(countrySpVec)
-  plot(level3, add = T, col = "green")
-  
-  xmin <- ext(level3)[1]
-  xmax <- ext(level3)[2]
-  ymin <- ext(level3)[3]
-  ymax <- ext(level3)[4]
-  
-  ## define a rectangular area that covers the whole study area (with buffer of 10 km around)
-  lon_coors <- unique(round(seq(xmin - 0.1, xmax + 0.1, by = resltn),
-                            digits = 3))
-  lat_coors <- unique(round(seq(ymin - 0.1, ymax + 0.1, by = resltn),
-                            digits = 3))
-  rect_coord <- as.data.frame(expand.grid(x = lon_coors, y = lat_coors))
-  
-  if(resltn == 0.05){
-    rect_coord$x <- floor(rect_coord$x * 10) / 10 + ifelse(
-      rect_coord$x - (floor(rect_coord$x * 10) / 10) < 0.05, 0.025, 0.075)
-    rect_coord$y <- floor(rect_coord$y * 10) / 10 + ifelse(
-      abs(rect_coord$y) - (floor(abs(rect_coord$y) * 10) / 10) < 0.05, 0.025, 0.075)
-  }
-  rect_coord <- unique(rect_coord[, c("x", "y")])
-  # }else if (resltn == 0.01) {
-  #   rect_coord$x <- floor(rect_coord$x*100)/100
-  #   rect_coord$y <- floor(rect_coord$y*100)/100
-  #   rect_coord <- unique(rect_coord[,c("x", "y")])
-  # }else{
-  #  names(rect_coord) <- c("x", "y")
-  # }
-  
-  State_LGA <- as.data.frame(raster::extract(countrySpVec, rect_coord))
-  State_LGA$lon <- rect_coord$x
-  State_LGA$lat <- rect_coord$y
-  State_LGA$country <- country
-  
-  State_LGA <- unique(State_LGA[, c("country", "NAME_1", "NAME_2", "lon", "lat")])
-  
-  if(!is.null(provinces)){
-    State_LGA <- droplevels(State_LGA[State_LGA$NAME_1 %in% provinces, ])
-  }else if (!is.null(district)){
-    State_LGA <- droplevels(State_LGA[State_LGA$NAME_2 %in% district, ])}
-  
-  State_LGA <- droplevels(State_LGA[!is.na(State_LGA$NAME_2), ])
-  
-  saveRDS(State_LGA, paste0(pathOut, "AOI_GPS.RDS"))
-  
-  return(State_LGA)
-}
-
-
-# TODO: Revisit this idea
-# Simple estimation of ISDA total P based on texture class
-# estimate_ISDA_total_P <- function(Soil) {
-#   f_avail_0_20 <- ifelse(
-#     Soil$`texture.class_0-20cm` %in% c("sandy", "sandy clay"), 0.07,
-#     ifelse(Soil$`texture.class_0-20cm` %in% c("clay", "clay loam"), 0.04, 0.05)
-#   )
-#   
-#   f_avail_20_50 <- ifelse(
-#     Soil$`texture.class_20-50cm` %in% c("sandy", "sandy clay"), 0.05,
-#     ifelse(Soil$`texture.class_20-50cm` %in% c("clay", "clay loam"), 0.03, 0.04)
-#   )
-#   
-#   # Estimate total P
-#   Soil$totalP_0_20cm <- Soil$`p_0-20cm` / f_avail_0_20
-#   Soil$totalP_20_50cm <- Soil$`p_20-50cm` / f_avail_20_50
-#   
-#   return(Soil)
-# }
-
-
 # Format Depth ("0-20cm", "20-50cm")
 depths_to_numeric <- function(Depth) {
   if (is.numeric(Depth)) {
@@ -629,9 +493,14 @@ depths_to_numeric <- function(Depth) {
 
 
 # Check for ISDA Soil data. If any zone missing, run script to produce it
-check_and_get_ISDA_RDS <- function(country, useCaseName, Crop, project_root,
-                                   inputData = NULL) {
-  
+check_and_get_ISDA_RDS <- function(
+    country, useCaseName, Crop, project_root, Soil_source = "ISRIC",
+    inputData = NULL, datasourcing_path = "~/agwise-datasourcing/dataops/datasourcing"
+                                   ) {
+  if (Soil_source == "ISRIC") {
+    message("Skipping producing ISDA files.")
+    return(invisible(NULL))
+  }
   inputData <- load_or_generate_inputData(
     country = country, useCaseName = useCaseName, Crop = Crop, 
     project_root = project_root, inputData = NULL)
@@ -646,9 +515,10 @@ check_and_get_ISDA_RDS <- function(country, useCaseName, Crop, project_root,
   for (prov in provinces) {
     
     # Build general path
-    general_pathIn <- file.path(
-      project_usecase_dir(project_root, country, useCaseName),
-      Crop, "result", "geo_4cropModel")
+    general_pathIn <- paste0(
+      datasourcing_path, "/Data/useCase_", country, "_",
+      useCaseName, "/", Crop, "/result/geo_4cropModel"
+    )
     
     # Define the full path for this province
     pathIn <- define_pathIn(general_pathIn, level2 = NA, zone = prov,
@@ -672,6 +542,7 @@ check_and_get_ISDA_RDS <- function(country, useCaseName, Crop, project_root,
     message("All ISDA RDS files exist.")
   }
 }
+
 
 # Simple conversion from Mehlich3 P to Olsen P
 mehlich3_to_olsen <- function(mehlich3_P){
@@ -707,15 +578,17 @@ convert_ISDA_units <- function(df) {
 }
 
 
-# Produce ISDA RDS objects from server data
+### Produce ISDA RDS objects from server data
 get_ISDA_soilRDS <- function(
-    country, useCaseName, Crop, project_root, inputData = NULL) {
+    country, useCaseName, Crop, project_root, inputData = NULL, 
+    datasourcing_path = "/home/jovyan/agwise-datasourcing/dataops/datasourcing")
+  {
   
-  baseSoilPath <- file.path(project_root, project_data_dir(project_root), "global", "soil")
-  shapefileHC <- st_read(file.path(baseSoilPath, "HC27", "HC27 CLASSES.shp"), quiet = T) %>%
+  baseSoilPath <- paste0(datasourcing_path, "/Data/Global_GeoData/Landing/Soil/")
+  shapefileHC <- st_read(paste0(baseSoilPath, "HC27/HC27 CLASSES.shp"), quiet = TRUE) %>%
     st_make_valid()
   
-  baseSoilPath <- file.path(project_root, project_data_dir(project_root), "global", "soil", "iSDA")
+  baseSoilPath <- paste0(datasourcing_path, "/Data/Global_GeoData/Landing/Soil/iSDA")
   listRaster_soil <- list.files(path = baseSoilPath, pattern = ".tif$")
   Layers_soil <- terra::rast(paste(baseSoilPath, listRaster_soil, sep = "/"))
   
@@ -833,13 +706,342 @@ get_ISDA_soilRDS <- function(
   pointDataSoil <- unique(merge(pointDataSoil, LDR_data, by = c("lon", "lat")))
   
   for (prov in unique(inputData$NAME_1)) {
-    general_pathIn <- file.path(
-      project_usecase_dir(project_root, country, useCaseName),
-      Crop, "result", "geo_4cropModel")
+    general_pathIn <- paste0(datasourcing_path,
+      "/Data/useCase_", country, "_",
+      useCaseName, "/", Crop, "/result/geo_4cropModel")
     pathIn <- define_pathIn(general_pathIn, level2 = NA, zone = prov,
-                            pathIn_zone = T, Forecast = F, create_path = T)
+                            pathIn_zone = TRUE, Forecast = FALSE, create_path = TRUE)
     pointDataSoil_prov <- pointDataSoil %>% filter(NAME_1 == prov)
     pointDataSoil_prov <- na.omit(pointDataSoil_prov)
     saveRDS(pointDataSoil_prov, paste0(pathIn, "/ISDA_SoilDEM_PointData_AOI_profile.RDS"))
   }
 }
+
+
+### Download and bias-correct forecast data
+get_bc_forecast_data <- function(
+    project_root, country, useCaseName, Crop, zone, forecast_inputs,
+    season = 1, force_bc = FALSE
+    ) {
+  
+  # Build base directory dynamically
+  base_fc_path <- paste0(
+    project_root, "/Data/useCase_", country, "_", useCaseName, "/", Crop,
+    "/transform/FC/", zone
+  )
+  
+  country_code <- forecast_inputs$country_code
+  forecast_year <- forecast_inputs$forecast_year
+  init_month_user <- forecast_inputs$init_month_user
+
+  # Build expected file names
+  file_srad <- paste0(
+    base_fc_path, "/FC_", init_month_user, "-", forecast_year,
+    "_solarRadiation_Season_", season, "_PointData_AOI.RDS"
+  )
+  
+  file_tmin <- paste0(
+    base_fc_path, "/FC_", init_month_user, "-", forecast_year,
+    "_temperatureMin_Season_", season, "_PointData_AOI.RDS"
+  )
+  
+  file_tmax <- paste0(
+    base_fc_path, "/FC_", init_month_user, "-", forecast_year,
+    "_temperatureMax_Season_", season, "_PointData_AOI.RDS"
+  )
+  
+  file_rain <- paste0(
+    base_fc_path, "/FC_", init_month_user, "-", forecast_year,
+    "_Rainfall_Season_", season, "_PointData_AOI.RDS"
+  )
+  
+  required_files <- c(file_srad, file_tmin, file_tmax, file_rain)
+  
+  # Check if all files exist
+  if (all(file.exists(required_files)) && !force_bc) {
+    message("Bias-corrected forecast files already exist.")
+    message("Existing files will be used:")
+    message(paste(required_files, collapse = "\n"))
+    return(invisible(NULL))
+  } else {
+    message("Producing Forecast RDS files...")
+  }
+  
+  old_wd <- getwd()
+  main_script_dir <- paste0(project_root, "/Scripts/generic/ClimateForecast_BC")
+  setwd(main_script_dir)
+  source(file.path(main_script_dir, "03_bias_correction_forecast_multiVar.R"))
+  
+  run_agwise_seasonal_forecast_BC(
+    country_code = country_code,
+    forecast_year = forecast_year,
+    init_month_user = init_month_user,
+    init_day_user = forecast_inputs$init_day_user,
+    season_length_months = forecast_inputs$season_length_months,
+    year_start_obs = forecast_inputs$year_start_obs,
+    year_end_obs = forecast_inputs$year_end_obs,
+    year_hndS = forecast_inputs$year_hndS,
+    year_hndE = forecast_inputs$year_hndE,
+    use_manual_extent = forecast_inputs$use_manual_extent,
+    extent_manual = forecast_inputs$extent_manual,
+    manual_domain_name = "User_Domain",
+    base_dir = paste0(project_root, "/Data"),
+    py_path = forecast_inputs$py_path,
+    variables_to_bc = c(
+      "PRCP",  # Seasonal rainfall totals and anomalies
+      "TMAX",  # Heat stress and extreme temperature risk
+      "TMIN",  # Cold stress and phenological impacts
+      "SRAD"  # Radiation-driven crop growth processes
+    )
+  )
+  
+  setwd(old_wd)
+  
+  FC_rds_folder <- paste0(project_root, "/Data/useCase_", country, "_",
+                          useCaseName, "/", Crop, "/transform/FC/", zone)
+  # Merge and extract
+  extract_all_nc_to_df(
+    nc_folder = paste0(project_root, "/Data/", country_code, "/forecast/bias_corrected"),
+    aoi_file = paste0(project_root, "/Data/useCase_", country, "_", useCaseName,
+                      "/", Crop, "/data_curation/", country, "/AOI_GPS.RDS"),
+    nc_folder_obs = paste0(project_root, "/Data/", country_code, "/Observation"),
+    forecast_inputs = forecast_inputs,
+    FC_rds_folder = FC_rds_folder, season = season,
+    force_extract = TRUE
+  )
+  
+}
+
+
+### Updated function to handle NetCDF files, combine them, and open/save
+extract_all_nc_to_df <- function(
+    nc_folder, aoi_file, nc_folder_obs, forecast_year, forecast_inputs,
+    FC_rds_folder, season = 1, force_extract = FALSE) {
+
+  forecast_year <- forecast_inputs$forecast_year
+  init_month_user <- forecast_inputs$init_month_user
+  country_code <- forecast_inputs$country_code
+  
+  # Save prior month data in a separate folder
+  prior_month_data_path <- paste0(FC_rds_folder, "/prior_month_data")
+  dir.create(prior_month_data_path, recursive = TRUE, showWarnings = FALSE)
+  
+  get_1month_prior_data_fc(nc_folder_obs, prior_month_data_path, aoi_file)
+  
+  aoi <- readRDS(aoi_file)
+  if(!all(c("lat", "lon") %in% names(aoi))) {
+    stop("AOI file must have 'lat' and 'lon' columns")
+  }
+  
+  # Find all NetCDF files in the folder
+  pattern <- paste0("_", forecast_year, "_", init_month_user, "\\.nc$")
+  nc_files <- list.files(nc_folder, pattern = "\\.nc$", full.names = TRUE)
+  if (length(nc_files) == 0) stop("No NetCDF files found in the folder")
+  
+  # Get AOI points
+  pts <- vect(aoi, geom = c("lon", "lat"), crs = "EPSG:4326")
+  
+  # Loop over each NetCDF file
+  for(nc_file in nc_files) {
+    varname <- detect_var(nc_file)
+    
+    full_varname <- fc_map_varname(varname)
+    
+    
+    r <- rast(nc_file)
+    
+    rds_file <- paste0(
+      FC_rds_folder, "/", varname, "_", forecast_year, "_", init_month_user, ".RDS"
+    )
+    
+    if (file.exists(rds_file) && !force_extract) {
+      message("RDS file already exists: ", rds_file)
+      next
+    }
+    
+    message("Extracting data from NetCDF files for ", varname, "...")
+    
+    dates <- time(r)
+    
+    vals <- terra::extract(r, pts)[, -1, drop = FALSE]
+    
+    colnames_i <- paste0(full_varname, "_", dates)
+    # colnames_i <- gsub("-", "_", colnames_i)
+    
+    colnames(vals) <- colnames_i
+    
+    # Read 1 month of prior data for DSSAT initialization
+    prior_month_file <- list.files(
+      prior_month_data_path,
+      pattern = varname,
+      full.names = TRUE
+    )
+    
+    prior_month_df <- readRDS(prior_month_file)
+    
+    combined_df <- cbind(prior_month_df, vals)
+    
+    combined_df <- na.omit(combined_df)
+    row.names(combined_df) <- NULL
+    
+    save_rds_file <- paste0(
+      FC_rds_folder, "/FC_", init_month_user, "-", forecast_year, "_", full_varname,
+      "_Season_", season, "_PointData_AOI.RDS")
+    
+    saveRDS(combined_df, save_rds_file)
+    
+    message("Data saved (1 month initialization + forecast) to RDS file: ", save_rds_file)
+  }
+  
+}
+
+
+# Get varname from file name
+detect_var <- function(file, vars = c("PRCP", "SRAD", "TMAX", "TMIN")) {
+  vars[sapply(vars, grepl, x = file)]
+}
+
+
+# Get one month of data for forecast initialization
+get_1month_prior_data_fc <- function(
+    nc_folder_obs, prior_month_data_path, aoi_file,
+    vars = c("PRCP", "SRAD", "TMAX", "TMIN")) {
+  
+  nc_obs_files <- list.files(nc_folder_obs, pattern = "\\.nc$", full.names = TRUE)
+  years_obs <- as.numeric(sub(".*_(\\d{4})\\.nc$", "\\1", nc_obs_files))
+  
+  init_files <- nc_obs_files[years_obs == max(years_obs)]
+  
+  aoi_gps <- readRDS(aoi_file)
+  
+  pts <- vect(aoi_gps, geom = c("lon", "lat"), crs = "EPSG:4326")
+  
+  for (obs_file in init_files) {
+    varname <- detect_var(obs_file)
+    
+    full_varname <- fc_map_varname(varname)
+    
+    if (length(varname) == 0 || !(varname %in% vars)) {
+      next
+    }
+    
+    r <- rast(obs_file)
+    
+    times <- time(r)
+    # times <- format(time(r), "%Y_%m_%d")
+    
+    varnames <- paste0(full_varname, "_", times)
+    
+    vals <- terra::extract(r, pts)[, -1, drop = FALSE]
+    
+    colnames(vals) <- varnames
+    
+    month_prior_data <- cbind(aoi_gps, vals)
+
+    date_cols <- colnames(month_prior_data)[-c(1:5)]
+    
+    dates_ym <- gsub("(\\d{4})-(\\d{2})-\\d{2}", "\\1_\\2", date_cols)
+    
+    first_month <- dates_ym[1]  # YYYY_MM
+    
+    keep_cols <- c(
+      colnames(month_prior_data)[1:5],
+      date_cols[dates_ym == first_month]
+    )
+    
+    month_prior_data <- month_prior_data[, keep_cols]
+    
+    prior_month_data_file <- paste0(
+      prior_month_data_path, "/prior_month_obs_", varname, ".RDS")
+    
+    saveRDS(month_prior_data, prior_month_data_file)
+  }
+}
+
+
+# Map variable names from FC to Datasourcing
+fc_map_varname <- function(varname) {
+  map <- c(
+    PRCP = "Rainfall",
+    SRAD = "solarRadiation",
+    TMAX = "temperatureMax",
+    TMIN = "temperatureMin"
+  )
+  
+  unname(map[varname])
+}
+
+
+# Get ISRIC soil data. Function from data-sourcing repository
+# TODO Implement non AOI extraction
+# TODO how to get Planting_month_date, Harvest_month_data? Maybe from the NDVI scritps?
+get_geoSpatialData_V2_phosphorus <- function(
+    country, useCaseName, Crop, Planting_month_date, Harvest_month_date, 
+    project_root, season = 1, inputData = NULL, level2 = FALSE, 
+    planting_window = 12, AOI = TRUE,
+    soilData = TRUE, weatherData = TRUE, soilProfile = TRUE, 
+    datasourcing_path = "~/agwise-datasourcing/dataops/datasourcing",
+    run_pipeline = TRUE) {
+  # TODO change datasourcing_path to this same project. Is this pathOut?
+  
+  # If existing files are OK for this use case. Do not produce new ones
+  if (!run_pipeline) {
+    message("Skipping data extraction. Using pre-existing climate and soil files.")
+    return(invisible(NULL))
+  }
+  
+  country_shp_path <- paste0(
+    datasourcing_path, "/Data/useCase_", country, "_", useCaseName, "/", Crop,
+    "/data_curation")
+  
+  if (!dir.exists(country_shp_path)) {
+    dir.create(country_shp_path, recursive = TRUE)
+  }
+  
+  country_code = countrycode(
+    country, origin = "country.name", destination = "iso3c")
+  gadm_file <- paste0(country_shp_path, "/gadm/gadm41_", country_code, "_2_pk.rds")
+  
+  if (file.exists(gadm_file)) {
+    countryShapefile <- readRDS(gadm_file)
+    message("Loaded country gadm file.")
+    
+  } else {
+    countryShapefile <- geodata::gadm(country = country, level = 2, 
+                                      path = country_shp_path)
+  }
+  
+  if (!level2 || is.na(level2)) {
+    provinces <- unique(inputData$NAME_1)
+  } else if (level2) {
+    provinces <- unique(inputData$NAME_2)
+  }
+  
+  # Get the climate and soil data
+  source(paste0(project_root, "/Scripts/generic/RS/get_geoSpatialData_V2_phosphorus.R"))
+  
+  for (zone in provinces) {
+    message(paste0("Producing Climate and ISRIC soil data for ", zone))
+    
+    zone_inputData <- inputData[inputData$NAME_1 == zone, ]
+    
+    pathOut <- paste0(
+      datasourcing_path, "/Data/useCase_", country, "_", useCaseName, "/", Crop,
+      "/result/geo_4cropModel/", zone, "/")
+    
+    if (!dir.exists(pathOut)) {
+      dir.create(pathOut, recursive = TRUE)
+    }
+    
+    geoSpatialData <- extract_geoSpatialPointData(
+      country = country, useCaseName = useCaseName, Crop = Crop, 
+      inputData = zone_inputData, AOI = AOI, 
+      Planting_month_date = Planting_month_date, 
+      Harvest_month_date = Harvest_month_date,
+      soilData = soilData, weatherData = weatherData, soilProfile = soilProfile, 
+      plantingWindow = plantingWindow, season = season, pathOut = pathOut
+      )
+  }
+  message("All geospatial data produced.")
+}
+

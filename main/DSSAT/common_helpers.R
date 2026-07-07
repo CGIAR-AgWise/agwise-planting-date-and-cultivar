@@ -2,22 +2,35 @@
 # Script: common_helpers.R
 # Purpose: Shared DSSAT path, package, and workflow helper functions.
 #
-# Author: Jemal S. Ahmed
-# Email: jemal.ahmed@cgiar.org
+# Authors: Alvaro Carmona-Cabrero, Jemal S. Ahmed (jemal.ahmed@cgiar.org)
 # Institution: Alliance of Bioversity International and CIAT (CGIAR)
-# Date: 2026-05-29
+# Date: 2026-06-07
 ###############################################################################
 
-### Common EXTpath
+
+### Load or install required packages ----
+load_or_install <- function(pkg) {
+  if (!requireNamespace(pkg, quietly = TRUE)) {
+    install.packages(pkg)
+  }
+  suppressPackageStartupMessages(library(pkg, character.only = TRUE))
+}
+
+
+### Data directory path ----
 project_data_dir <- function(project_root) {
   lower_path <- file.path(project_root, "data")
   if (dir.exists(lower_path)) "data" else "Data"
 }
 
+
+### Usecases path ----
 project_usecases_dir <- function(project_root) {
   file.path(project_root, project_data_dir(project_root), "usecases")
 }
 
+
+### Usecase-specific path ----
 project_usecase_dir <- function(project_root, country, useCaseName) {
   data_root <- file.path(project_root, project_data_dir(project_root))
   usecase_name <- paste0("useCase_", country, "_", useCaseName)
@@ -30,8 +43,10 @@ project_usecase_dir <- function(project_root, country, useCaseName) {
   }
 }
 
-create_extdata_path <- function(project_root, country, useCaseName, Crop, 
-                                varietyid, AOI = F) {
+
+### Common EXTpath ----
+create_extdata_path <- function(project_root, country, useCaseName, Crop,
+                                varietyid, AOI = FALSE) {
   subfolder <- ifelse(AOI, "AOI", "fieldData")
   path <- file.path(
     project_usecase_dir(project_root, country, useCaseName),
@@ -45,7 +60,7 @@ create_extdata_path <- function(project_root, country, useCaseName, Crop,
 }
 
 
-### Common DSSAT template data path
+### Common DSSAT template data path ----
 create_dssat_temdata_path <- function(project_root, country, useCaseName, Crop) {
   usecase_dir <- project_usecase_dir(project_root, country, useCaseName)
   candidates <- c(
@@ -61,8 +76,9 @@ create_dssat_temdata_path <- function(project_root, country, useCaseName, Crop) 
 }
 
 
-create_dssat_working_path <- function(path.to.extdata, i, zone = NA, level2 = NA) {
-  
+### Common DSSAT working path ----
+create_dssat_working_path <- function(path.to.extdata, i, zone = NA,
+ level2 = NA) {
   # sanity check
   if (!is.na(level2) && is.na(zone)) {
     stop(
@@ -70,55 +86,29 @@ create_dssat_working_path <- function(path.to.extdata, i, zone = NA, level2 = NA
       "to be able to get data for level 2 (administrative level 2)."
     )
   }
-  
+
   exte_id <- paste0("EXTE", formatC(as.integer(i), width = 4, flag = "0"))
-  
+
   sub_path <- dplyr::case_when(
     !is.na(zone) & !is.na(level2) ~ file.path(zone, level2, exte_id),
     !is.na(zone) &  is.na(level2) ~ file.path(zone, exte_id),
     is.na(zone)  &  is.na(level2) ~ exte_id
   )
-  
+
   working_path <- file.path(path.to.extdata, sub_path)
-  
+
   if (!dir.exists(working_path)) {
     dir.create(working_path, recursive = TRUE)
   }
-  
+
   working_path
 }
 
 
-### TODO: Check whether this is a good common function or not
-define_pathOUT <- function(path.to.extdata, i, zone = NA, level2 = NA) {
-  if (!is.na(level2) && is.na(zone)) {
-    stop(
-      "You need to define a zone (administrative level 1) ",
-      "to get data for level 2 (administrative level 2)."
-    )
-  }
-  exte_id <- paste0(
-    "EXTE",
-    formatC(as.integer(i), width = 4, flag = "0")
-  )
-  pathOUT <- if (!is.na(zone) && !is.na(level2)) {
-    file.path(path.to.extdata, zone, level2, exte_id)
-  } else if (!is.na(zone)) {
-    file.path(path.to.extdata, zone, exte_id)
-  } else {
-    file.path(path.to.extdata, exte_id)
-  }
-  if (!dir.exists(pathOUT)) {
-    dir.create(pathOUT, recursive = TRUE)
-  }
-  return(pathOUT)
-}
-
-
-### Produce the AOI_GPS.RDS file
+### Produce the AOI_GPS.RDS file ----
 getGridCoordinates <- function(
-    country, useCaseName, Crop, resltn = 0.05, project_root, provinces = NULL, 
-    district = NULL) { 
+    country, useCaseName, Crop, resltn = 0.05, project_root, provinces = NULL,
+    district = NULL, force_reanalysis = TRUE) {
   
   pathOut <- file.path(
     project_usecase_dir(project_root, country, useCaseName),
@@ -128,10 +118,14 @@ getGridCoordinates <- function(
     dir.create(file.path(pathOut), recursive = T)
   }
   
-  ### get country abbreviation to used in gdam function
-  # countryCC <- countrycode(country, origin = 'country.name', destination = 'iso3c')
-  
-  ### read the relevant shape file from gdam to be used to crop the global data
+  # Do not compute if not requested and AOI_GPS.RDS exists
+  if (!force_reanalysis && file.exists(paste0(pathOut, "AOI_GPS.RDS"))) {
+    State_LGA <- readRDS(paste0(pathOut, "AOI_GPS.RDS"))
+    
+    return(State_LGA)
+  }
+
+  # Read the relevant shape file from gdam to be used to crop the global data
   countrySpVec <- geodata::gadm(country, level = 2, path = '.')
   
   if(!is.null(provinces)) {
@@ -150,7 +144,7 @@ getGridCoordinates <- function(
   ymin <- ext(level3)[3]
   ymax <- ext(level3)[4]
   
-  ### define a rectangular area that covers the whole study area (with buffer of 10 km around)
+  # Define a rectangular area that covers the whole study area (buffer of 10 km)
   lon_coors <- unique(round(seq(xmin - 0.1, xmax + 0.1, by = resltn),
                             digits = 3))
   lat_coors <- unique(round(seq(ymin - 0.1, ymax + 0.1, by = resltn),
@@ -194,6 +188,7 @@ getGridCoordinates <- function(
 }
 
 
+### Detect available RAM in GB ----
 detect_available_ram_gb <- function() {
   ram_limit_file <- "/sys/fs/cgroup/memory/memory.limit_in_bytes"
   if (file.exists(ram_limit_file)) {
@@ -215,8 +210,10 @@ detect_available_ram_gb <- function() {
   NA_real_
 }
 
-### Plan multisession
-plan_multisession <- function(per_worker_gb, max_workers = NULL) {
+### Plan multisession ----
+plan_multisession <- function(per_worker_gb, max_workers = NULL,
+ only_get_workers = FALSE) {
+
   requested_workers <- max_workers
   if (is.null(requested_workers)) {
     env_workers <- Sys.getenv("AGWISE_N_CORES", unset = NA_character_)
@@ -244,7 +241,12 @@ plan_multisession <- function(per_worker_gb, max_workers = NULL) {
     workers <- min(as.integer(requested_workers), memory_workers)
   }
   workers <- max(1L, as.integer(workers))
-  
+
+  # Just get workers
+  if (only_get_workers) {
+    return(workers)
+  }
+
   # Activate plan
   if (!is.null(requested_workers)) {
     options(parallelly.maxWorkers.localhost = Inf)
@@ -268,16 +270,16 @@ plan_multisession <- function(per_worker_gb, max_workers = NULL) {
 }
 
 
-### Load inputData. If missing, produce it
+### Load inputData. If missing, produce it ----
 load_or_generate_inputData <- function(country, useCaseName, Crop, project_root,
                                        inputData = NULL) {
-  
+
   if (is.null(inputData)) {
-    
+
     inputData_path <- file.path(
       project_usecase_dir(project_root, country, useCaseName),
       Crop, "data_curation", country, "AOI_GPS.RDS")
-    
+
     if (file.exists(inputData_path)) {
       inputData <- readRDS(inputData_path)
     } else {
@@ -286,31 +288,24 @@ load_or_generate_inputData <- function(country, useCaseName, Crop, project_root,
       inputData <- readRDS(inputData_path)
     }
   }
-  
+
   return(inputData)
 }
 
-### Load or install required packages
-load_or_install <- function(pkg) {
-  if (!requireNamespace(pkg, quietly = T)) {
-    install.packages(pkg)
-  }
-  suppressPackageStartupMessages(library(pkg, character.only = T))
-}
 
-
-### Function to write DSSAT progress log files
+### Function to write DSSAT progress log files ----
 write_dssat_log <- function(messages_list, file) {
   file_path <- file.path(
     project_usecase_dir(project_root, country, useCaseName),
     Crop,
     file)
   dir.create(dirname(file_path), recursive = TRUE, showWarnings = FALSE)
+
   # Flatten list to single character vector
   log_lines <- unlist(messages_list)
-  
+
   # Write to file
   writeLines(log_lines, con = file_path)
-  
+
   message("Log written to: ", file_path)
 }

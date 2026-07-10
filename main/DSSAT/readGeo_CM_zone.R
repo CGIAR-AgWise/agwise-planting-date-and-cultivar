@@ -195,31 +195,28 @@ process_grid_element <- function(
 readGeo_CM_zone <- function(
   country, useCaseName, Crop, project_root, AOI = FALSE, season = 1, zone,
   level2 = NA, varietyid, pathIn_zone = TRUE,
-  Depth = c(5, 15, 30, 60, 100, 200), Forecast = FALSE, fc_month = NULL,
-  fc_year = NULL, forecast_pathIn = NULL,
-  datasourcing_path = "~/agwise-datasourcing/dataops/datasourcing") {
+    Depth = c(5, 15, 30, 60, 100, 200), Forecast = FALSE, 
+    forecast_inputs = NULL,
+    datasourcing_path = "~/agwise-datasourcing/dataops/datasourcing"
+    )
+  {
 
   # General input path with all the weather data
   # Define data input path based on the organization of the folders by zone and level2
   if (!Forecast) {
-    general_pathIn <- file.path(
-      project_usecase_dir(project_root, country, useCaseName),
-      Crop, "result", "geo_4cropModel")
+    general_pathIn <- paste0(
+      datasourcing_path, "/Data/useCase_", country, "_",
+      useCaseName, "/", Crop, "/result/geo_4cropModel")
   } else if (Forecast) {
-    if (!is.null(forecast_pathIn)) {
-      general_pathIn <- forecast_pathIn
-    } else {
-      general_pathIn <- file.path(
-        project_usecase_dir(project_root, country, useCaseName),
-        Crop, "transform", "FC"
-      )
-    }
-  }
+    general_pathIn <- paste0(
+      project_root, '/Data/useCase_', country, "_", useCaseName, "/", Crop, 
+      "/transform/FC")
   
-  pathIn <- define_pathIn(general_pathIn, level2, zone, pathIn_zone, Forecast)
-  forecast_prefix <- ""
-  if (Forecast && !is.null(fc_month) && !is.null(fc_year)) {
-    forecast_prefix <- paste0("FC_", fc_month, "-", fc_year, "_")
+    country_code <- forecast_inputs$country_code
+    
+    get_bc_forecast_data(
+      project_root, country, useCaseName, Crop, zone,
+      forecast_inputs = forecast_inputs, season = season)
   }
   input_file <- function(name) {
     primary <- file.path(pathIn, paste0(forecast_prefix, name))
@@ -254,10 +251,12 @@ readGeo_CM_zone <- function(
     TemperatureMax_file <- paste0(pathIn, "temperatureMax_PointData_trial.RDS")
     TemperatureMin_file <- paste0(pathIn, "temperatureMin_PointData_trial.RDS")
     if (length(Depth) == 2) {
+      # ISDA
       Soil_file <- paste0(pathIn, "ISDA_SoilDEM_PointData_trial_profile.RDS")
       if (!file.exists(Soil_file)) get_ISDA_soilRDS(
         country = country, useCaseName = useCaseName, Crop = Crop)
-    } else {      
+    } else {
+      #ISRIC
       Soil_file <- paste0(pathIn, "SoilDEM_PointData_trial_profile.RDS")
     }
   }
@@ -321,11 +320,6 @@ readGeo_CM_zone <- function(
   if (file.exists(log_file)) {
     file.remove(log_file)
   }
-  
-  # Parallel processing (for more efficient processing)
-  # num_cores <- max(1, availableCores() - 3)
-  # plan(multisession, workers = num_cores)
-  # 
   
   plan_multisession(per_worker_gb = 3)
   

@@ -35,7 +35,7 @@ read_and_filter <- function(file, zone = NA, level2 = NA) {
 
 # Define pathIn and check for existence
 define_pathIn <- function(general_pathIn, level2, zone, pathIn_zone, Forecast, 
-                          create_path = F) {
+                          create_path = FALSE) {
   if (pathIn_zone && Forecast) {
     pathIn <- file.path(general_pathIn, zone)
     if (!dir.exists(pathIn)) {
@@ -53,8 +53,8 @@ define_pathIn <- function(general_pathIn, level2, zone, pathIn_zone, Forecast,
     } else if (is.na(level2) && !is.na(zone)) {
       # Common path
       pathIn <- file.path(general_pathIn, zone)
-      if (create_path == T & !dir.exists(pathIn)) {
-        dir.create(pathIn, recursive = T)
+      if (create_path == TRUE && !dir.exists(pathIn)) {
+        dir.create(pathIn, recursive = TRUE)
       }
     } else if (!is.na(level2) && is.na(zone)) {
       stop("You need to define first a zone (administrative level 1) ",
@@ -66,7 +66,7 @@ define_pathIn <- function(general_pathIn, level2, zone, pathIn_zone, Forecast,
     pathIn <- general_pathIn
   }
   if (!dir.exists(pathIn)) {
-    dir.create(pathIn, recursive = T)
+    dir.create(pathIn, recursive = TRUE)
     stop(
       "Input path does not exist: ", pathIn, "\n",
       "Please provide a path containing the required RDS input data."
@@ -109,14 +109,17 @@ define_pathOUT <- function(path.to.extdata, i, zone = NA, level2 = NA) {
 # Get metadata for weather (Rainfall) and Soil data
 get_metadata <- function(AOI, Rainfall, Soil) {
   if(AOI) {
-    metaDataWeather <- as.data.frame(Rainfall[, c(
-      "longitude", 'latitude', "startingDate", "endDate", "NAME_1", "NAME_2")])
+    metaDataWeather <- Rainfall %>%
+      select(any_of(c("longitude", 'latitude', "startingDate", "endDate",
+                      "NAME_1", "NAME_2")))
   } else {
-    metaDataWeather <- as.data.frame(Rainfall[, c(
+    metaDataWeather <- Rainfall %>%
+      select(any_of(c(
       "longitude", 'latitude', "startingDate", "endDate", "NAME_1", "NAME_2", 
-      "yearPi", "yearHi", "pl_j", "hv_j")])
+        "yearPi", "yearHi", "pl_j", "hv_j")))
   }
-  metaData_Soil <- Soil[, c("longitude", "latitude", "NAME_1", "NAME_2")]
+  metaData_Soil <- Soil %>% 
+    select(all_of(c("longitude", "latitude", "NAME_1", "NAME_2")))
   # General metadata that has unique virtual experiments with unique weather, soil, planting and harvesting date
   metaData <- merge(metaDataWeather, metaData_Soil)
   metaData
@@ -168,7 +171,7 @@ depth_names <- function(var_name, depths) {
 #' @export
 slu1 <- function(clay1, sand1) {
   ifelse(sand1 >= 80, (20 - 0.15 * sand1),
-         ifelse(clay1 >= 50,(11 - 0.06 * clay1),
+         ifelse(clay1 >= 50, (11 - 0.06 * clay1),
                 (8 - 0.08 * clay1)))
 }
 
@@ -223,7 +226,7 @@ texture_class <- function (usda_clay, usda_silt) {
 
 # Initialize folders for varieties
 copy_WTH_SOIL_data_for_variety <- function(
-    country, useCaseName, Crop, project_root, AOI = F, varietyids) {
+    country, useCaseName, Crop, project_root, AOI = FALSE, varietyids) {
   for (varietyid in varietyids[-1]) {
     usecase_dir <- project_usecase_dir(project_root, country, useCaseName)
     if (AOI) {
@@ -252,7 +255,7 @@ filter_by_coord <- function(weather_df, coords, i) {
 
 # Pivot long weather data
 pivot_weather <- function(df, value_name, AOI = TRUE) {
-  
+
   id_cols <- if (AOI) {
     c("longitude", "latitude", "NAME_1", "NAME_2",
       "startingDate", "endDate", "ID")
@@ -261,60 +264,60 @@ pivot_weather <- function(df, value_name, AOI = TRUE) {
       "yearPi", "yearHi", "pl_j", "hv_j",
       "NAME_1", "NAME_2")
   }
-  
+
   out <- tidyr::pivot_longer(
     df,
-    cols = -all_of(id_cols),
+    cols = -any_of(id_cols),
     names_to = c("Variable", "Date"),
     names_sep = "_",
     values_to = value_name
   )  %>%
-    dplyr::select(-ID)
-  
+    dplyr::select(-any_of("ID"))
+
   if (AOI) {
-    out <- unique(dplyr::select(out, -Variable, -startingDate, -endDate))
+    out <- unique(dplyr::select(
+      out, -any_of(c("Variable", "startingDate", "endDate"))))
   } else {
-    out <- dplyr::select(out, -Variable)
+    out <- dplyr::select(out, -any_of("Variable"))
   }
-  
+
   out
 }
 
 
 # Build Weather file
 build_DSSAT_WTH <- function(TMAX, TMIN, SRAD, RAIN) {
-  
+
   tst <- na.omit(Reduce(merge, list(TMAX, TMIN, SRAD, RAIN)))
-  
+
   tst <- tst %>%
     mutate(
       DATE = as.POSIXct(Date, format = "%Y-%m-%d", tz = "UTC")
     ) %>%
-    dplyr::select(DATE, SRAD, TMAX, TMIN, RAIN) %>%
+    dplyr::select(DATE, TMAX, TMIN, SRAD, RAIN) %>%
     mutate(across(c(TMAX, TMIN, SRAD, RAIN), as.numeric)) %>%
+    rowwise() %>%
     mutate(
-      TMAX_RAW = TMAX,
-      TMIN_RAW = TMIN,
-      TMAX = pmax(TMAX_RAW, TMIN_RAW, na.rm = TRUE),
-      TMIN = pmin(TMAX_RAW, TMIN_RAW, na.rm = TRUE)
+      TMAX = max(TMAX, TMIN),
+      TMIN = min(TMAX, TMIN)
     ) %>%
-    dplyr::select(-TMAX_RAW, -TMIN_RAW)
-  
+    ungroup()
+
   tst
 }
 
 
 # Get general information table for DSSAT WTH file
-get_DSSAT_WTH_header <- function(tst, location, i, coords) {
+get_DSSAT_WTH_header <- function(tst, location, i) {
   # Calculate long-term average temperature (TAV)
   tav <- tst %>%
-    summarise(TAV = mean((TMAX + TMIN) / 2, na.rm = T))
+    summarise(TAV = mean((TMAX + TMIN) / 2, na.rm = TRUE))
   
   # Calculate monthly temperature amplitude (AMP)
   amp <- tst %>%
     mutate(month = lubridate::month(DATE)) %>%
     group_by(month) %>%
-    dplyr::summarise(monthly_avg = mean((TMAX + TMIN) / 2, na.rm = T)) %>%
+    dplyr::summarise(monthly_avg = mean((TMAX + TMIN) / 2, na.rm = TRUE)) %>%
     dplyr::summarise(AMP = (max(monthly_avg) - min(monthly_avg)) / 2)
   
   # Location name
@@ -408,7 +411,7 @@ get_texture_params <- function(LCL, LSI, Sand, Depth) {
 modify_ex_profile <- function(
     template_ex_profile, texture_soil, texture, location, country, lat, lon,
     ALB, SLU, LRO, LDR, Depth, LL15, SAT, DUL, SSS, BDM, LOC, LCL, LSI, LNI,
-    LHW, CEC, RGF, i, soil_p = F, P_data = NULL
+    LHW, CEC, RGF, i, soil_p = FALSE, P_data = NULL
 ) {
   soilid <- template_ex_profile %>%
     mutate(PEDON = paste0('TRAN', formatC(width = 5, (as.integer(i)), flag = "0")),
@@ -423,7 +426,7 @@ modify_ex_profile <- function(
            SLU1 = list(SLU),
            SLRO = list(LRO),
            # SMPX = "SA013",  # Mehlich-3. Requires more variables for running P.
-           SMPX = "SA001",  # Olsen. Requires conversion from Mehlich-3 (SoilGrids 0-30cm) using the AgWISE soil phosphorus helper equation.
+           SMPX = "SA001",  # Olsen. Requires conversion from Mehlich-3 (SoilGrids 0-30cm) using an empirical equation in main/RS/get_geo_spatial_data_w_phosphorus.R
            SLDR = list(LDR),
            SLB = list(Depth),
            SLMH = list(rep(-99, length(Depth))),  # No data about master horizon
@@ -517,7 +520,7 @@ get_var_name <- function(var, Depth) {
   }
 }
 
-
+# TODO Compare this function to the one in common_functions.R and see if they can be merged or if one can be removed.
 # Produce AOI_GPS.RDS file in a project subdirectory
 getGridCoordinates <- function(
     country, useCaseName, Crop, project_root, resltn = 0.05, provinces = NULL, 
@@ -595,27 +598,6 @@ getGridCoordinates <- function(
 }
 
 
-# TODO: Revisit this idea
-# Simple estimation of ISDA total P based on texture class
-# estimate_ISDA_total_P <- function(Soil) {
-#   f_avail_0_20 <- ifelse(
-#     Soil$`texture.class_0-20cm` %in% c("sandy", "sandy clay"), 0.07,
-#     ifelse(Soil$`texture.class_0-20cm` %in% c("clay", "clay loam"), 0.04, 0.05)
-#   )
-#   
-#   f_avail_20_50 <- ifelse(
-#     Soil$`texture.class_20-50cm` %in% c("sandy", "sandy clay"), 0.05,
-#     ifelse(Soil$`texture.class_20-50cm` %in% c("clay", "clay loam"), 0.03, 0.04)
-#   )
-#   
-#   # Estimate total P
-#   Soil$totalP_0_20cm <- Soil$`p_0-20cm` / f_avail_0_20
-#   Soil$totalP_20_50cm <- Soil$`p_20-50cm` / f_avail_20_50
-#   
-#   return(Soil)
-# }
-
-
 # Format Depth ("0-20cm", "20-50cm")
 depths_to_numeric <- function(Depth) {
   if (is.numeric(Depth)) {
@@ -629,9 +611,14 @@ depths_to_numeric <- function(Depth) {
 
 
 # Check for ISDA Soil data. If any zone missing, run script to produce it
-check_and_get_ISDA_RDS <- function(country, useCaseName, Crop, project_root,
-                                   inputData = NULL) {
-  
+check_and_get_ISDA_RDS <- function(
+    country, useCaseName, Crop, project_root, Soil_source = "ISRIC",
+    inputData = NULL, datasourcing_path = "~/agwise-datasourcing/dataops/datasourcing"
+                                   ) {
+  if (Soil_source == "ISRIC") {
+    message("Skipping producing ISDA files.")
+    return(invisible(NULL))
+  }
   inputData <- load_or_generate_inputData(
     country = country, useCaseName = useCaseName, Crop = Crop, 
     project_root = project_root, inputData = NULL)
@@ -646,9 +633,10 @@ check_and_get_ISDA_RDS <- function(country, useCaseName, Crop, project_root,
   for (prov in provinces) {
     
     # Build general path
-    general_pathIn <- file.path(
-      project_usecase_dir(project_root, country, useCaseName),
-      Crop, "result", "geo_4cropModel")
+    general_pathIn <- paste0(
+      datasourcing_path, "/Data/useCase_", country, "_",
+      useCaseName, "/", Crop, "/result/geo_4cropModel"
+    )
     
     # Define the full path for this province
     pathIn <- define_pathIn(general_pathIn, level2 = NA, zone = prov,
@@ -726,16 +714,6 @@ get_ISDA_soilRDS <- function(
   
   countryShp <- geodata::gadm(country, level = 2, path = '.')
   
-  ### This seems redundant based on how the inputData file is constructed
-  # inputData$country = country
-  # dd2 <- raster::extract(countryShp, inputData[, c("lon", "lat")])[, c("NAME_1", "NAME_2")]
-  # inputData$NAME_1 == dd2$NAME_1
-  # inputData$NAME_2 <- dd2$NAME_2
-  
-  ### No need for inputData2
-  # inputData2 <- unique(inputData)[, c("lon", "lat", "NAME_1", "NAME_2", "country")])
-  # inputData2 <- inputData2[complete.cases(inputData2), ]
-  # inputData2$ID <- c(1:nrow(inputData2))
   gpsPoints <- inputData[, c("lon", "lat")]
   gpsPoints$lon <- as.numeric(gpsPoints$lon)
   gpsPoints$lat <- as.numeric(gpsPoints$lat)

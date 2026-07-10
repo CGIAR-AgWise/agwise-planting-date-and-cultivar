@@ -1,3 +1,4 @@
+###############################################################################
 # Script: DSSAT_expfile.R
 # Purpose: Create DSSAT experimental files using planting-date schedule inputs.
 #
@@ -5,25 +6,10 @@
 # This script allows the creation of experimental files up to administrative level 2
 # The file also allows to copy the CUL file from the landing folder in case there is a
 # new variety or the parameters are modified from the released version of DSSAT
-# Original Author: A. Carmona-Cabrero, P.Moreno, A. Sila, S. Mkuhlani, E.Bendito Garcia 
-# Modified Author: Jemal S. Ahmed
-# Credentials : SFP & CASP 2026
-# Email: jemal.ahmed@cgiar.org
+# Authors: Alvaro Carmona-Cabrero, Jemal S. Ahmed (jemal.ahmed@cgiar.org), P.Moreno, A. Sila, S. Mkuhlani, E.Bendito Garcia
 # Institution: Alliance of Bioversity International and CIAT (CGIAR)
-# Last modified Date: 2026-05-29
-
-### Load required packages
-packages_required <- c(
-  "tidyverse", "lubridate", "DSSAT", "furrr", "future", "future.apply",
-  "stringr", "geodata", "readr", "purrr"
-)
-
-invisible(lapply(packages_required, load_or_install))
-
-
-# Source helper functions
-source(file.path(project_root, "main", "DSSAT", "helpers_DSSAT_expfile.R"))
-
+# Date: 2026-07-09
+###############################################################################
 
 
 #' Create one experimental file (repetitive function)
@@ -54,6 +40,14 @@ create_filex <- function(i, path.to.temdata, filex_temp, path.to.extdata, coords
                          NPK_ranges = NULL, geneticfiles, index_soilwat = 1,
                          wsta_prefix = "WHTE", template_df = NULL, 
                          plant_dates = NULL) {
+  
+  if (is.null(plant_dates) && !is.null(coords)) {
+    plant_dates <- coords$planting_dates[[i]]
+  }
+  
+  if (is.null(plant_dates)) {
+    stop(paste("plant_dates is NULL for i =", i))
+  }
   
   # Working path (each point)
   working_path <- create_dssat_working_path(
@@ -95,7 +89,8 @@ create_filex <- function(i, path.to.temdata, filex_temp, path.to.extdata, coords
   hd_df <- get_filex_harvestdetails(file_x, plant_dates)
   file_x$`HARVEST DETAILS` <- hd_df
   
-  fert_list <- create_fertilizer_flags(NPK_ranges = if (exists("NPK_ranges")) NPK_ranges else NULL, template_df)
+  fert_list <- create_fertilizer_flags(
+    NPK_ranges = if (exists("NPK_ranges")) NPK_ranges else NULL, template_df)
   
   sc_df <- get_filex_simulationcontrols(file_x, plant_dates, number_years, fert_list)
   file_x$`SIMULATION CONTROLS` <- sc_df
@@ -104,10 +99,10 @@ create_filex <- function(i, path.to.temdata, filex_temp, path.to.extdata, coords
     file_x, plant_dates, template_df, 
     NPK_ranges = if (exists("NPK_ranges")) NPK_ranges else NULL, 
     longitude = coords$longitude[i],
-    latitude = coords$latitude[i], varietyid)
+    latitude = coords$latitude[i], varietyid, fert_list)
   file_x$`FERTILIZERS (INORGANIC)` <- fi_df
   
-  treatments_df <- get_filex_treatments(file_x)
+  treatments_df <- get_filex_treatments(file_x, fert_list)
   file_x$`TREATMENTS                        -------------FACTOR LEVELS------------` <- treatments_df
   
   DSSAT::write_filex(
@@ -130,6 +125,7 @@ dssat.expfile <- function(country, useCaseName, Crop, project_root, AOI = TRUE,
                           Forecast = F, create_RS_schedule = F, fc_month = NA,
                           fc_year = NA) {
   
+  stop("Need to Call the onSet script to define the planting dates")
   print(paste("Variety:", varietyid, "Zone:", zone))
   
   # Populate RS planting dates schedule depending on Forecast or not
@@ -193,7 +189,6 @@ dssat.expfile <- function(country, useCaseName, Crop, project_root, AOI = TRUE,
   n_indices <- length(indices)
   
   plan_multisession(per_worker_gb = 5)
-  # plan(sequential)
 
   messages_list <- future_lapply(
     indices, 
@@ -232,6 +227,6 @@ dssat.expfile <- function(country, useCaseName, Crop, project_root, AOI = TRUE,
     },
     
     future.packages = packages_required,
-    future.seed = T
+    future.seed = TRUE
   )  
 }

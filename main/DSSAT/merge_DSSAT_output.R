@@ -1,33 +1,13 @@
+###############################################################################
 # Script: merge_DSSAT_output.R
 # Purpose: Merge DSSAT simulation outputs for multiple locations.
 #
-# Author: Jemal S. Ahmed
-# Email: jemal.ahmed@cgiar.org
+# Authors: Alvaro Carmona-Cabrero, Jemal S. Ahmed (jemal.ahmed@cgiar.org), P. Moreno, A. Sila, S. Mkuhlani, E. Bendito Garcia
 # Institution: Alliance of Bioversity International and CIAT (CGIAR)
-# Date: 2026-05-29
+# Date: 2026-07-09
+###############################################################################
 
-# Introduction: 
-# This script allows Merge output of the DSSAT simulations for diverse locations
-# Authors: A. Carmona-Cabrero, P.Moreno, , L. Leroux A. Sila, S. Mkuhlani, E.Bendito Garcia 
-# Modified Author: Jemal S. Ahmed
-# Credentials : SFP & CASP 2026
-# Email: jemal.ahmed@cgiar.org
-# Institution: Alliance of Bioversity International and CIAT (CGIAR)
-# Last modified Date: 2026-05-29
 
-#################################################################################################################
-## sourcing required packages
-#################################################################################################################
-packages_required <- c(
-  "DSSAT", "mgsub", "tidyverse", "future.apply", "future", "furrr")
-
-# check and install packages that are not yet installed
-installed_packages <- packages_required %in% rownames(installed.packages())
-if(any(installed_packages == FALSE)){
-  install.packages(packages_required[!installed_packages])}
-
-# load required packages
-invisible(lapply(packages_required, library, character.only = TRUE))
 
 #' @param country country name
 #' @param useCaseName use case name  name

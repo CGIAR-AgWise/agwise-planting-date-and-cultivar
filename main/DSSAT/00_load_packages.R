@@ -4,7 +4,7 @@
 #
 # Authors: Alvaro Carmona-Cabrero
 # Institution: CGIAR (IITA & Alliance of Bioversity International and CIAT)
-# Date: 2026-06-07
+# Date: 2026-07-09
 ###############################################################################
 
 load_or_install <- function(pkg) {
@@ -15,13 +15,10 @@ load_or_install <- function(pkg) {
 }
 
 packages_required <- c(
-  "yaml", "countrycode", "stringr", "lubridate", "readr", "purrr", "terra",
-  "geodata", "DSSAT", "future", "furrr", "future.apply", "tidyverse"
+  "yaml", "mgsub", "countrycode", "parallel", "foreach", "future",
+  "future.apply", "furrr", "sp", "sf", "terra", "rgl", "geodata",
+  "chirps", "tidyverse", "readr", "stringr", "lubridate", "purrr",
+  "dplyr", "DSSAT"
 )
-packages_required <- c(
-  "chirps", "terra", "sf", "rgl", "sp", "geodata", "tidyverse", "countrycode", 
-  "DSSAT", "furrr", "future", "lubridate", "dplyr", "parallel", "future.apply",
-  "foreach")
-
 
 invisible(lapply(packages_required, load_or_install))

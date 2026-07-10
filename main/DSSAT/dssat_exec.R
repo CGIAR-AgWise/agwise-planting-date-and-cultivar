@@ -1,22 +1,13 @@
+###############################################################################
 # Script: dssat_exec.R
 # Purpose: Create DSSAT batch files and run DSSAT simulations.
-#
-
 # Introduction: 
 # This script allows the creation of Batch file and run the model
-# Original Authors : A. Carmona-Cabrero, A. Sila, S. Mkuhlani, E.Bendito Garcia 
-# Modified Author: Jemal S. Ahmed
-# Credentials : SFP & CASP 2026
-# Email: jemal.ahmed@cgiar.org
+#
+# Authors: Alvaro Carmona-Cabrero, Jemal S. Ahmed (jemal.ahmed@cgiar.org), P. Moreno, A. Sila, S. Mkuhlani, E. Bendito Garcia
 # Institution: Alliance of Bioversity International and CIAT (CGIAR)
-# Last modified Date: 2026-05-29
-
-### Load required packages
-packages_required <- c(
-  "tidyverse", "lubridate", "DSSAT", "furrr", "future", "future.apply")
-
-invisible(lapply(packages_required, load_or_install))
-
+# Date: 2026-07-09
+###############################################################################
 
 #' Individual function to run DSSAT
 #'
@@ -31,8 +22,8 @@ invisible(lapply(packages_required, load_or_install))
 #'
 #' @examples rundssat(1)
 
-rundssat <-function(i, path.to.extdata, TRT, AOI = TRUE, crop_code){
-  setwd(paste(path.to.extdata, 
+rundssat <- function(i, path.to.extdata, TRT, AOI = TRUE, crop_code) {
+  setwd(paste(path.to.extdata,
               paste0('EXTE', formatC(width = 4, (as.integer(i)), flag = "0")),
               sep = "/"))
 
@@ -79,7 +70,7 @@ dssat.exec <- function(country, useCaseName, Crop, project_root, AOI = T,
   }
   usecase_dir <- project_usecase_dir(project_root, country, useCaseName)
   #Set working directory to save the results
-  if(AOI == TRUE){
+  if (AOI == TRUE) {
     path.to.extdata_ini <- file.path(
       usecase_dir, Crop, "transform", "DSSAT", "AOI", varietyid)
   } else {
@@ -89,11 +80,11 @@ dssat.exec <- function(country, useCaseName, Crop, project_root, AOI = T,
   
   
   #define working path or path to run the model
-  if(!is.na(level2) & !is.na(zone)) {
+  if(!is.na(level2) && !is.na(zone)) {
     path.to.extdata <- paste(path.to.extdata_ini, zone, level2, sep = "/")
-  }else if(is.na(level2) & !is.na(zone)) {
+  }else if(is.na(level2) && !is.na(zone)) {
     path.to.extdata <- paste(path.to.extdata_ini, zone, sep = "/")
-  }else if(!is.na(level2) & is.na(zone)) {
+  }else if(!is.na(level2) && is.na(zone)) {
     print("You need to define first a zone (administrative level 1) to be able to run the model for level 2 (administrative level 2). Process stopped")
     return(NULL)
   }else{
@@ -143,6 +134,6 @@ dssat.exec <- function(country, useCaseName, Crop, project_root, AOI = T,
   },
   
   future.packages = packages_required,
-  future.seed = T
+  future.seed = TRUE
   )
 }

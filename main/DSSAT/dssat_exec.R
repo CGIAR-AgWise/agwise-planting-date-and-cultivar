@@ -65,9 +65,7 @@ rundssat <- function(i, path.to.extdata, TRT, AOI = TRUE, crop_code) {
 
 dssat.exec <- function(country, useCaseName, Crop, project_root, AOI = T,
                        TRT, varietyid, zone, level2 = NA) {
-  if (!exists("project_usecase_dir", mode = "function")) {
-    source(file.path(project_root, "main", "DSSAT", "common_helpers.R"))
-  }
+  
   usecase_dir <- project_usecase_dir(project_root, country, useCaseName)
   #Set working directory to save the results
   if (AOI == TRUE) {

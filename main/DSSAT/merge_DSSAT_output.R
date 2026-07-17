@@ -8,6 +8,26 @@
 ###############################################################################
 
 
+prepare_data_to_save <- function(results_df, project_root, country, useCaseName, Crop,
+                                 complete_usecase) {
+  path.to.temdata <- check_dssat_temdata_path(
+    project_root = project_root, country = country, useCaseName = useCaseName, 
+    Crop = Crop)
+  
+  cul_file <- DSSAT::read_cul(file.path(
+    path.to.temdata, paste0(complete_usecase$geneticfiles, '.CUL')))
+  
+  var_map <- cul_file %>%
+    select(`VAR#`, VRNAME) %>%
+    deframe()
+  
+  results_df <- results_df %>%
+    mutate(Cultivar = unname(var_map[as.character(Variety)])) %>%
+    mutate(Cultivar = gsub(paste0(toupper(country), "_"), "", Cultivar)) %>%
+    mutate(Cultivar = str_to_title(Cultivar))
+  return(results_df)
+}
+
 
 #' @param country country name
 #' @param useCaseName use case name  name
@@ -24,12 +44,9 @@
 #' @examples merge_DSSAT_output(country="Rwanda", useCaseName="RAB",Crop="Maize",varietyids=c("890011","890012"), zone_folder=T, level2_folder=F)
 
 merge_DSSAT_output <- function(
-    country, useCaseName, Crop, project_root, Soil_source, AOI = F,
+    complete_usecase, country, useCaseName, Crop, project_root, Soil_source, AOI = F,
     season = NULL, varietyids, zone_folder = T, level2_folder = F) {
   
-  if (!exists("project_usecase_dir", mode = "function")) {
-    source(file.path(project_root, "main", "DSSAT", "common_helpers.R"))
-  }
   usecase_dir <- project_usecase_dir(project_root, country, useCaseName)
   all_results <- data.frame()
   for (varietyid in varietyids) {
@@ -104,6 +121,9 @@ merge_DSSAT_output <- function(
     all_results <- bind_rows(all_results, results)
   }
   
+  all_results <- prepare_data_to_save(
+    all_results, project_root, country, useCaseName, Crop, complete_usecase)
+  
   if (AOI) {
     dir_path <- file.path(usecase_dir, Crop, "result", "DSSAT", "AOI")
   } else {
@@ -130,4 +150,5 @@ merge_DSSAT_output <- function(
                Crop, "_fieldData_season_", season, ".RDS")))
   }
   
+  return(all_results)
 }

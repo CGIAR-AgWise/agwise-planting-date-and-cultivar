@@ -44,6 +44,15 @@ project_usecase_dir <- function(project_root, country, useCaseName) {
 }
 
 
+### Usecase-specific path ----
+get_country_dir <- function(project_root, country, useCaseName) {
+  data_root <- file.path(project_root, project_data_dir(project_root))
+  country_code <- countrycode(country, origin = 'country.name', destination = 'iso3c')
+  country_dir <- file.path(data_root, "countries", country_code)
+  
+  country_dir
+}
+
 ### Common EXTpath ----
 create_extdata_path <- function(project_root, country, useCaseName, Crop,
                                 varietyid, AOI = FALSE) {
@@ -61,18 +70,14 @@ create_extdata_path <- function(project_root, country, useCaseName, Crop,
 
 
 ### Common DSSAT template data path ----
-create_dssat_temdata_path <- function(project_root, country, useCaseName, Crop) {
-  usecase_dir <- project_usecase_dir(project_root, country, useCaseName)
-  candidates <- c(
-    file.path(usecase_dir, Crop, "Landing", "DSSAT"),
-    file.path(usecase_dir, Crop, "DSSAT")
-  )
-  path.to.temdata <- candidates[dir.exists(candidates)][1]
-  if (is.na(path.to.temdata) || !dir.exists(path.to.temdata)) {
+check_dssat_temdata_path <- function(project_root, country, useCaseName, Crop) {
+  dssat_landing_path <- file.path(
+    project_root, "Landing/DSSAT", country)
+  if (is.na(dssat_landing_path) || !dir.exists(dssat_landing_path)) {
     stop("Directory with DSSAT Template Data (soil and weather files) does ", 
          "not exist, please add the template files. Process will stop.")
   }
-  paste0(path.to.temdata, "/")
+  paste0(dssat_landing_path, "/")
 }
 
 
@@ -294,7 +299,8 @@ load_or_generate_inputData <- function(country, useCaseName, Crop, project_root,
 
 
 ### Function to write DSSAT progress log files ----
-write_dssat_log <- function(messages_list, file) {
+write_dssat_log <- function(
+    messages_list, file, project_root, country, useCaseName, Crop) {
   file_path <- file.path(
     project_usecase_dir(project_root, country, useCaseName),
     Crop,
@@ -308,4 +314,25 @@ write_dssat_log <- function(messages_list, file) {
   writeLines(log_lines, con = file_path)
 
   message("Log written to: ", file_path)
+}
+
+
+### Get number of iterations to run ----
+count_exte_dirs <- function(base_dir, varietyid, zone) {
+  # 1. Combine arguments into the final target path
+  target_dir <- file.path(base_dir, varietyid, zone)
+  
+  # Safety check
+  if (!dir.exists(target_dir)) {
+    warning(paste("Directory does not exist:", target_dir))
+    return(0)
+  }
+  
+  # 2. List immediate directories (non-recursively)
+  all_subdirs <- list.dirs(path = target_dir, full.names = FALSE, recursive = FALSE)
+  
+  # 3. Count how many start with "EXTE"
+  num_exte_dirs <- sum(grepl("^EXTE", all_subdirs))
+  
+  return(num_exte_dirs)
 }

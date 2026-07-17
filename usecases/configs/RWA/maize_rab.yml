@@ -29,4 +29,7 @@ extent:
 skip_dssat: false
 create_dssat_weather_files: true
 varietyids:
-  - 999993
+  - 890011
+  - 890012
+  - 890013
+  - 890014

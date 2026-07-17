@@ -1,0 +1,79 @@
+*MAIZE CULTIVAR COEFFICIENTS: MZCER048 MODEL
+!
+!The P1 values for the varieties used in experiments IBWA8301 and
+!UFGA8201 were recalibrated to obtain a better fit for version 3
+!of the model. After converting from 2.1 to 3.0 the varieties
+!IB0035, IB0060, and IB0063 showed an earlier simulated flowering
+!date. To correct this, the P1 values were recalibrated.
+!The reason for this is that there was an error in PHASEI in
+!version 2.1 that had TLNO=IFIX(CUMDTT/21.+6.) rather than
+!TLNO=IFIX(SUMDTT/21.+6.); see p. 74 of Jones & Kiniry.
+!-Walter Bowen, 22 DEC 1994.
+!
+!All G2 values were increased by a factor of 1.1 for Ritchie's
+!change to RUE -Walter, 28 DEC 1994
+!
+! COEFF       DEFINITIONS
+! ========    ===========
+! VAR#        Identification code or number for a specific cultivar
+! VAR-NAME    Name of cultivar
+! EXPNO       Number of experiments used to estimate cultivar parameters
+! ECO#        Ecotype code of this cultivar, points to the Ecotype in the
+!             ECO file (currently not used).
+! P1          Thermal time from seedling emergence to the end of the juvenile
+!             phase (expressed in degree days above a base temperature of 8 deg.C)
+!             during which the plant is not responsive to changes in
+!             photoperiod.
+! P2          Extent to which development (expressed as days) is delayed for
+!             each hour increase in photoperiod above the longest photoperiod
+!             at which development proceeds at a maximum rate (which is
+!             considered to be 12.5 hours).
+! P5          Thermal time from silking to physiological maturity (expressed
+!             in degree days above a base temperature of 8 deg.C).
+! G2          Maximum possible number of kernels per plant.
+! G3          Kernel filling rate during the linear grain filling stage and
+!             under optimum conditions (mg/day).
+! PHINT       Phylochron interval; the interval in thermal time (degree days)
+!             between successive leaf tip appearances.
+!
+! PIO         Pioneer
+! AS          Asgrow (Monsanto)
+! DK          Dekalb (Monsanto)
+! LH          Holden (Monsanto)
+! C/LOL       Land of Lakes
+!
+!             P/G/N:Phenology/Growth/Not used for calbration
+!
+@VAR#  VRNAME.......... EXPNO   ECO#    P1    P2    P5    G2    G3 PHINT
+!Coeffient #                             1     2     3     4     5     6
+!Calibration                             P     P     P     G     G     N
+
+999991 MINIMA               . DFAULT   5.0 0.000 580.0 248.0  5.00 38.00
+999992 MAXIMA               . DFAULT 450.0 2.000 999.0 990.0 16.50 75.00
+
+!RWANDA
+890011 RWANDA_SHORT         . IB0001  20.0 0.300 790.0 850.4  7.50 38.90  #New adj Short Rwanda #Good Short
+890012 RWANDA_MEDIUM        . IB0001  50.0 0.300 810.0 900.4  8.00 48.90  #New adj Short Rwanda #Good Medium
+890013 RWANDA_LONG          . IB0001 140.0 0.300 760.0 800.4  8.40 48.90  #New adj Short Rwanda #Good long
+890014 RWANDA_LONGER        . IB0001 180.0 0.300 960.0 990.4  9.80 48.90  #New adj Short Rwanda #Good longer
+
+!KENYA
+999995 LONG_KENYA           . IB0013 100.0 0.000 999.0 999.0 20.00 78.00
+999994 MEDIUM_KENYA         . IB0012  70.0 0.000 800.0 800.0 10.00 58.00
+999993 SHORT_KENYA          . IB0011  10.0 0.000 550.0 600.0  8.00 18.00
+
+!MALAWI, ZAMBIA, MOZAMBIQUE
+900111 SHORT_ZB             . IB0001 110.0 0.300 680.0 820.4  6.60 38.90  !NEW ZB SHORT
+900112 MEDIUM_ZB            . IB0001 200.0 0.300 800.0 700.0  8.50 38.90  !NEW ZB MEDIUM
+900113 LONG_ZB              . DFAULT 260.0 0.900 990.0 990.0 16.07 43.50  !NEW ZB LONG
+
+!GHANA
+900211 E_EARLY_GH           . IB0001 230.0 0.300 700.0 680.4  6.70 38.90  !Good for now
+900213 MEDIUM_GH            . IB0001 310.0 0.300 750.0 800.0  7.50 43.50  !Good for now
+900214 LONG_GH              . IB0001 380.0 0.300 900.0 850.0  7.90 46.50  !Good for now
+
+!NIGERIA
+234001 SHORT                . IB0001 170.0 0.300 710.0 400.4  5.10 38.90 #Good kaduna NG
+234002 AVERAGE              . IB0001 330.0 0.300 810.0 500.4  5.40 38.90 #Good kaduna NG
+234003 LONG                 . IB0001 400.0 0.300 810.0 600.4  6.00 38.90 #Good kaduna NG
+

@@ -383,31 +383,33 @@ get_zone_coords_pdates <- function(
     country, useCaseName, Crop, zone, Soil_source, rs_schedule_df,
     project_root) {
   
-  usecase_dir <- project_usecase_dir(project_root, country, useCaseName)
+  country_dir <- get_country_dir(project_root, country, useCaseName)
   if (Soil_source == "ISDA") {
     soil_path <- file.path(
-      usecase_dir, Crop, "result", "geo_4cropModel", zone,
+      country_dir, Crop, "result", "geo_4cropModel", zone,
       "ISDA_SoilDEM_PointData_AOI_profile.RDS")
   }
   if (Soil_source == "ISRIC") {
     soil_path <- file.path(
-      usecase_dir, Crop, "result", "geo_4cropModel", zone,
+      country_dir, "forecast/dssat_handoff", zone,
       "SoilDEM_PointData_AOI_profile.RDS")
   }
   Soil <- readRDS(soil_path)
+  
+  rename_rules <- c(longitude = "lon", latitude = "lat")
+  
   Soil <- na.omit(Soil) %>%
-    rename(longitude = lon,
-           latitude = lat)
+    rename(any_of(rename_rules))
   
   new_coords <- Soil %>%
     dplyr::select("longitude", "latitude", "NAME_1", "NAME_2") %>%
     mutate(longitude = round(longitude, 3),
            latitude = round(latitude, 3))
   
-  new_coords <- new_coords %>%
-  mutate(lat_lon = paste(latitude, longitude))
+  new_coords <- new_coords %>% 
+    mutate(lat_lon = paste(latitude, longitude))
   
-  rs_schedule_df <- rs_schedule_df %>% 
+  rs_schedule_df <- rs_schedule_df %>%
     mutate(longitude = round(longitude, 3),
            latitude = round(latitude, 3))
   
@@ -620,7 +622,7 @@ get_filex_simulationcontrols <- function(
 # Produce Fertilizers Inorganic df that is common for all DSSAT experiment design approaches
 # If no Fertilizers return NULL so there is no addition
 get_filex_fertilizersinorganic <- function(
-    file_x, plant_dates, template_df, NPK_ranges, longitude, latitude, varietyid) {
+    file_x, plant_dates, template_df, NPK_ranges, longitude, latitude, varietyid, fert_list) {
   fi_df <- file_x$`FERTILIZERS (INORGANIC)`
   
   # Path: fertilizer from template file
@@ -635,11 +637,12 @@ get_filex_fertilizersinorganic <- function(
     row.names(fi_df) <- NULL
     
     n0 <- nrow(fi_df) / length(plant_dates)
+    # fi_df$FDATE <- as.POSIXct(fi_df$F.dap + rep(plant_dates, each = n0))
     fi_df$FDATE_date <- as.Date(fi_df$F.dap + rep(plant_dates, each = n0))
     fi_df$FDATE <- as.integer(
       format(fi_df$FDATE_date, "%y")) * 1000 +
-        as.integer(format(fi_df$FDATE_date, "%j"))
-    )
+      as.integer(format(fi_df$FDATE_date, "%j"))
+    
     fi_df <- fi_df %>% dplyr::select(-FDATE_date)
     
     fi_df$F <- rep(seq_len(dim(fi_df)[1]/n_split_applications), each = n_split_applications)

@@ -1,8 +1,3 @@
-packages_required <- c('dplyr', 'ggplot2', 'rlang', 'readr', 'scales', 'tidyterra')
-invisible(lapply(packages_required, load_or_install))
-
-source(paste0(project_root, "/Scripts/generic/DSSAT/helpers_DSSAT_analyze_results.R"))
-
 
 run_full_soil_comparison <- function(
     project_root, country, useCaseName, Crop, AOI = TRUE, season, 

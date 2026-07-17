@@ -1,0 +1,32 @@
+*POTATO CULTIVAR COEFFICIENTS: PTSUB048 MODEL
+
+! COEFF       DEFINITIONS
+! ========    ===========
+! VAR#        Identification code or number for a specific cultivar
+! VAR-NAME    Name of cultivar
+! EXPNO       Number of experiments used to estimate cultivar parameters
+! ECO#        Ecotype code or this cultivar, points to the Ecotype in the
+!             ECO file (currently not used).
+! G2          Leaf area expansion rate after tuber initiation (cm2/m2 d)
+! G3          Potential tuber growth rate (g/m2 d)
+! PD          Index that supresses tuber growth during the period
+!             that immediately follows tuber induction
+! P2          Tuber initiation sensitivity to long photoperiods
+! TC          Upper critical temperature for tuber initiation (C)
+!
+!             P/G/N:Phenology/Growth/Not used for calbration
+!
+@VAR#  VAR-NAME........ EXPNO   ECO#    G2    G3    PD    P2    TC
+!Coeffient #                             1     2     3     4     5
+!Calibration                             G     G     G     P     P
+
+999991 MINIMA               . DFAULT  900.  21.0   0.5   0.3  15.0
+999992 MAXIMA               . DFAULT 5000.  30.0   0.2   0.4  21.0 #Good #Low potential Rwanda
+
+!Revised 27 June 2024 Coefficients
+IB0028 SHORT_RW             . IB0001 1500.  23.0   0.9   0.7  19.0 #Good #Low potential Rwanda  
+IB0029 MEDIUM_RW            . IB0001 1500.  23.0   0.9   0.5  19.0 #Good #Low potential Rwanda  
+IB0030 LONG_RW              . IB0001 3000.  23.0   0.9   0.3  19.0 #Good #Low potential Rwanda 
+
+
+

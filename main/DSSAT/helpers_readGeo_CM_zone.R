@@ -308,7 +308,7 @@ build_DSSAT_WTH <- function(TMAX, TMIN, SRAD, RAIN) {
 
 
 # Get general information table for DSSAT WTH file
-get_DSSAT_WTH_header <- function(tst, location, i) {
+get_DSSAT_WTH_header <- function(tst, location, i, coords) {
   # Calculate long-term average temperature (TAV)
   tav <- tst %>%
     summarise(TAV = mean((TMAX + TMIN) / 2, na.rm = TRUE))
@@ -821,3 +821,189 @@ get_ISDA_soilRDS <- function(
     saveRDS(pointDataSoil_prov, paste0(pathIn, "/ISDA_SoilDEM_PointData_AOI_profile.RDS"))
   }
 }
+
+
+### Find season onset date and suggest planting dates after it ---- 
+get_agronomic_onset_pdates <- function(
+    Rainfall_i, target_month, pathOUT, n_alternative_pdates = 7, spacing = 7,
+    i, zone) {
+  
+  # Find the target year from the dataset to construct the start date
+  df_clean <- Rainfall_i %>% 
+    mutate(Date = as.Date(Date)) %>%
+    arrange(Date)
+  
+  start_search_date <- df_clean %>%
+    filter(month(Date) == target_month) %>%
+    summarise(Date = min(Date)) %>%
+    pull(Date)
+  
+  if (length(start_search_date) == 0 || is.infinite(start_search_date))
+    stop("Cannot find a valid date for the season onset")
+  
+  # 1. PRIMARY ATTEMPT
+  onset_date <- df_clean %>%
+    # Pre-compute rolling windows
+    mutate(
+      # 3-day rainfall sum (current day + next 2 days)
+      rain_3day = slide_index_dbl(RAIN, Date, sum, .before = 0, .after = 2, .complete = TRUE),
+      
+      is_dry_day = RAIN < 1,
+      
+      # 10-day dry day count (current day + next 9 days)
+      dry_10day_count = slide_index_sum(is_dry_day, Date, before = 0, after = 9, complete = TRUE)
+    ) %>%
+    
+    # Shift dry_10day_count forward by 3 days to look at the future window
+    mutate(
+      dry_10day_shifted = lead(dry_10day_count, 3)
+    ) %>%
+    
+    # Look ahead 20 days (from day i+3 to i+22) to find any 10-day dry spells
+    mutate(
+      future_dry_spell = slide_index_dbl(
+        dry_10day_shifted, Date, 
+        ~any(.x >= 10, na.rm = TRUE), 
+        .before = 0, .after = 19,  # Look across the 20-day block
+        .complete = FALSE
+      )
+    ) %>%
+    
+    # Filter for candidates starting ON or AFTER the first day of target_month
+    filter(
+      Date >= start_search_date,
+      coalesce(rain_3day >= 20, FALSE),
+      !coalesce(future_dry_spell, FALSE)
+    ) %>%
+    
+    slice(1) %>% 
+    pull(Date)
+  
+  # 2. FALLBACK ATTEMPT (If primary fails)
+  if (length(onset_date) == 0) {
+    
+    message(paste0(
+      "*** WARNING: For zone = ", zone, " & pixel i = ", i, ", no date met the primary requirements:\n",
+      "    - 3-day rainfall sum >= 20 mm\n",
+      "    - No 10-day dry spells (>= 10 days with RAIN < 1 mm) in the next 20 days.\n",
+      "--> Requirements have been relaxed to:\n",
+      "    - 3-day rainfall sum >= 10 mm\n",
+      "    - No 10-day dry spells (>= 10 days with RAIN < 1 mm) in the next 15 days."
+    ))
+    
+    onset_date <- df_clean %>%
+      mutate(
+        rain_3day = slide_index_dbl(RAIN, Date, sum, .before = 0, .after = 2, .complete = TRUE),
+        is_dry_day = RAIN < 1,
+        dry_10day_count = slide_index_sum(is_dry_day, Date, before = 0, after = 9, complete = TRUE)
+      ) %>%
+      mutate(
+        dry_10day_shifted = lead(dry_10day_count, 3)
+      ) %>%
+      # Relaxed lookahead: Look ahead 15 days instead of 20
+      mutate(
+        future_dry_spell = slide_index_dbl(
+          dry_10day_shifted, Date, 
+          ~any(.x >= 10, na.rm = TRUE), 
+          .before = 0, .after = 14, 
+          .complete = FALSE
+        )
+      ) %>%
+      # Relaxed criteria: rain_3day >= 10 instead of 20
+      filter(
+        Date >= start_search_date,
+        coalesce(rain_3day >= 10, FALSE), 
+        !coalesce(future_dry_spell, FALSE)
+      ) %>%
+      slice(1) %>% 
+      pull(Date)
+  }
+  
+  
+  # 3. EMERGENCY FALLBACK (For ultra-dry pixels)
+  if (length(onset_date) == 0) {
+    message(paste0("! zone", zone, " i = ", i, ": "))
+    message("Using minimal criteria (3-day rain >= 3mm, ignoring dry-spell checks).")
+    
+    onset_date <- df_clean %>%
+      mutate(
+        rain_3day = slide_index_dbl(RAIN, Date, sum, .before = 0, .after = 2, .complete = TRUE)
+      ) %>%
+      filter(
+        Date >= start_search_date,
+        coalesce(rain_3day >= 3, FALSE)  # Looks for the best micro-wet window
+      ) %>%
+      slice(1) %>% 
+      pull(Date)
+  }
+  
+  
+  # 4. INPUT A BASIC VALUE  (In case all fail)
+  
+  
+  if (length(onset_date) == 0) {
+    message(paste0("!!! zone ",  zone, " i = ", i, ": Rainfall extremely low. Defaulting onset to target month start date."))
+    onset_date <- start_search_date
+  }
+  
+  # Calculate planting dates from whichever onset date was found
+  planting_dates <- onset_date + (0:n_alternative_pdates) * spacing
+  
+  output_path <- file.path(pathOUT, "onset_planting_dates.RDS")
+  saveRDS(planting_dates, file = output_path)
+}
+
+
+### Merge all planting dates derived from onset into a single file ---
+combine_planting_dates_list <- function(base_path) {
+  # Find all target RDS files
+  file_paths <- list.files(
+    path = base_path, 
+    pattern = "^onset_planting_dates\\.RDS$", 
+    recursive = TRUE, 
+    full.names = TRUE
+  )
+  
+  if (length(file_paths) == 0) {
+    stop("No 'onset_planting_dates.RDS' files found.")
+  }
+  
+  message(paste("Found", length(file_paths), "files. Creating list-column dataset..."))
+  
+  # Helper function to extract metadata and store the dates as a nested list
+  process_single_file <- function(path) {
+    dates_vector <- readRDS(path)
+    
+    # Split the path to extract metadata
+    path_parts <- str_split(path, "/")[[1]]
+    total_parts <- length(path_parts)
+    
+    pixel_raw   <- path_parts[total_parts - 1]  # e.g., "EXTE0001"
+    zone_name   <- path_parts[total_parts - 2]  # e.g., "Amajyaruguru"
+    variety_name <- path_parts[total_parts - 3]  # e.g., "999993"
+    
+    pixel_numeric <- as.integer(str_remove_all(pixel_raw, "[^0-9]"))  # e.g., 1
+    
+    # Create a nested list-column
+    row_data <- tibble(
+      variety = variety_name,
+      zone    = zone_name,
+      i       = pixel_numeric,
+      planting_dates = list(dates_vector)
+    )
+    
+    return(row_data)
+  }
+  
+  # Map and bind
+  combined_data <- map_dfr(file_paths, process_single_file)
+  
+  # Save to base path
+  output_file <- file.path(base_path, "all_onset_planting_dates.RDS")
+  saveRDS(combined_data, file = output_file)
+  
+  message(paste("Dataset of season-onset planting dates saved to:", output_file))
+  return(combined_data)
+}
+
+

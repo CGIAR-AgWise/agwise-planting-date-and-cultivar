@@ -8,10 +8,6 @@
 ###############################################################################
 
 
-### Source helper functions
-source(paste0(project_root, '/main/DSSAT/helpers_readGeo_CM_zone.R'))
-
-
 #' Function that creates the soil and weather file for one location/folder
 #'
 #' @param i last digits of the folder (folder ID) and pixel number
@@ -34,7 +30,7 @@ source(paste0(project_root, '/main/DSSAT/helpers_readGeo_CM_zone.R'))
 process_grid_element <- function(
     i, country, path.to.extdata, path.to.temdata, TemperatureMax,
     TemperatureMin, SolarRadiation, Rainfall, coords, Soil, AOI, varietyid,
-    zone, level2 = NA, Depth = c(5, 15, 30, 60, 100, 200)) {
+    zone, level2 = NA, Depth = c(5, 15, 30, 60, 100, 200), fc_month) {
 
   pathOUT <- define_pathOUT(path.to.extdata = path.to.extdata, i = i,
                             zone = zone, level2 = level2)
@@ -62,7 +58,12 @@ process_grid_element <- function(
   # Creation of DSSAT weather file
   tst <- build_DSSAT_WTH(TMAX = TemperatureMax_i, TMIN = TemperatureMin_i, 
                          SRAD = SolarRadiation_i, RAIN = Rainfall_i)
-
+  
+  # Get planting dates from season onset date
+  get_agronomic_onset_pdates(
+    Rainfall_i, target_month = fc_month, pathOUT = pathOUT,
+    n_alternative_pdates = 7, spacing = 7, i = i, zone = zone)
+  
   # Add station information
   general_new <- get_DSSAT_WTH_header(tst = tst, location = location, i = i, coords = coords)
   attr(tst, "GENERAL") <- general_new
@@ -78,15 +79,15 @@ process_grid_element <- function(
   
   # Get soil ISRIC data from server
   LL15 <- get_depth_var(Soil = Soil, lon = lon_i, lat = lat_i, 
-                              var = "PWP", Depth = Depth, scale = 1)
+                        var = "PWP", Depth = Depth, scale = 1)
   DUL <- get_depth_var(Soil = Soil, lon = lon_i, lat = lat_i, 
-                             var = "FC", Depth = Depth, scale = 1)
+                       var = "FC", Depth = Depth, scale = 1)
   SAT <- get_depth_var(Soil = Soil, lon = lon_i, lat = lat_i, 
-                             var = "SWS", Depth = Depth, scale = 1)
+                       var = "SWS", Depth = Depth, scale = 1)
   SKS <- get_depth_var(Soil = Soil, lon = lon_i, lat = lat_i, 
-                             var = "KS", Depth = Depth, scale = 10)
+                       var = "KS", Depth = Depth, scale = 10)
   SSS <- get_depth_var(Soil = Soil, lon = lon_i, lat = lat_i, 
-                             var = "KS", Depth = Depth, scale = 10, round_digits = 1)
+                       var = "KS", Depth = Depth, scale = 10, round_digits = 1)
   BDM <- get_depth_var(Soil = Soil, lon = lon_i, lat = lat_i, 
                        var = get_var_name(var = "bdod", Depth), Depth = Depth)
   LOC <- get_depth_var(Soil = Soil, lon = lon_i, lat = lat_i, 
@@ -101,8 +102,7 @@ process_grid_element <- function(
                        var = get_var_name("nitrogen", Depth), Depth = Depth, scale = 10)
   LHW <- get_depth_var(Soil = Soil, lon = lon_i, lat = lat_i, 
                        var = get_var_name("phh2o", Depth), Depth = Depth)
-  LDR <- get_site_var(Soil = Soil, lon = lon_i, lat = lat_i, 
-                             var = "LDR")
+  LDR <- get_site_var(Soil = Soil, lon = lon_i, lat = lat_i, var = "LDR")
   CEC <- get_depth_var(Soil = Soil, lon = lon_i, lat = lat_i, 
                        var = get_var_name(var = "cec", Depth), Depth = Depth)
   
@@ -143,7 +143,7 @@ process_grid_element <- function(
     
     P_data <- data.frame(matrix(-99, nrow = length(Depth),
                                 ncol = length(na_vars))) %>%
-      mutate(SLPX = SLPX,
+      dplyr::mutate(SLPX = SLPX,
              SLPT = SLPT)
     colnames(P_data) <- c(na_vars, "SLPX", "SLPT")
     
@@ -193,14 +193,23 @@ process_grid_element <- function(
 #'
 #' @examples readGeo_CM(country = "Kenya",  useCaseName = "KALRO", Crop = "Maize", AOI = TRUE, season=1, Province = "Kiambu")
 readGeo_CM_zone <- function(
-  country, useCaseName, Crop, project_root, AOI = FALSE, season = 1, zone,
-  level2 = NA, varietyid, pathIn_zone = TRUE,
-    Depth = c(5, 15, 30, 60, 100, 200), Forecast = FALSE, 
-    forecast_inputs = NULL,
+    complete_usecase, project_root, zone, varietyid, fc_month,
     datasourcing_path = "~/agwise-datasourcing/dataops/datasourcing"
     )
   {
-
+  
+  # Define inputs from usecase
+  Forecast <- complete_usecase$forecast
+  country_code <- complete_usecase$country_code
+  country <- complete_usecase$country_name
+  season <- complete_usecase$season
+  level2 <- complete_usecase$level2
+  AOI <- complete_usecase$aoi
+  useCaseName <- complete_usecase$use_case_name
+  Crop <- complete_usecase$crop
+  Depth <- complete_usecase$soil_depths
+  fc_month <- complete_usecase$season_start_month
+  
   # General input path with all the weather data
   # Define data input path based on the organization of the folders by zone and level2
   if (!Forecast) {
@@ -208,31 +217,16 @@ readGeo_CM_zone <- function(
       datasourcing_path, "/Data/useCase_", country, "_",
       useCaseName, "/", Crop, "/result/geo_4cropModel")
   } else if (Forecast) {
-    general_pathIn <- paste0(
-      project_root, '/Data/useCase_', country, "_", useCaseName, "/", Crop, 
-      "/transform/FC")
+    general_pathIn <- file.path(
+      project_root, "data/countries", country_code, "forecast/dssat_handoff", zone)
+  }
   
-    country_code <- forecast_inputs$country_code
-    
-    get_bc_forecast_data(
-      project_root, country, useCaseName, Crop, zone,
-      forecast_inputs = forecast_inputs, season = season)
-  }
-  input_file <- function(name) {
-    primary <- file.path(pathIn, paste0(forecast_prefix, name))
-    fallback <- file.path(pathIn, name)
-    if (Forecast && nzchar(forecast_prefix) && !file.exists(primary) && file.exists(fallback)) {
-      fallback
-    } else {
-      primary
-    }
-  }
   # Define RS file paths based on AOI
   if (AOI) {
-    Rainfall_file <- input_file(paste0("Rainfall_Season_", season, "_PointData_AOI.RDS"))
-    SolarRadiation_file <- input_file(paste0("solarRadiation_Season_", season, "_PointData_AOI.RDS"))
-    TemperatureMax_file <- input_file(paste0("temperatureMax_Season_", season, "_PointData_AOI.RDS"))
-    TemperatureMin_file <- input_file(paste0("temperatureMin_Season_", season, "_PointData_AOI.RDS"))
+    Rainfall_file <- file.path(general_pathIn, paste0("Rainfall_Season_", season, "_PointData_AOI.RDS"))
+    SolarRadiation_file <- file.path(general_pathIn, paste0("solarRadiation_Season_", season, "_PointData_AOI.RDS"))
+    TemperatureMax_file <- file.path(general_pathIn, paste0("temperatureMax_Season_", season, "_PointData_AOI.RDS"))
+    TemperatureMin_file <- file.path(general_pathIn, paste0("temperatureMin_Season_", season, "_PointData_AOI.RDS"))
     # Read ISDA or ISRIC soil file
     if (length(Depth) == 2) {
       # ISDA
@@ -242,7 +236,7 @@ readGeo_CM_zone <- function(
       
     } else {
       # ISRIC
-      Soil_file <- input_file("SoilDEM_PointData_AOI_profile.RDS")  
+      Soil_file <- file.path(general_pathIn, "SoilDEM_PointData_AOI_profile.RDS")  
     }
     
   } else {
@@ -300,7 +294,7 @@ readGeo_CM_zone <- function(
     project_root, country, useCaseName, Crop, varietyid, AOI)
 
   # Define DSSAT template data (soil and weather files in DSSAT format)
-  path.to.temdata <- create_dssat_temdata_path(
+  path.to.temdata <- check_dssat_temdata_path(
     project_root, country, useCaseName, Crop)
 
   # Get unique locations
@@ -335,7 +329,8 @@ readGeo_CM_zone <- function(
         path.to.temdata = path.to.temdata, TemperatureMax = TemperatureMax,
         TemperatureMin = TemperatureMin, SolarRadiation = SolarRadiation,
         Rainfall = Rainfall, coords = coords, Soil = Soil, AOI = AOI,
-        varietyid = varietyid, zone = zone, level2 = level2, Depth = Depth
+        varietyid = varietyid, zone = zone, level2 = level2, Depth = Depth, 
+        fc_month = fc_month
       )
       
       end_msg <- paste(

@@ -43,6 +43,15 @@ create_filex <- function(i, path.to.temdata, filex_temp, path.to.extdata, coords
   
   if (is.null(plant_dates) && !is.null(coords)) {
     plant_dates <- coords$planting_dates[[i]]
+  } else if (is.null(plant_dates) && is.null(coords)) {
+    exte_id <- paste0(
+      "EXTE",
+      formatC(as.integer(i), width = 4, flag = "0")
+    )
+    
+    path_pdates <- file.path(path.to.extdata, zone, exte_id, "onset_planting_dates.RDS")
+
+    plant_dates <- readRDS(path_pdates)
   }
   
   if (is.null(plant_dates)) {
@@ -114,56 +123,76 @@ create_filex <- function(i, path.to.temdata, filex_temp, path.to.extdata, coords
 #'
 #' @param rs_schedule_df OPTIONAL data.frame with columns:
 #'   longitude, latitude, lon_r, lat_r, planting_dates(list of Dates), startingDate(Date), harvestDate(Date)
-dssat.expfile <- function(country, useCaseName, Crop, project_root, AOI = TRUE,
-                          filex_temp, Planting_month_date = NULL, 
-                          Harvest_month_date = NULL, ID = "TLID", season = 1, 
-                          plantingWindow = 1, varietyid, zone, level2 = NA, 
-                          fertilizer = FALSE,  fert_factorial = FALSE, 
-                          template_df = NULL,  fert_grid_RS = FALSE, 
-                          NPK_ranges = NULL, geneticfiles, index_soilwat = 1,
-                          pathIn_zone = FALSE,  rs_schedule_df = NULL, 
-                          Forecast = F, create_RS_schedule = F, fc_month = NA,
-                          fc_year = NA) {
+dssat.expfile <- function(
+    complete_usecase, project_root, Planting_month_date = NULL,
+    Harvest_month_date = NULL, varietyid, zone,
+    index_soilwat = 1, create_RS_schedule = F) {
   
-  stop("Need to Call the onSet script to define the planting dates")
-  print(paste("Variety:", varietyid, "Zone:", zone))
+  
+  Forecast <- complete_usecase$forecast
+  country_code <- complete_usecase$country_code
+  season <- complete_usecase$season
+  country <- complete_usecase$country_name
+  level2 <- complete_usecase$level2
+  AOI <- complete_usecase$aoi
+  useCaseName <- complete_usecase$use_case_name
+  Crop <- complete_usecase$crop
+  Depth <- complete_usecase$soil_depths
+  fc_month <- complete_usecase$season_start_month
+  fc_year <- complete_usecase$season_year
+  pathIn_zone <- complete_usecase$path_in_zone
+  geneticfiles <- complete_usecase$geneticfiles
+  filex_temp <- complete_usecase$filex_temp
+  ID <- complete_usecase$id
+  plantingWindow <- complete_usecase$planting_window
+  Soil_source <- complete_usecase$soil_source
+  
+  message("Creating DSSAT exp file for variety: ", varietyid, ", zone: ", zone)
   
   # Populate RS planting dates schedule depending on Forecast or not
-  if(create_RS_schedule) {
-    if (Forecast) {
-      rs_schedule_df <- create_rs_schedule(
-        template_df = template_df, fc_year = fc_year)
-      template_df <- template_df %>% select(-c(q25, q50, q75))
-    } else if (!Forecast) {
-      rs_schedule_df <- create_rs_schedule(template_df = template_df)
-      template_df <- template_df %>% select(-c(q25, q50, q75))
-    }
-  }
-  
-  if (AOI) {
-    if(is.null(rs_schedule_df$planting_dates)) {
-      stop("Currently, the workflow only works if RS planting dates are provided.")
-    }
-    coords <- get_zone_coords_pdates(
-      country, useCaseName, Crop, zone, Soil_source, rs_schedule_df,
-      project_root)
-    
-    if (!Forecast) {
-      fc_year = 2000  # placeholder
-    }
-
-  } else {
-    # TODO: THIS REMAINS UNCHANGED
-    GPS_fieldData <- readRDS(file.path(
-      project_usecase_dir(project_root, country, useCaseName),
-      Crop, "result", "compiled_fieldData.RDS"))
-    countryCoord <- unique(GPS_fieldData[, c("lon", "lat", "plantingDate", "harvestDate")])
-    countryCoord <- countryCoord[complete.cases(countryCoord), ]
-    countryCoord$startingDate <- as.Date(countryCoord$plantingDate, "%Y-%m-%d") %m-% months(1)
-    names(countryCoord) <- c("longitude", "latitude", "plantingDate", "harvestDate","startingDate")
-    ground <- countryCoord
-  }
-  
+  # if(create_RS_schedule) {
+  #   if (Forecast) {
+  #     rs_schedule_df <- create_rs_schedule(
+  #       template_df = template_df, fc_year = fc_year)
+  #     template_df <- template_df %>% select(-c(q25, q50, q75))
+  #   } else if (!Forecast) {
+  #     rs_schedule_df <- create_rs_schedule(template_df = template_df)
+  #     template_df <- template_df %>% select(-c(q25, q50, q75))
+  #   } 
+  # } else if (Forecast) {
+  #   # Stack planting dates
+  #   base_dir <- file.path(
+  #     project_root, paste0("data/usecases/useCase_", country, "_", useCaseName), Crop,
+  #     "transform/DSSAT/AOI")
+  #   
+  #   rs_schedule_df <- combine_planting_dates_list(base_dir)
+  #   
+  #   message("Using season onset to define planting dates.")
+  #   
+  #   AOI_GPS <- readRDS("~/Alvaro_repos/agwise-planting-date-and-cultivar/data/countries/RWA/AOI_GPS.RDS")
+  #   
+  #   
+  # }
+  # 
+  # if (AOI) {
+  #   if(is.null(rs_schedule_df$planting_dates)) {
+  #     stop("Currently, the workflow only works if RS planting dates are provided.")
+  #   }
+  #   coords <- get_zone_coords_pdates(
+  #     country, useCaseName, Crop, zone, Soil_source, rs_schedule_df,
+  #     project_root)
+  # 
+  # } else {
+  #   GPS_fieldData <- readRDS(file.path(
+  #     project_usecase_dir(project_root, country, useCaseName),
+  #     Crop, "result", "compiled_fieldData.RDS"))
+  #   countryCoord <- unique(GPS_fieldData[, c("lon", "lat", "plantingDate", "harvestDate")])
+  #   countryCoord <- countryCoord[complete.cases(countryCoord), ]
+  #   countryCoord$startingDate <- as.Date(countryCoord$plantingDate, "%Y-%m-%d") %m-% months(1)
+  #   names(countryCoord) <- c("longitude", "latitude", "plantingDate", "harvestDate","startingDate")
+  #   ground <- countryCoord
+  # }
+  # 
   number_years <- NULL
   
   # Get path to EXT data and create if missing
@@ -172,7 +201,7 @@ dssat.expfile <- function(country, useCaseName, Crop, project_root, AOI = TRUE,
     Crop = Crop, varietyid = varietyid, AOI = AOI)
   
   # Get path to Landing data and create if missing
-  path.to.temdata <- create_dssat_temdata_path(
+  path.to.temdata <- check_dssat_temdata_path(
     project_root = project_root, country = country, useCaseName = useCaseName, 
     Crop = Crop)
   
@@ -184,9 +213,24 @@ dssat.expfile <- function(country, useCaseName, Crop, project_root, AOI = TRUE,
   # log_file <- file.path(path.to.extdata,"progress_log_exp.txt")
   # if (file.exists(log_file)) file.remove(log_file)
   
-  # Sequence of location indices
-  indices <- seq_len(nrow(coords))
-  n_indices <- length(indices)
+  # Location indices
+  if (Forecast && !create_RS_schedule && !exists("rs_schedule_df")) {
+    base_dir <- file.path(
+      project_root, 
+      paste0("data/usecases/useCase_", country, "_", useCaseName), 
+      Crop, 
+      "transform/DSSAT/AOI"
+    )
+    
+    n_indices <- count_exte_dirs(base_dir, varietyid = varietyid, zone = zone)
+    indices <- seq_len(n_indices)
+    coords <- NULL
+    
+  } else if (exists("rs_schedule_df")) {
+    indices <- seq_len(nrow(coords))
+    n_indices <- length(indices)
+  }
+  
   
   plan_multisession(per_worker_gb = 5)
 
@@ -212,10 +256,9 @@ dssat.expfile <- function(country, useCaseName, Crop, project_root, AOI = TRUE,
       fertilizer = fertilizer,
       fert_factorial = fert_factorial,
       fert_grid_RS = fert_grid_RS,
-      NPK_ranges = NPK_ranges,
+      NPK_ranges = NULL,
       geneticfiles = geneticfiles,
       index_soilwat = index_soilwat,
-      template_df = template_df,
       plant_dates = coords$planting_dates[[i]]  # <<< RS-driven vector of Dates (4 per coordinate)
     )
     

@@ -322,7 +322,7 @@ run_usecase <- function(usecase) {
   source(file.path(repo_root, "main/DSSAT/run_dssat_pipeline.R"))
   message("Launching DSSAT module from run_usecase")
   run_dssat_pipeline(
-    usecase, cli = parse_usecase_args(), repo_root = repo_root)
+    usecase, repo_root = repo_root)
   invisible(usecase)
 }
 
@@ -334,8 +334,13 @@ run_usecase_config <- function(config_path) {
   run_forecast_usecase(usecase, cli = cli, repo_root = repo_root)
   source(file.path(repo_root, "main/DSSAT/run_dssat_pipeline.R"))
   message("Launching DSSAT module from run_usecase_config")
+  
+  if (isTRUE(cli[["dry-run"]]) || isTRUE(usecase$skip_dssat)) {
+    return(invisible(NULL))
+  }
+  
   run_dssat_pipeline(
-    usecase, cli = parse_usecase_args(), repo_root = repo_root)
+    usecase, repo_root = repo_root)
   # format_dssat_zones(usecase, cli = cli, repo_root = repo_root)
   invisible(usecase)
 }

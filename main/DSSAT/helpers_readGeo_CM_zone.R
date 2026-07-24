@@ -224,29 +224,28 @@ texture_class <- function (usda_clay, usda_silt) {
 }
 
 
-# Initialize folders for varieties
+### Initialize folders for varieties ----
 copy_WTH_SOIL_data_for_variety <- function(
     country, useCaseName, Crop, project_root, AOI = FALSE, varietyids) {
+  
+  usecase_dir <- project_usecase_dir(project_root, country, useCaseName)
+  sub_folder <- if (AOI) "AOI" else "fieldData"
+  
+  from_path <- file.path(usecase_dir, Crop, "transform", "DSSAT", sub_folder, varietyids[1])
+
+  items_to_copy <- list.files(from_path, full.names = TRUE)
+
   for (varietyid in varietyids[-1]) {
-    usecase_dir <- project_usecase_dir(project_root, country, useCaseName)
-    if (AOI) {
-      from_path <- file.path(
-        usecase_dir, Crop, "transform", "DSSAT", "AOI", varietyids[1])
-      to_path <- file.path(
-        usecase_dir, Crop, "transform", "DSSAT", "AOI", varietyid)  
-    } else if (!AOI) {
-      from_path <- file.path(
-        usecase_dir, Crop, "transform", "DSSAT", "fieldData", varietyids[1])
-      to_path <- file.path(
-        usecase_dir, Crop, "transform", "DSSAT", "fieldData", varietyid)
-    }
-    cmd <- sprintf('cp -r "%s/" "%s/"', from_path, to_path)
-    system(cmd)
+    to_path <- file.path(usecase_dir, Crop, "transform", "DSSAT", sub_folder, varietyid)
+
+    dir.create(to_path, recursive = TRUE, showWarnings = FALSE)
+
+    file.copy(from = items_to_copy, to = to_path, recursive = TRUE)
   }
 }
 
 
-# Select weather data for one pixel 
+### Select weather data for one pixel  ----
 filter_by_coord <- function(weather_df, coords, i) {
   weather_df[weather_df$longitude == coords$longitude[i] &
                weather_df$latitude  == coords$latitude[i], ]
@@ -841,6 +840,9 @@ get_agronomic_onset_pdates <- function(
   if (length(start_search_date) == 0 || is.infinite(start_search_date))
     stop("Cannot find a valid date for the season onset")
   
+  # Ensure that the onset is within a reasonable window
+  max_search_date <- start_search_date + (n_alternative_pdates * spacing)
+  
   # 1. PRIMARY ATTEMPT
   onset_date <- df_clean %>%
     # Pre-compute rolling windows
@@ -872,6 +874,7 @@ get_agronomic_onset_pdates <- function(
     # Filter for candidates starting ON or AFTER the first day of target_month
     filter(
       Date >= start_search_date,
+      Date <= max_search_date,
       coalesce(rain_3day >= 20, FALSE),
       !coalesce(future_dry_spell, FALSE)
     ) %>%
@@ -912,6 +915,7 @@ get_agronomic_onset_pdates <- function(
       # Relaxed criteria: rain_3day >= 10 instead of 20
       filter(
         Date >= start_search_date,
+        Date <= max_search_date,
         coalesce(rain_3day >= 10, FALSE), 
         !coalesce(future_dry_spell, FALSE)
       ) %>%
@@ -931,16 +935,14 @@ get_agronomic_onset_pdates <- function(
       ) %>%
       filter(
         Date >= start_search_date,
+        Date <= max_search_date,
         coalesce(rain_3day >= 3, FALSE)  # Looks for the best micro-wet window
       ) %>%
       slice(1) %>% 
       pull(Date)
   }
   
-  
   # 4. INPUT A BASIC VALUE  (In case all fail)
-  
-  
   if (length(onset_date) == 0) {
     message(paste0("!!! zone ",  zone, " i = ", i, ": Rainfall extremely low. Defaulting onset to target month start date."))
     onset_date <- start_search_date

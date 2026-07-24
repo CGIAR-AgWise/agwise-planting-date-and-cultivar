@@ -48,14 +48,9 @@ get_DSSAT_crop_submodel <- function(crop_code) {
 
 
 run_dssat_pipeline <- function(
-    usecase, cli = parse_usecase_args(), repo_root = usecase_repo_root()) {
+    usecase, repo_root = usecase_repo_root()) {
   
   project_root <- repo_root
-  
-  # Skip if a dry-run or if explicitly disabled
-  if (isTRUE(cli[["dry-run"]]) || isTRUE(usecase$skip_dssat)) {
-    return(invisible(NULL))
-  }
   
   # Source Required DSSAT Components ---
   source(file.path(repo_root, "main/DSSAT/00_load_packages.R"))
@@ -65,8 +60,10 @@ run_dssat_pipeline <- function(
   source(file.path(repo_root, "main/DSSAT/DSSAT_expfile.R"))
   source(file.path(repo_root, "main/DSSAT/helpers_DSSAT_expfile.R"))
   source(file.path(repo_root, "main/DSSAT/dssat_exec.R"))
+  source(file.path(repo_root, "main/DSSAT/merge_DSSAT_output.R"))
   source(file.path(repo_root, "main/DSSAT/DSSAT_analyze_results.R"))
   source(file.path(repo_root, "main/DSSAT/helpers_DSSAT_analyze_results.R"))
+  source(file.path(repo_root, "main/DSSAT/get_pdate_cultivar_recommendation.R"))
   
   # Expand usecase forecast config with DSSAT default config
   complete_usecase <- load_dssat_defaults(usecase, repo_root)
@@ -176,7 +173,32 @@ run_dssat_pipeline <- function(
   )
   
   # --- STEP 5: Produce Final Outputs ---
-  message("Saving nc and parquet files... WIP")
+  message("Saving nc, plots, and statistics...")
+  plot_df <- add_date_rank(results_df, metric = "HWAH")
+  
+  result_output_dir <- file.path(
+    project_usecase_dir(
+      repo_root, complete_usecase$country_name, complete_usecase$use_case_name),
+    complete_usecase$crop, "result", "DSSAT", "AOI")
+
+  plot_planting_date_gradients(
+    df = plot_df, country_name = complete_usecase$country_name, 
+    output_dir = result_output_dir)
+  
+  plot_yield_gradients(
+    df = plot_df, yield_col = "HWAH", complete_usecase$country_name,
+    output_dir = result_output_dir)
+  
+  summary_df <- summarize_and_save_dssat(
+    df = plot_df, outputs = c("HWAH", "CWAM"), output_dir = result_output_dir)
+  
+  export_top_combinations_nc(
+    df = results_df, metric = "HWAH", top_n = 5, output_dir = result_output_dir
+  )
+  
+  comb_df <- export_top_combinations_csv(
+    df = results_df, metric = "HWAH", top_n = 5, output_dir = result_output_dir
+  )
   
 }
 

@@ -35,10 +35,11 @@
 #' @return invisibly, the path to the written FILEX
 create_filex <- function(i, path.to.temdata, filex_temp, path.to.extdata, coords,
                          AOI = TRUE, crop_code, plantingWindow = 1,
-                         varietyid, zone, level2 = NA, fertilizer = FALSE, 
+                         varietyid, zone, level2 = NA, fertilizer = FALSE,
                          fert_factorial = FALSE, fert_grid_RS = FALSE,
-                         NPK_ranges = NULL, geneticfiles, index_soilwat = 1,
-                         wsta_prefix = "WHTE", template_df = NULL, 
+                         NPK_ranges = NULL, geneticfiles, dssat_model = NULL,
+                         index_soilwat = 1,
+                         wsta_prefix = "WHTE", template_df = NULL,
                          plant_dates = NULL) {
   
   if (is.null(plant_dates) && !is.null(coords)) {
@@ -67,7 +68,9 @@ create_filex <- function(i, path.to.temdata, filex_temp, path.to.extdata, coords
   
   number_years <- get_number_years_from_WTH_file(
     working_path = working_path, i = i)
-  
+  max_weather_date <- get_max_wth_date(
+    working_path = working_path, i = i)
+
   file_x <- DSSAT::read_filex(file.path(path.to.temdata, filex_temp))
   
   # Copy genetic files (from template dir into working path)
@@ -95,13 +98,21 @@ create_filex <- function(i, path.to.temdata, filex_temp, path.to.extdata, coords
   pd_df <- get_filex_plantdetails(file_x, plant_dates)
   file_x$`PLANTING DETAILS` <- pd_df
   
-  hd_df <- get_filex_harvestdetails(file_x, plant_dates)
+  hd_df <- get_filex_harvestdetails(file_x, plant_dates, max_weather_date = max_weather_date)
   file_x$`HARVEST DETAILS` <- hd_df
   
   fert_list <- create_fertilizer_flags(
     NPK_ranges = if (exists("NPK_ranges")) NPK_ranges else NULL, template_df)
   
   sc_df <- get_filex_simulationcontrols(file_x, plant_dates, number_years, fert_list)
+  # SMODEL selects which crop routine DSCSM048 runs; the template's own value
+  # (from PDVAR.MZX) is Maize-specific and must be overridden per crop, or a
+  # Wheat/Potato run would silently execute the wrong crop physics. Prefer the
+  # usecase-level dssat_model (matches this DSSAT install's SIMULATION.CDE,
+  # which doesn't always agree with the genetic-file naming convention - e.g.
+  # Wheat's files are WHCER048.* but this install's registered model is
+  # CSCER048); fall back to the geneticfiles-style code if not supplied.
+  sc_df$SMODEL <- if (!is.null(dssat_model)) dssat_model else paste0(crop_code, get_DSSAT_crop_submodel(crop_code))
   file_x$`SIMULATION CONTROLS` <- sc_df
   
   fi_df <- get_filex_fertilizersinorganic(
@@ -142,6 +153,7 @@ dssat.expfile <- function(
   fc_year <- complete_usecase$season_year
   pathIn_zone <- complete_usecase$path_in_zone
   geneticfiles <- complete_usecase$geneticfiles
+  dssat_model <- complete_usecase$dssat_model
   filex_temp <- complete_usecase$filex_temp
   ID <- complete_usecase$id
   plantingWindow <- complete_usecase$planting_window
@@ -258,6 +270,7 @@ dssat.expfile <- function(
       fert_grid_RS = fert_grid_RS,
       NPK_ranges = NULL,
       geneticfiles = geneticfiles,
+      dssat_model = dssat_model,
       index_soilwat = index_soilwat,
       plant_dates = coords$planting_dates[[i]]  # <<< RS-driven vector of Dates (4 per coordinate)
     )

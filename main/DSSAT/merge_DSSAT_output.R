@@ -16,14 +16,18 @@ prepare_data_to_save <- function(results_df, project_root, country, useCaseName,
   
   cul_file <- DSSAT::read_cul(file.path(
     path.to.temdata, paste0(complete_usecase$geneticfiles, '.CUL')))
-  
+
+  # Cultivar-name column header isn't standardized across crop models
+  # (VRNAME for Maize, VAR-NAME for Potato/Wheat) - select positionally.
   var_map <- cul_file %>%
-    select(`VAR#`, VRNAME) %>%
+    select(1, 2) %>%
     deframe()
   
+  # Cultivar naming isn't consistent across crop genetic files: Maize's are
+  # prefixed (RWANDA_SHORT), Potato/Wheat's are suffixed (SHORT_RW). Strip both.
   results_df <- results_df %>%
     mutate(Cultivar = unname(var_map[as.character(Variety)])) %>%
-    mutate(Cultivar = gsub(paste0(toupper(country), "_"), "", Cultivar)) %>%
+    mutate(Cultivar = gsub(paste0("^", toupper(country), "_|_RW$"), "", Cultivar)) %>%
     mutate(Cultivar = str_to_title(Cultivar))
   return(results_df)
 }
@@ -74,8 +78,24 @@ merge_DSSAT_output <- function(
     results <- future_map_dfr(a, function(.x) {
       tryCatch({
         file <- read_output(.x)
-        file <- file[, c("XLAT", "LONG", "TRNO", "TNAM", "PDAT","ADAT","MDAT", 
-                         "HDAT", "CWAM", "HWAH", "CNAM", "GNAM", "NDCH", 
+
+        # Work around a bug in DSSAT::read_output()'s internal (unexported)
+        # convert_to_date(): after parsing a date, it subtracts 100 years from
+        # it whenever the result is later than Sys.time(), assuming the value
+        # came from an ambiguous 2-digit-year (YYDDD) rollover. This misfires
+        # for genuine future dates within the current forecast run (e.g. a
+        # 2026 season processed mid-2026 with planting dates later in 2026),
+        # turning 2026 into 1926. Undo that shift here on the affected columns.
+        date_cols <- intersect(c("PDAT", "ADAT", "MDAT", "HDAT"), names(file))
+        for (col in date_cols) {
+          if (inherits(file[[col]], "POSIXct")) {
+            shifted <- !is.na(file[[col]]) & file[[col]] < as.POSIXct("2000-01-01", tz = "UTC")
+            file[[col]][shifted] <- file[[col]][shifted] + lubridate::years(100)
+          }
+        }
+
+        file <- file[, c("XLAT", "LONG", "TRNO", "TNAM", "PDAT","ADAT","MDAT",
+                         "HDAT", "CWAM", "HWAH", "CNAM", "GNAM", "NDCH",
                          "TMAXA", "TMINA", "SRADA", "PRCP", "ETCP", "ESCP", "CRST")]
         file$file_name <- .x
         file$WUE <- file$HWAH / file$PRCP

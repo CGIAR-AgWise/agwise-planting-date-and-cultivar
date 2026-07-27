@@ -6,6 +6,13 @@ load_dssat_defaults <- function(usecase, repo_root) {
   dssat_defaults <- list(
     filex_temp          = paste0("PDVAR.", crop_code, "X"),  # Template for this repo
     geneticfiles        = paste0(crop_code, get_DSSAT_crop_submodel(crop_code), "048"),  # Country/crop specific genetic files
+    # SMODEL code as registered in this DSSAT install's SIMULATION.CDE (5
+    # chars, no version suffix - e.g. "MZCER", matching what the proven-good
+    # Maize template already used). Usually matches the geneticfiles prefix,
+    # but not always: Wheat's genotype files are WHCER048.* while this
+    # install's SIMULATION.CDE registers the model itself as CSCER, not
+    # WHCER. Override per-usecase (dssat_model: ...) when they diverge.
+    dssat_model         = paste0(crop_code, get_DSSAT_crop_submodel(crop_code)),
     soil_source         = "ISRIC",
     aoi                 = TRUE,
     forecast            = TRUE,
@@ -175,31 +182,44 @@ run_dssat_pipeline <- function(
   # --- STEP 5: Produce Final Outputs ---
   message("Saving nc, plots, and statistics...")
   plot_df <- add_date_rank(results_df, metric = "HWAH")
-  
+
   result_output_dir <- file.path(
     project_usecase_dir(
       repo_root, complete_usecase$country_name, complete_usecase$use_case_name),
     complete_usecase$crop, "result", "DSSAT", "AOI")
 
+  # Every result file is prefixed with crop + forecast year so it stays
+  # identifiable if copied out of its per-crop folder.
+  file_prefix <- paste0(complete_usecase$crop, "_", complete_usecase$season_year, "_")
+
   plot_planting_date_gradients(
-    df = plot_df, country_name = complete_usecase$country_name, 
-    output_dir = result_output_dir)
-  
+    df = plot_df, country_name = complete_usecase$country_name,
+    output_dir = result_output_dir, file_prefix = file_prefix)
+
   plot_yield_gradients(
     df = plot_df, yield_col = "HWAH", complete_usecase$country_name,
-    output_dir = result_output_dir)
-  
+    output_dir = result_output_dir, file_prefix = file_prefix)
+
   summary_df <- summarize_and_save_dssat(
-    df = plot_df, outputs = c("HWAH", "CWAM"), output_dir = result_output_dir)
-  
+    df = plot_df, outputs = c("HWAH", "CWAM"), output_dir = result_output_dir,
+    file_prefix = file_prefix)
+
   export_top_combinations_nc(
-    df = results_df, metric = "HWAH", top_n = 5, output_dir = result_output_dir
+    df = results_df, metric = "HWAH", top_n = 5, output_dir = result_output_dir,
+    file_prefix = file_prefix, crop = complete_usecase$crop,
+    country = complete_usecase$country_name, forecast_year = complete_usecase$season_year,
+    season = complete_usecase$season,
+    # Bias-correction method isn't threaded from the forecast/BC config into
+    # the DSSAT usecase, so this reflects current pipeline convention rather
+    # than a value read at run time - update if that convention changes.
+    bc_method = "qdm"
   )
-  
+
   comb_df <- export_top_combinations_csv(
-    df = results_df, metric = "HWAH", top_n = 5, output_dir = result_output_dir
+    df = results_df, metric = "HWAH", top_n = 5, output_dir = result_output_dir,
+    file_prefix = file_prefix
   )
-  
+
 }
 
 

@@ -267,7 +267,7 @@ run_agwise_seasonal_forecast_BC <- function(
     
     bc_var_cfg <- list(
       PRCP = list(obs_file_pattern="Daily_PRCP_%d_%d.nc", obs_var="PRCP",
-                  model_var="PRCP", is_precip=TRUE, method="ptr",
+                  model_var="PRCP", is_precip=TRUE, method="qdm",
                   scaling.type="multiplicative", units="mm/day"),
       TMAX = list(obs_file_pattern="Daily_TMAX_%d_%d.nc", obs_var="TMAX",
                   model_var="TMAX", is_precip=FALSE, method="qdm",

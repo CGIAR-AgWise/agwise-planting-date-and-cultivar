@@ -429,6 +429,14 @@ get_number_years_from_WTH_file <- function(working_path, i) {
 }
 
 
+# Last calendar date actually present in a point's WTH file - used to cap
+# HDATE so simulations don't try to read weather past the forecast horizon.
+get_max_wth_date <- function(working_path, i) {
+  wth_file <- DSSAT::read_wth(paste0(working_path, "/WHTE", formatC(width = 4, (as.integer(i)), flag = "0"), ".WTH"))
+  max(wth_file$DATE)
+}
+
+
 # Create list of fertilizer flags for the Simulation Controls DSSAT information
 create_fertilizer_flags <- function(NPK_ranges = NULL, template_df = NULL) {
   # Default flags
@@ -548,9 +556,12 @@ get_filex_cultivars <- function(file_x, crop_code, varietyid, path.to.temdata, g
     mutate(
       CR = crop_code,
       INGENO = varietyid,
-      CNAME = cname$VRNAME
+      # The cultivar-name column is always 2nd (right after VAR#) in a DSSAT
+      # .CUL file, but its header text isn't standardized across crop models
+      # (Maize's says VRNAME, Potato/Wheat's say VAR-NAME) - read positionally.
+      CNAME = cname[[2]]
     )
-  
+
   cultivars_df
 }
 
@@ -573,17 +584,29 @@ get_filex_plantdetails <- function(file_x, plant_dates) {
 
 
 # Produce Harvest Details df that is common for all DSSAT experiment design approaches
-get_filex_harvestdetails <- function(file_x, plant_dates) {
+# max_weather_date caps HDATE so the simulation never asks the model to read
+# past the last day actually available in the WTH file - with HARVS="R" (harvest
+# at the reported date, not at maturity) DSSAT keeps stepping the clock forward
+# post-maturity until it hits HDATE, and running past the weather file's last
+# record aborts the run with no yield recorded at all (seen originally as 100%
+# maturity-failure for Wheat, whose Jan/Feb maturity dates sit right at the
+# forecast horizon's edge - but this was silently capping some Maize/Potato
+# treatments too whenever their 8-month ceiling overran the ~7-month forecast).
+get_filex_harvestdetails <- function(file_x, plant_dates, max_weather_date = NULL) {
   plant_dates <- sort(as.Date(plant_dates))
   n_pd <- length(plant_dates)
   n_hd <- n_pd
-  
+
   hd_df <- file_x$`HARVEST DETAILS`
-  
+
   hd_df <- hd_df[rep(1, n_hd), ]
-  
+
   hd_df$H <- 1:n_hd
-  hd_df$HDATE <- as.POSIXct(max(plant_dates) %m+% months(8))
+  target_hdate <- max(plant_dates) %m+% months(8)
+  if (!is.null(max_weather_date)) {
+    target_hdate <- min(target_hdate, as.Date(max_weather_date) - 2)
+  }
+  hd_df$HDATE <- as.POSIXct(target_hdate)
   
   hd_df
 }

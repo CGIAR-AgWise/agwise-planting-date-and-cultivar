@@ -213,9 +213,7 @@ dssat.expfile <- function(
     Crop = Crop, varietyid = varietyid, AOI = AOI)
   
   # Get path to Landing data and create if missing
-  path.to.temdata <- check_dssat_temdata_path(
-    project_root = project_root, country = country, useCaseName = useCaseName, 
-    Crop = Crop)
+  path.to.temdata <- check_dssat_temdata_path(project_root = project_root)
   
   # Get DSSAT crop code
   crop_code <- get_DSSAT_crop_code(Crop)

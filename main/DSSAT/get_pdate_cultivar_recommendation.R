@@ -1,3 +1,78 @@
+### Locate the crop mask raster for a given crop
+#
+# Two mask naming conventions coexist: most crops have three raster variants
+# (_PD_min/_PD_max/_PD_sd - per-pixel statistics of historical planting
+# date), which share the same NA footprint (presence/absence of the crop,
+# not the statistic value, is what defines the mask), so any one of them
+# works as the mask - `_max` is used arbitrarily. Others (e.g. Wheat) instead
+# have a single dedicated binary _mask.tif (e.g. MAPSPAM-derived). Both are
+# only ever consulted for their NA/non-NA footprint (see apply_crop_mask()
+# below), so no other code needs to know which convention a given crop uses.
+find_crop_mask_file <- function(crop, crop_mask_dir = "Landing/crop_masks", must_exist = TRUE) {
+  if (is.null(crop) || is.na(crop) || !nzchar(crop)) {
+    if (must_exist) stop("use_crop_mask = TRUE requires `crop` to be provided.")
+    return(NA_character_)
+  }
+  candidates <- list.files(
+    crop_mask_dir,
+    pattern = paste0(crop, ".*(_PD_max|_mask)\\.tif$"),
+    full.names = TRUE,
+    ignore.case = TRUE
+  )
+  if (length(candidates) == 0) {
+    if (must_exist) {
+      stop(
+        "use_crop_mask = TRUE but no crop mask raster found for crop '", crop,
+        "' in ", crop_mask_dir, ". Available files: ",
+        paste(list.files(crop_mask_dir), collapse = ", ")
+      )
+    }
+    return(NA_character_)
+  }
+  candidates[[1]]
+}
+
+
+### Restrict a results data.frame to pixels covered by the crop mask
+apply_crop_mask <- function(df, crop, crop_mask_dir = "Landing/crop_masks") {
+  mask_file <- find_crop_mask_file(crop, crop_mask_dir)
+  mask_rast <- terra::rast(mask_file)
+  extracted <- terra::extract(mask_rast, df[, c("LONG", "XLAT")])
+  df[!is.na(extracted[[2]]), , drop = FALSE]
+}
+
+
+### Save a crop-mask-filtered copy of the full (pre-ranking) merged results
+#
+# Unlike apply_crop_mask()'s other callers (which mask an already-ranked/
+# exported view on request via use_crop_mask), this filters the complete
+# per-pixel x cultivar x treatment grid straight out of merge_DSSAT_output(),
+# and is meant to run unconditionally as a pipeline artifact for every crop -
+# so a missing mask is a graceful skip, not an error.
+export_cropmask_full_results <- function(
+    results_df, crop, crop_mask_dir = "Landing/crop_masks",
+    output_dir = ".", base_filename = crop) {
+  mask_file <- find_crop_mask_file(crop, crop_mask_dir, must_exist = FALSE)
+  if (is.na(mask_file)) {
+    message(
+      "No crop mask available for '", crop, "' in ", crop_mask_dir,
+      " - skipping crop-mask-filtered export.")
+    return(invisible(NULL))
+  }
+
+  if (!dir.exists(output_dir)) {
+    dir.create(output_dir, recursive = TRUE)
+  }
+
+  masked_df <- apply_crop_mask(results_df, crop = crop, crop_mask_dir = crop_mask_dir)
+
+  file_path <- file.path(output_dir, paste0(base_filename, "_cropmask.RDS"))
+  saveRDS(masked_df, file = file_path)
+  message("Crop-mask-filtered full results saved to: ", file_path)
+  invisible(file_path)
+}
+
+
 ### Rank planting dates for each pixel and cultivar based on yields
 add_date_rank <- function(df, metric = "HWAH") {
   df %>%
@@ -17,9 +92,67 @@ add_combination_rank <- function(df, metric = "HWAH") {
 }
 
 
+### Build a small, dashboard-ready cache of one crop's full results
+#
+# Reads the unmasked raw RDS (merge_DSSAT_output()'s save) and, if present,
+# export_cropmask_full_results()'s masked companion file - reusing that
+# already-computed artifact instead of re-running apply_crop_mask() /
+# re-reading the mask raster here. Trims to the columns a dashboard needs,
+# adds the same ranking already used for the other Step 5 exports, and flags
+# which rows fall inside the crop mask (all TRUE if no mask exists for this
+# crop, so a "crop mask" toggle downstream is a no-op rather than emptying
+# the data).
+#
+# top_n caps rows to each pixel's best `top_n` combinations by Combination_Rank
+# (default 8, vs. up to 32 in the full cultivar x treatment grid) - a static
+# HTML dashboard embeds every row in every linked widget (crosstalk filters
+# hide rows client-side, they don't reduce what's downloaded/parsed), so the
+# uncapped full grid made the rendered file large enough to freeze a browser
+# on open. Pass Inf to keep the full grid if size/speed isn't a concern.
+build_dashboard_extract <- function(
+    crop, output_dir = ".", base_filename = crop, metric = "HWAH", top_n = 8) {
+  raw_path <- file.path(output_dir, paste0(base_filename, ".RDS"))
+  if (!file.exists(raw_path)) {
+    stop("Raw merged results not found for crop '", crop, "': ", raw_path)
+  }
+  raw_df <- readRDS(raw_path)
+
+  dashboard_cols <- c(
+    "XLAT", "LONG", "zone", "Cultivar", "TRNO", "PDAT", "HWAH", "CWAM", "WUE")
+  extract_df <- raw_df[, dashboard_cols]
+  extract_df$maturity_failed <- is.na(raw_df$MDAT)
+
+  extract_df <- extract_df %>%
+    add_date_rank(metric = metric) %>%
+    add_combination_rank(metric = metric) %>%
+    dplyr::filter(Combination_Rank <= top_n)
+
+  masked_path <- file.path(output_dir, paste0(base_filename, "_cropmask.RDS"))
+  if (file.exists(masked_path)) {
+    masked_df <- readRDS(masked_path)
+    masked_pixels <- unique(masked_df[, c("XLAT", "LONG")])
+    extract_df$in_crop_mask <- paste(extract_df$XLAT, extract_df$LONG) %in%
+      paste(masked_pixels$XLAT, masked_pixels$LONG)
+  } else {
+    extract_df$in_crop_mask <- TRUE
+  }
+
+  file_path <- file.path(output_dir, paste0(crop, "_dashboard_extract.RDS"))
+  saveRDS(extract_df, file = file_path)
+  message("Dashboard extract saved to: ", file_path)
+  invisible(extract_df)
+}
+
+
 ### Plot maps of preferred planting dates for top 3 highest yields by cultivar
 plot_planting_date_gradients <- function(
-    df, country_name = "Rwanda", output_dir = ".", file_prefix = "") {
+    df, country_name = "Rwanda", output_dir = ".", file_prefix = "",
+    crop = NA_character_, use_crop_mask = FALSE,
+    crop_mask_dir = "Landing/crop_masks", project_root = ".") {
+  if (isTRUE(use_crop_mask)) {
+    df <- apply_crop_mask(df, crop = crop, crop_mask_dir = crop_mask_dir)
+    file_prefix <- paste0(file_prefix, "cropmask_")
+  }
   plot_df <- df %>%
     dplyr::mutate(
       
@@ -58,9 +191,32 @@ plot_planting_date_gradients <- function(
       )
     )
   
-  # Fetch the requested country outline map
-  country_outline <- ggplot2::map_data("world", region = country_name)
-  
+  # Fetch the requested country outline map. Prefer the high-resolution GADM
+  # boundary already used/cached elsewhere in this pipeline (see
+  # main/Forecast/00_config_function.R's build_country_config()) over the
+  # coarse outline from the base "maps" package: the low-res outline clips
+  # off real territory near the border, making genuinely in-country pixels
+  # look like they sit outside the drawn line (verified for Rwanda/Maize -
+  # all 770 pixels fall inside the GADM boundary, but ~28 of them fall
+  # outside the old maps::world outline). geodata::gadm() reuses the same
+  # on-disk cache other pipeline steps already populate, so this is normally
+  # instant; falls back to the old low-res outline if GADM can't be reached
+  # (e.g. no cache and no network) rather than failing the whole plot.
+  country_outline <- tryCatch({
+    country_code <- countrycode::countrycode(
+      country_name, origin = "country.name", destination = "iso3c")
+    admin_dir <- file.path(project_root, "data", "countries", country_code, "admin")
+    adm0 <- geodata::gadm(country = country_code, level = 0, path = admin_dir)
+    adm0_sf <- sf::st_as_sf(adm0)
+    coords <- sf::st_coordinates(adm0_sf)
+    data.frame(
+      long = coords[, "X"], lat = coords[, "Y"],
+      group = paste(coords[, "L2"], coords[, "L1"], sep = "."))
+  }, error = function(e) {
+    message("Falling back to low-resolution country outline: ", conditionMessage(e))
+    ggplot2::map_data("world", region = country_name)
+  })
+
   # Calculate calendar math directly from the dynamic data boundaries
   min_date <- min(plot_df$PDAT_clean, na.rm = TRUE)
   max_date <- max(plot_df$PDAT_clean, na.rm = TRUE)
@@ -89,12 +245,13 @@ plot_planting_date_gradients <- function(
     
     scale_fill_gradient2(
       name = "Planting Date",
-      low = "dodgerblue4",        
-      mid = "gold",               
-      high = "firebrick",         
+      low = "dodgerblue4",
+      mid = "gold",
+      high = "firebrick",
       midpoint = as.numeric(mid_date),
       breaks = as.numeric(date_breaks),
-      labels = format(date_breaks, "%b %d")
+      labels = format(date_breaks, "%b %d"),
+      guide = guide_colorbar(reverse = TRUE)
     ) +
     
     coord_equal() +
@@ -125,7 +282,13 @@ plot_planting_date_gradients <- function(
 
 ### Plot maps of top 3-highest yields by cultivar
 plot_yield_gradients <- function(
-    df, yield_col = "HWAH", country_name = "Rwanda", output_dir = ".", file_prefix = "") {
+    df, yield_col = "HWAH", country_name = "Rwanda", output_dir = ".", file_prefix = "",
+    crop = NA_character_, use_crop_mask = FALSE,
+    crop_mask_dir = "Landing/crop_masks", project_root = ".") {
+  if (isTRUE(use_crop_mask)) {
+    df <- apply_crop_mask(df, crop = crop, crop_mask_dir = crop_mask_dir)
+    file_prefix <- paste0(file_prefix, "cropmask_")
+  }
   plot_df <- df %>%
     dplyr::mutate(
       
@@ -162,9 +325,26 @@ plot_yield_gradients <- function(
       )
     )
   
-  # Fetch the requested country outline map
-  country_outline <- ggplot2::map_data("world", region = country_name)
-  
+  # Fetch the requested country outline map. Prefer the high-resolution GADM
+  # boundary already used/cached elsewhere in this pipeline (see
+  # main/Forecast/00_config_function.R's build_country_config()) over the
+  # coarse outline from the base "maps" package - see the identical fix in
+  # plot_planting_date_gradients() for the full rationale/verification.
+  country_outline <- tryCatch({
+    country_code <- countrycode::countrycode(
+      country_name, origin = "country.name", destination = "iso3c")
+    admin_dir <- file.path(project_root, "data", "countries", country_code, "admin")
+    adm0 <- geodata::gadm(country = country_code, level = 0, path = admin_dir)
+    adm0_sf <- sf::st_as_sf(adm0)
+    coords <- sf::st_coordinates(adm0_sf)
+    data.frame(
+      long = coords[, "X"], lat = coords[, "Y"],
+      group = paste(coords[, "L2"], coords[, "L1"], sep = "."))
+  }, error = function(e) {
+    message("Falling back to low-resolution country outline: ", conditionMessage(e))
+    ggplot2::map_data("world", region = country_name)
+  })
+
   # Use data masking to evaluate the chosen yield column safely
   max_yield <- max(plot_df[[yield_col]], na.rm = TRUE)
   yield_breaks <- seq(0, max_yield, length.out = 4)
@@ -221,8 +401,15 @@ plot_yield_gradients <- function(
 
 ### Get statistics for DSSAT results
 summarize_and_save_dssat <- function(
-    df, outputs = c("HWAH", "CWAM", "WUE"), output_dir = ".", file_prefix = "") {
-  
+    df, outputs = c("HWAH", "CWAM", "WUE"), output_dir = ".", file_prefix = "",
+    crop = NA_character_, use_crop_mask = FALSE,
+    crop_mask_dir = "Landing/crop_masks") {
+
+  if (isTRUE(use_crop_mask)) {
+    df <- apply_crop_mask(df, crop = crop, crop_mask_dir = crop_mask_dir)
+    file_prefix <- paste0(file_prefix, "cropmask_")
+  }
+
   # Grouping
   group_vars <- c("Cultivar", "PDAT")
   
@@ -284,7 +471,13 @@ summarize_and_save_dssat <- function(
 export_top_combinations_nc <- function(
     df, metric = "HWAH", top_n = 5, output_dir = ".", file_prefix = "",
     crop = NA_character_, country = NA_character_, forecast_year = NA_integer_,
-    season = NA_integer_, bc_method = NA_character_) {
+    season = NA_integer_, bc_method = NA_character_, use_crop_mask = FALSE,
+    crop_mask_dir = "Landing/crop_masks") {
+
+  if (isTRUE(use_crop_mask)) {
+    df <- apply_crop_mask(df, crop = crop, crop_mask_dir = crop_mask_dir)
+    file_prefix <- paste0(file_prefix, "cropmask_")
+  }
 
   # Ensure target directory exists
   if (!dir.exists(output_dir)) {
@@ -391,13 +584,20 @@ export_top_combinations_nc <- function(
 
 ### Save CSV file of top combinations
 export_top_combinations_csv <- function(
-    df, metric = "HWAH", top_n = 5, output_dir = ".", file_prefix = "") {
-  
+    df, metric = "HWAH", top_n = 5, output_dir = ".", file_prefix = "",
+    crop = NA_character_, use_crop_mask = FALSE,
+    crop_mask_dir = "Landing/crop_masks") {
+
+  if (isTRUE(use_crop_mask)) {
+    df <- apply_crop_mask(df, crop = crop, crop_mask_dir = crop_mask_dir)
+    file_prefix <- paste0(file_prefix, "cropmask_")
+  }
+
   # Ensure target directory exists
   if (!dir.exists(output_dir)) {
     dir.create(output_dir, recursive = TRUE)
   }
-  
+
   # 1. Rank combinations and select the top N per pixel
   df_ranked <- df %>%
     add_combination_rank(metric = metric) %>%

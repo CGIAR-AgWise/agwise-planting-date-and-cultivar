@@ -10,9 +10,7 @@
 
 prepare_data_to_save <- function(results_df, project_root, country, useCaseName, Crop,
                                  complete_usecase) {
-  path.to.temdata <- check_dssat_temdata_path(
-    project_root = project_root, country = country, useCaseName = useCaseName, 
-    Crop = Crop)
+  path.to.temdata <- check_dssat_temdata_path(project_root = project_root)
   
   cul_file <- DSSAT::read_cul(file.path(
     path.to.temdata, paste0(complete_usecase$geneticfiles, '.CUL')))

@@ -275,6 +275,21 @@ build_country_config <- function( country_code, base_dir, use_manual_extent = FA
   init_day <- season_start_day
   forecast_init_year <- init_date$year
 
+  init_ym  <- forecast_init_year * 12 + (init_month - 1)
+  today_ym <- as.integer(format(today, "%Y")) * 12 + (as.integer(format(today, "%m")) - 1)
+  if (init_ym > today_ym) {
+    stop(sprintf(
+      paste0(
+        "Forecast initialization date (%d-%02d) is in the future (today is %s). ",
+        "The ECMWF/C3S seasonal forecast for that month has not been issued yet, so the CDS ",
+        "download will fail with an 'AccessError: Restricted access to current C3S seasonal ",
+        "forecast' error for every zone/variable. Increase forecast_lead_months (or lower ",
+        "forecast_year/season_year) so the initialization month falls on or before the current month."
+      ),
+      forecast_init_year, init_month, format(today, "%Y-%m-%d")
+    ))
+  }
+
   make_season_name <- function(start_month, n_months) {
     month_letters <- c("J","F","M","A","M","J","J","A","S","O","N","D")
     idx <- ((start_month - 1 + 0:(n_months - 1)) %% 12) + 1

@@ -11,9 +11,9 @@ zones:
   - Umujyi wa Kigali
 season_start_month: 9
 season_start_day: 1
-season_year: 2025
+season_year: 2026
 season_length_months: 4
-lead_months: 1
+lead_months: 2
 n_cores: 4
 variables:
   - PRCP
@@ -32,4 +32,3 @@ varietyids:
   - 890011
   - 890012
   - 890013
-  - 890014

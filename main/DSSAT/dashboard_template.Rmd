@@ -1,0 +1,324 @@
+---
+title: "`r params$crop_name` — DSSAT results dashboard"
+output:
+  html_document:
+    self_contained: true
+    theme:
+      bootswatch: flatly
+      version: 5
+    mathjax: null
+params:
+  data_rds: ""
+  crop_name: ""
+  country_name: ""
+  has_crop_mask: FALSE
+---
+
+<style>
+/* rmarkdown's default template caps content at 940px regardless of theme -
+   override it so the filters/maps/table can use more of a wide monitor. */
+.main-container { max-width: 1600px; }
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+suppressPackageStartupMessages({
+  library(crosstalk)
+  library(leaflet)
+  library(plotly)
+  library(DT)
+  library(dplyr)
+  library(ggplot2)
+  library(htmltools)
+})
+```
+
+```{r map-helpers, include=FALSE}
+# Builds one independent leaflet widget bound once to `sd`. Deliberately
+# exactly one crosstalk-bound addCircleMarkers layer per widget INSTANCE -
+# leaflet's crosstalk filter handling (htmlwidgets/assets/leaflet.js) tracks
+# marker visibility per (crosstalk group, row key) assuming a single layer
+# per key; binding multiple layers to the same group with the same row_key
+# values within ONE widget (as an earlier version of this file did, for a
+# switchable single-map coloring) breaks its internal bookkeeping and
+# silently stops filtering from working at all. Calling this function
+# multiple times - once per map below - produces separate widgets, each
+# with its own independent JS layer registry, so there's no collision.
+#
+# Marker colors use a FIXED scale (the full crop's data range for that
+# metric) on every map, kept constant across filter changes so a given
+# color always means the same thing no matter what's filtered - only each
+# map's live text readout (built later, via the map-lookups/script blocks)
+# reflects the current filter state, rather than re-coloring markers, since
+# dynamically restyling already-rendered canvas markers would need custom
+# JS reaching into leaflet's internal layer registry that can't be verified
+# without a live browser.
+build_dssat_map <- function(sd, element_id, color_formula, pal_fn, pal_values,
+                             legend_title, label_formula, outline_parts,
+                             leg_lab_format = NULL) {
+  m <- leaflet::leaflet(
+      sd, elementId = element_id, height = 480,
+      options = leaflet::leafletOptions(preferCanvas = TRUE)) %>%
+    leaflet::addProviderTiles(leaflet::providers$CartoDB.Positron) %>%
+    leaflet::addCircleMarkers(
+      lng = ~LONG, lat = ~XLAT, radius = 5, stroke = FALSE, fillOpacity = 0.8,
+      color = color_formula, label = label_formula)
+
+  m <- if (is.null(leg_lab_format)) {
+    leaflet::addLegend(m, "bottomright", pal = pal_fn, values = pal_values, title = legend_title)
+  } else {
+    leaflet::addLegend(m, "bottomright", pal = pal_fn, values = pal_values,
+                        title = legend_title, labFormat = leg_lab_format)
+  }
+
+  for (part in outline_parts) {
+    m <- leaflet::addPolylines(
+      m, lng = part$long, lat = part$lat, color = "black", weight = 1.5, opacity = 0.7)
+  }
+  m
+}
+
+# One small bordered column: a label, a map widget, and its live readout -
+# keeps the three maps visually grouped together for the "check rank 1, see
+# all three at once" workflow, with each map's label sitting right with it
+# rather than as a page-level heading.
+map_col <- function(label, map_widget, readout_id, readout_label) {
+  htmltools::div(
+    htmltools::tags$h5(label),
+    map_widget,
+    htmltools::div(
+      style = "margin-top: 4px; font-weight: bold; font-size: 0.9em;",
+      paste0(readout_label, ": "), htmltools::tags$span(id = readout_id, "computing…"))
+  )
+}
+```
+
+```{r load-data}
+dat <- readRDS(params$data_rds)
+
+cultivar_order <- intersect(c("Short", "Medium", "Long", "Longer"), unique(as.character(dat$Cultivar)))
+dat$Cultivar <- factor(dat$Cultivar, levels = cultivar_order)
+dat$PDAT <- as.Date(dat$PDAT)
+
+display_cols <- c(
+  "zone", "Combination_Rank", "TRNO", "XLAT", "LONG", "Cultivar", "PDAT",
+  "HWAH", "CWAM", "in_crop_mask", "row_key")
+dat <- dat[, display_cols]
+
+sd <- crosstalk::SharedData$new(dat, key = ~row_key, group = "dssat")
+```
+
+# `r params$crop_name` — DSSAT results dashboard
+
+This dashboard summarizes DSSAT crop model simulations for
+**`r params$crop_name`**, driven by seasonal forecast weather data (not
+historical/observed weather). At each pixel, the model was run for 8
+planting-date treatments — spaced 7 days apart, starting from that pixel's
+forecasted rainy-season onset — crossed with `r length(cultivar_order)`
+cultivar maturity classes (`r paste(cultivar_order, collapse = ", ")`), for up
+to `r 8 * length(cultivar_order)` simulated planting-date/cultivar
+combinations per pixel. Open this file directly in a browser (no server or R
+install required); it works fully offline except for the optional background
+map imagery. Other crops in this usecase have their own separate dashboard
+file, one per crop, in their own result folder.
+
+`r if (!isTRUE(params$has_crop_mask)) paste0("**Note:** no crop-mask layer is available yet for ", params$crop_name, " — the \"Crop mask\" filter below has no effect (all pixels are always shown).")`
+
+## Filters
+
+```{r filters}
+crosstalk::bscols(
+  widths = c(6, 6),
+  crosstalk::filter_checkbox("mask_filter", "Crop mask (checked = pixel is inside the mask)", sd, ~in_crop_mask),
+  crosstalk::filter_checkbox("cultivar_filter", "Cultivar", sd, ~Cultivar)
+)
+```
+
+<script>
+// Crop mask defaults to checked on load. crosstalk::filter_checkbox has no
+// default-checked parameter, so this simulates a user click: waiting for
+// `load` (not `DOMContentLoaded`) guarantees htmlwidgets has already
+// attached its delegated change listener before the simulated click fires.
+window.addEventListener('load', function() {
+  var input = document.querySelector('#mask_filter input[value="TRUE"]');
+  if (input && !input.checked) {
+    input.checked = true;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+});
+</script>
+
+**Recommendation rank**: 1 = best yield at that pixel; higher numbers are
+progressively worse alternatives. Check **1** to see only each pixel's top
+recommendation; leave unchecked to see every combination.
+
+```{r rank-filter}
+crosstalk::filter_checkbox("rank_filter", "Recommendation rank", sd, ~Combination_Rank, inline = TRUE)
+```
+
+## Maps
+
+```{r maps}
+label_formula <- ~sprintf("%s | %s | %.0f kg/ha", Cultivar, format(PDAT, "%Y-%m-%d"), HWAH)
+
+outline_raw <- tryCatch(
+  ggplot2::map_data("world", region = params$country_name),
+  error = function(e) NULL)
+outline_parts <- if (!is.null(outline_raw) && nrow(outline_raw) > 0) {
+  split(outline_raw, outline_raw$group)
+} else {
+  list()
+}
+
+pal_yield <- leaflet::colorNumeric("YlOrRd", domain = dat$HWAH, na.color = "transparent")
+pal_cultivar <- leaflet::colorFactor("Dark2", domain = cultivar_order, na.color = "transparent")
+pal_pdat <- leaflet::colorNumeric("RdYlBu", domain = as.numeric(dat$PDAT), na.color = "transparent", reverse = TRUE)
+pdat_leg_labFormat <- function(type, cuts, p) format(as.Date(cuts, origin = "1970-01-01"), "%Y-%m-%d")
+
+yield_map <- build_dssat_map(
+  sd, "dssat_map_yield", ~pal_yield(HWAH), pal_yield, dat$HWAH,
+  "Yield (kg/ha)<br>(fixed color scale)", label_formula, outline_parts)
+
+cultivar_map <- build_dssat_map(
+  sd, "dssat_map_cultivar", ~pal_cultivar(Cultivar), pal_cultivar, cultivar_order,
+  "Cultivar<br>(fixed color scale)", label_formula, outline_parts)
+
+pdat_map <- build_dssat_map(
+  sd, "dssat_map_pdat", ~pal_pdat(as.numeric(PDAT)), pal_pdat, as.numeric(dat$PDAT),
+  "Planting date<br>(fixed color scale)", label_formula, outline_parts,
+  leg_lab_format = pdat_leg_labFormat)
+
+crosstalk::bscols(
+  widths = c(4, 4, 4),
+  map_col("Estimated Yields", yield_map, "yield-range-text", "Visible yield range"),
+  map_col("Recommended Cultivar", cultivar_map, "cultivar-counts-text", "Visible cultivar counts"),
+  map_col("Recommended Planting Date", pdat_map, "pdat-range-text", "Visible planting-date range")
+)
+```
+
+```{r map-lookups, include=FALSE}
+# key -> value lookups consumed by the dynamic-legend script below. Kept out
+# of the visible chunks (include=FALSE) since they're only for the JS, not
+# for display.
+yield_by_key_json <- jsonlite::toJSON(setNames(as.list(dat$HWAH), dat$row_key), auto_unbox = TRUE)
+cultivar_by_key_json <- jsonlite::toJSON(setNames(as.list(as.character(dat$Cultivar)), dat$row_key), auto_unbox = TRUE)
+# Plain ISO YYYY-MM-DD strings, not JS Date objects - they sort correctly
+# with ordinary string min/max, so no date parsing is needed client-side.
+pdat_by_key_json <- jsonlite::toJSON(setNames(as.list(format(dat$PDAT, "%Y-%m-%d")), dat$row_key), auto_unbox = TRUE)
+cultivar_levels_json <- jsonlite::toJSON(cultivar_order)
+```
+
+<script>
+window.dssatYieldByKey = `r yield_by_key_json`;
+window.dssatCultivarByKey = `r cultivar_by_key_json`;
+window.dssatPdatByKey = `r pdat_by_key_json`;
+window.dssatCultivarLevels = `r cultivar_levels_json`;
+
+(function() {
+  function fmt(x) { return Math.round(x).toLocaleString(); }
+
+  function valuesFor(lookup, keys) {
+    if (keys === null || typeof keys === "undefined") {
+      return Object.values(lookup);
+    }
+    return keys
+      .map(function(k) { return lookup[k]; })
+      .filter(function(v) { return typeof v !== "undefined"; });
+  }
+
+  function updateYield(keys) {
+    var el = document.getElementById("yield-range-text");
+    if (!el) return;
+    var vals = valuesFor(window.dssatYieldByKey, keys).filter(function(v) { return typeof v === "number" && !isNaN(v); });
+    if (vals.length === 0) { el.textContent = "no pixels match the current filters"; return; }
+    var lo = Math.min.apply(null, vals);
+    var hi = Math.max.apply(null, vals);
+    el.textContent = fmt(lo) + " – " + fmt(hi) + " kg/ha (" + vals.length + " points)";
+  }
+
+  function updatePdat(keys) {
+    var el = document.getElementById("pdat-range-text");
+    if (!el) return;
+    var vals = valuesFor(window.dssatPdatByKey, keys).filter(function(v) { return typeof v === "string"; });
+    if (vals.length === 0) { el.textContent = "no pixels match the current filters"; return; }
+    vals.sort();
+    el.textContent = vals[0] + " – " + vals[vals.length - 1] + " (" + vals.length + " points)";
+  }
+
+  function updateCultivar(keys) {
+    var el = document.getElementById("cultivar-counts-text");
+    if (!el) return;
+    var vals = valuesFor(window.dssatCultivarByKey, keys).filter(function(v) { return typeof v === "string"; });
+    var counts = {};
+    window.dssatCultivarLevels.forEach(function(lvl) { counts[lvl] = 0; });
+    vals.forEach(function(v) { if (counts.hasOwnProperty(v)) counts[v] += 1; });
+    el.textContent = window.dssatCultivarLevels
+      .map(function(lvl) { return lvl + ": " + counts[lvl]; })
+      .join(" · ");
+  }
+
+  function updateAll(keys) {
+    updateYield(keys);
+    updatePdat(keys);
+    updateCultivar(keys);
+  }
+
+  // Mirrors the exact crosstalk.FilterHandle pattern leaflet's own bundled
+  // JS uses internally (new crosstalk.FilterHandle(group), .on("change", ...),
+  // reading .filteredKeys for the initial state) - reused here directly
+  // rather than reverse-engineered from scratch, and confirmed (by reading
+  // crosstalk.js's EventEmitter-based implementation) that a single
+  // FilterHandle can safely drive multiple readouts from one subscription.
+  function init() {
+    if (typeof crosstalk === "undefined") { setTimeout(init, 200); return; }
+    var filterHandle = new crosstalk.FilterHandle("dssat");
+    filterHandle.on("change", function(e) { updateAll(e.value); });
+    updateAll(filterHandle.filteredKeys);
+  }
+  init();
+})();
+</script>
+
+## Yield distribution by cultivar
+
+This plot responds to the same filters above, including recommendation rank —
+so if only rank 1 is checked, it shows the yield distribution of just each
+pixel's top choice per cultivar, not every planting-date treatment.
+
+```{r boxplot}
+# Individual jittered points (box outline/fill made transparent) rather than
+# a plain aggregated box: crosstalk's filter response subsets each trace's
+# underlying data and redraws, which should recompute box statistics too,
+# but a shift in quartiles can be subtle to notice at a glance - showing
+# every point makes "the filter actually changed what's plotted" obvious
+# (fewer/more dots), rather than relying on a possibly-subtle box-shape shift.
+plotly::plot_ly(
+  sd, x = ~Cultivar, y = ~HWAH, color = ~Cultivar, type = "box",
+  boxpoints = "all", jitter = 0.4, pointpos = 0,
+  fillcolor = "rgba(0,0,0,0)", line = list(color = "rgba(0,0,0,0)"),
+  showlegend = FALSE) %>%
+  plotly::layout(
+    xaxis = list(title = "Cultivar"),
+    yaxis = list(title = "Yield (kg/ha)"))
+```
+
+## Recommendations table
+
+```{r table}
+hide_idx <- which(names(dat) == "row_key") - 1
+
+DT::datatable(
+  sd,
+  rownames = FALSE,
+  colnames = c(
+    "Zone" = "zone", "Rank" = "Combination_Rank", "Treatment" = "TRNO",
+    "Latitude" = "XLAT", "Longitude" = "LONG", "Cultivar" = "Cultivar",
+    "Planting date" = "PDAT", "Yield (kg/ha)" = "HWAH", "Biomass (kg/ha)" = "CWAM",
+    "In crop mask" = "in_crop_mask"),
+  extensions = "Buttons",
+  options = list(
+    dom = "Blfrtip",
+    buttons = c("csv", "excel"),
+    pageLength = 15,
+    columnDefs = list(list(visible = FALSE, targets = hide_idx))))
+```

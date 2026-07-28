@@ -26,7 +26,8 @@ load_dssat_defaults <- function(usecase, repo_root) {
     id                  = "TLID",
     planting_month_date = NULL,
     harvest_month_date  = NULL,
-    planting_window     = 7
+    planting_window     = 7,
+    use_crop_mask       = FALSE
   )
   
   # Combine keeping user choices first
@@ -179,30 +180,53 @@ run_dssat_pipeline <- function(
     level2_folder = FALSE
   )
   
-  # --- STEP 5: Produce Final Outputs ---
-  message("Saving nc, plots, and statistics...")
-  plot_df <- add_date_rank(results_df, metric = "HWAH")
-
   result_output_dir <- file.path(
     project_usecase_dir(
       repo_root, complete_usecase$country_name, complete_usecase$use_case_name),
     complete_usecase$crop, "result", "DSSAT", "AOI")
 
+  # --- STEP 4.5: Crop-mask-filtered full results (all treatments/cultivars,
+  # pre-ranking) - a general-purpose artifact for future consumers (e.g. the
+  # results dashboard), produced whenever a crop mask is available regardless
+  # of whether use_crop_mask is requested for Step 5's own outputs below.
+  # base_filename mirrors merge_DSSAT_output()'s own AOI save name so the
+  # masked file sits right next to the unmasked one it already writes.
+  dssat_output_base_filename <- paste0(
+    complete_usecase$soil_source, "_useCase_", complete_usecase$country_name,
+    "_", complete_usecase$use_case_name, "_", complete_usecase$crop,
+    "_AOI_season_", complete_usecase$season)
+  export_cropmask_full_results(
+    results_df = results_df, crop = complete_usecase$crop,
+    crop_mask_dir = file.path(repo_root, "Landing", "crop_masks"),
+    output_dir = result_output_dir, base_filename = dssat_output_base_filename)
+
+  # --- STEP 5: Produce Final Outputs ---
+  message("Saving nc, plots, and statistics...")
+  plot_df <- add_date_rank(results_df, metric = "HWAH")
+
   # Every result file is prefixed with crop + forecast year so it stays
   # identifiable if copied out of its per-crop folder.
   file_prefix <- paste0(complete_usecase$crop, "_", complete_usecase$season_year, "_")
 
+  use_crop_mask <- isTRUE(complete_usecase$use_crop_mask)
+  crop_mask_dir <- file.path(repo_root, "Landing", "crop_masks")
+
   plot_planting_date_gradients(
     df = plot_df, country_name = complete_usecase$country_name,
-    output_dir = result_output_dir, file_prefix = file_prefix)
+    output_dir = result_output_dir, file_prefix = file_prefix,
+    crop = complete_usecase$crop, use_crop_mask = use_crop_mask,
+    crop_mask_dir = crop_mask_dir, project_root = repo_root)
 
   plot_yield_gradients(
     df = plot_df, yield_col = "HWAH", complete_usecase$country_name,
-    output_dir = result_output_dir, file_prefix = file_prefix)
+    output_dir = result_output_dir, file_prefix = file_prefix,
+    crop = complete_usecase$crop, use_crop_mask = use_crop_mask,
+    crop_mask_dir = crop_mask_dir, project_root = repo_root)
 
   summary_df <- summarize_and_save_dssat(
     df = plot_df, outputs = c("HWAH", "CWAM"), output_dir = result_output_dir,
-    file_prefix = file_prefix)
+    file_prefix = file_prefix, crop = complete_usecase$crop,
+    use_crop_mask = use_crop_mask, crop_mask_dir = crop_mask_dir)
 
   export_top_combinations_nc(
     df = results_df, metric = "HWAH", top_n = 5, output_dir = result_output_dir,
@@ -212,12 +236,14 @@ run_dssat_pipeline <- function(
     # Bias-correction method isn't threaded from the forecast/BC config into
     # the DSSAT usecase, so this reflects current pipeline convention rather
     # than a value read at run time - update if that convention changes.
-    bc_method = "qdm"
+    bc_method = "qdm",
+    use_crop_mask = use_crop_mask, crop_mask_dir = crop_mask_dir
   )
 
   comb_df <- export_top_combinations_csv(
     df = results_df, metric = "HWAH", top_n = 5, output_dir = result_output_dir,
-    file_prefix = file_prefix
+    file_prefix = file_prefix, crop = complete_usecase$crop,
+    use_crop_mask = use_crop_mask, crop_mask_dir = crop_mask_dir
   )
 
 }

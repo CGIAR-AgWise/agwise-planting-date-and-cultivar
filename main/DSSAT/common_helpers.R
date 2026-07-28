@@ -70,12 +70,12 @@ create_extdata_path <- function(project_root, country, useCaseName, Crop,
 
 
 ### Common DSSAT template data path ----
-check_dssat_temdata_path <- function(project_root, country, useCaseName, Crop) {
-  dssat_landing_path <- file.path(
-    project_root, "Landing/DSSAT", country)
-  if (is.na(dssat_landing_path) || !dir.exists(dssat_landing_path)) {
-    stop("Directory with DSSAT Template Data (soil and weather files) does ", 
-         "not exist, please add the template files. Process will stop.")
+check_dssat_temdata_path <- function(project_root) {
+  dssat_landing_path <- file.path(project_root, "Landing/DSSAT")
+  if (!dir.exists(dssat_landing_path)) {
+    stop("Directory with DSSAT template data (genetic, soil, and FILEX ",
+         "template files) does not exist, please add the template files. ",
+         "Process will stop.")
   }
   paste0(dssat_landing_path, "/")
 }

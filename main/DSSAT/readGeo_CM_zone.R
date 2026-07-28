@@ -293,9 +293,8 @@ readGeo_CM_zone <- function(
   path.to.extdata <- create_extdata_path(
     project_root, country, useCaseName, Crop, varietyid, AOI)
 
-  # Define DSSAT template data (soil and weather files in DSSAT format)
-  path.to.temdata <- check_dssat_temdata_path(
-    project_root, country, useCaseName, Crop)
+  # Define DSSAT template data (soil, genetic, and FILEX template files)
+  path.to.temdata <- check_dssat_temdata_path(project_root)
 
   # Get unique locations
   coords <- metaData

@@ -29,7 +29,11 @@ load_dssat_defaults <- function(usecase, repo_root) {
     planting_window     = 7,
     use_crop_mask       = FALSE,
     build_dashboard     = TRUE,
-    skip_weather_soil_creation = FALSE
+    skip_weather_soil_creation = FALSE,
+    # Only consulted when skip_weather_soil_creation is TRUE - overrides
+    # import_prestaged_dssat_files()'s own default products directory for a
+    # usecase that needs a non-standard source location.
+    dssat_source_products_dir = NULL
   )
   
   # Combine keeping user choices first
@@ -67,6 +71,7 @@ run_dssat_pipeline <- function(
   source(file.path(repo_root, "main/DSSAT/common_helpers.R"))
   source(file.path(repo_root, "main/DSSAT/readGeo_CM_zone.R"))
   source(file.path(repo_root, "main/DSSAT/helpers_readGeo_CM_zone.R"))
+  source(file.path(repo_root, "main/DSSAT/import_prestaged_dssat_files.R"))
   source(file.path(repo_root, "main/DSSAT/DSSAT_expfile.R"))
   source(file.path(repo_root, "main/DSSAT/helpers_DSSAT_expfile.R"))
   source(file.path(repo_root, "main/DSSAT/dssat_exec.R"))
@@ -112,7 +117,8 @@ run_dssat_pipeline <- function(
                       repo_root, country, useCaseName, Crop)
     }
   } else {
-    message("Skipping DSSAT weather/soil input file creation (skip_weather_soil_creation = TRUE); using pre-staged files.")
+    message("skip_weather_soil_creation = TRUE - checking for pre-staged DSSAT files...")
+    import_prestaged_dssat_files(complete_usecase = complete_usecase, repo_root = repo_root)
   }
   
   if (length(varietyids) > 1 && exists("copy_WTH_SOIL_data_for_variety")) {

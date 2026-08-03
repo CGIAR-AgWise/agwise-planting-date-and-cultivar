@@ -77,8 +77,12 @@ create_filex <- function(i, path.to.temdata, filex_temp, path.to.extdata, coords
   gen_parameters <- list.files(path = path.to.temdata, pattern = geneticfiles, full.names = TRUE)
   file.copy(gen_parameters, working_path, overwrite = TRUE)
   
-  ex_profile <- DSSAT::read_sol("SOIL.SOL", id_soil = paste0(
-    'TRAN', formatC(width = 5, as.integer((i)), flag = "0")))
+  # No id_soil filter: every per-site SOIL.SOL (whether written by this
+  # pipeline's own readGeo_CM_zone.R, which uses a TRAN##### PEDON id, or
+  # imported pre-staged from another pipeline, e.g. agwise-datasourcing's
+  # P######## convention) contains exactly one profile, so reading without
+  # filtering by id works for either naming convention.
+  ex_profile <- DSSAT::read_sol("SOIL.SOL")
   
   gen_df <- get_filex_general(ex_profile, file_x)
   file_x$GENERAL <- gen_df

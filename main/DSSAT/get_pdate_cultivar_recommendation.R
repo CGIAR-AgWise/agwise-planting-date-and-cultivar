@@ -8,7 +8,7 @@
 # have a single dedicated binary _mask.tif (e.g. MAPSPAM-derived). Both are
 # only ever consulted for their NA/non-NA footprint (see apply_crop_mask()
 # below), so no other code needs to know which convention a given crop uses.
-find_crop_mask_file <- function(crop, crop_mask_dir = "Landing/crop_masks", must_exist = TRUE) {
+find_crop_mask_file <- function(crop, crop_mask_dir = "Landing/crop_masks", must_exist = TRUE, country = NULL) {
   if (is.null(crop) || is.na(crop) || !nzchar(crop)) {
     if (must_exist) stop("use_crop_mask = TRUE requires `crop` to be provided.")
     return(NA_character_)
@@ -19,6 +19,40 @@ find_crop_mask_file <- function(crop, crop_mask_dir = "Landing/crop_masks", must
     full.names = TRUE,
     ignore.case = TRUE
   )
+  # Multiple countries can each have their own crop mask file in the same
+  # shared crop_mask_dir (e.g. <country>_maize_mapspam2020_mask.tif per
+  # country) - if a country is given, prefer files whose name mentions it.
+  # A single untagged file (e.g. a legacy crop-wide mask) is still used as-is
+  # for backward compatibility; but if there are MULTIPLE crop matches and
+  # none is tagged with this country, refuse rather than silently guessing
+  # (list.files()'s ordering is not something to rely on for correctness).
+  has_country <- !is.null(country) && nzchar(country)
+  if (has_country && length(candidates) > 0) {
+    country_candidates <- candidates[grepl(country, basename(candidates), ignore.case = TRUE)]
+    if (length(country_candidates) > 0) {
+      candidates <- country_candidates
+    } else if (length(candidates) > 1) {
+      if (must_exist) {
+        stop(
+          "use_crop_mask = TRUE: multiple crop mask files match crop '", crop,
+          "' in ", crop_mask_dir, " but none is tagged for country '", country,
+          "' - refusing to guess. Matches: ", paste(basename(candidates), collapse = ", ")
+        )
+      }
+      return(NA_character_)
+    }
+  } else if (!has_country && length(candidates) > 1) {
+    # No country given at all and more than one crop match exists - refuse
+    # rather than picking whichever list.files() happens to return first.
+    if (must_exist) {
+      stop(
+        "use_crop_mask = TRUE: multiple crop mask files match crop '", crop,
+        "' in ", crop_mask_dir, " and no `country` was given to disambiguate. ",
+        "Matches: ", paste(basename(candidates), collapse = ", ")
+      )
+    }
+    return(NA_character_)
+  }
   if (length(candidates) == 0) {
     if (must_exist) {
       stop(
@@ -34,8 +68,8 @@ find_crop_mask_file <- function(crop, crop_mask_dir = "Landing/crop_masks", must
 
 
 ### Restrict a results data.frame to pixels covered by the crop mask
-apply_crop_mask <- function(df, crop, crop_mask_dir = "Landing/crop_masks") {
-  mask_file <- find_crop_mask_file(crop, crop_mask_dir)
+apply_crop_mask <- function(df, crop, crop_mask_dir = "Landing/crop_masks", country = NULL) {
+  mask_file <- find_crop_mask_file(crop, crop_mask_dir, country = country)
   mask_rast <- terra::rast(mask_file)
   extracted <- terra::extract(mask_rast, df[, c("LONG", "XLAT")])
   df[!is.na(extracted[[2]]), , drop = FALSE]
@@ -51,8 +85,8 @@ apply_crop_mask <- function(df, crop, crop_mask_dir = "Landing/crop_masks") {
 # so a missing mask is a graceful skip, not an error.
 export_cropmask_full_results <- function(
     results_df, crop, crop_mask_dir = "Landing/crop_masks",
-    output_dir = ".", base_filename = crop) {
-  mask_file <- find_crop_mask_file(crop, crop_mask_dir, must_exist = FALSE)
+    output_dir = ".", base_filename = crop, country = NULL) {
+  mask_file <- find_crop_mask_file(crop, crop_mask_dir, must_exist = FALSE, country = country)
   if (is.na(mask_file)) {
     message(
       "No crop mask available for '", crop, "' in ", crop_mask_dir,
@@ -64,7 +98,7 @@ export_cropmask_full_results <- function(
     dir.create(output_dir, recursive = TRUE)
   }
 
-  masked_df <- apply_crop_mask(results_df, crop = crop, crop_mask_dir = crop_mask_dir)
+  masked_df <- apply_crop_mask(results_df, crop = crop, crop_mask_dir = crop_mask_dir, country = country)
 
   file_path <- file.path(output_dir, paste0(base_filename, "_cropmask.RDS"))
   saveRDS(masked_df, file = file_path)
@@ -144,13 +178,90 @@ build_dashboard_extract <- function(
 }
 
 
+### Build (or refresh) one crop's self-contained HTML results dashboard
+#
+# Loads the crop's dashboard extract - reusing an existing one if present, or
+# building it fresh (via build_dashboard_extract(), first generating its
+# export_cropmask_full_results() companion if that's also missing) - then
+# renders dashboard_template.Rmd into <result_dir>/<crop>_dashboard.html.
+# Shared by both build_usecase_dashboard.R (standalone, multi-crop CLI) and
+# run_dssat_pipeline.R (automatic, one crop per pipeline run) so the two
+# don't duplicate this logic.
+#
+# force_rebuild = TRUE skips any existing cached extract and rebuilds it from
+# the current base_filename RDS regardless - used when the caller (e.g. a
+# pipeline run that just recomputed this crop's results) knows any existing
+# extract predates the data now on disk and would otherwise be silently
+# stale. build_usecase_dashboard.R instead defaults to FALSE, since its
+# whole point is to cheaply reuse already-good extracts for crops it isn't
+# actively recomputing.
+#
+# result_dir/repo_root are normalized to absolute paths up front:
+# rmarkdown::render() evaluates the Rmd's chunks with the working directory
+# set to the Rmd's own folder, not the caller's - a relative result_dir here
+# would resolve to the wrong place inside the Rmd's readRDS(params$data_rds)
+# and fail with a confusing "cannot open the connection" error.
+build_crop_dashboard <- function(crop, result_dir, base_filename, crop_mask_dir,
+                                  repo_root, country_name, force_rebuild = FALSE) {
+  result_dir <- normalizePath(result_dir, mustWork = TRUE)
+  repo_root <- normalizePath(repo_root, mustWork = TRUE)
+  extract_path <- file.path(result_dir, paste0(crop, "_dashboard_extract.RDS"))
+
+  if (!force_rebuild && file.exists(extract_path)) {
+    message("Loading cached dashboard extract for ", crop)
+    dat <- readRDS(extract_path)
+  } else {
+    message("Building dashboard extract for ", crop)
+    masked_path <- file.path(result_dir, paste0(base_filename, "_cropmask.RDS"))
+    if (!file.exists(masked_path)) {
+      raw_path <- file.path(result_dir, paste0(base_filename, ".RDS"))
+      results_df <- readRDS(raw_path)
+      export_cropmask_full_results(
+        results_df = results_df, crop = crop, crop_mask_dir = crop_mask_dir,
+        output_dir = result_dir, base_filename = base_filename, country = country_name)
+    }
+    dat <- build_dashboard_extract(crop = crop, output_dir = result_dir, base_filename = base_filename)
+  }
+
+  dat$row_key <- paste(dat$XLAT, dat$LONG, dat$TRNO, dat$Cultivar, sep = "_")
+  has_crop_mask <- !is.na(find_crop_mask_file(crop, crop_mask_dir, must_exist = FALSE, country = country_name))
+
+  # Country name embedded in the shareable filenames themselves (not just
+  # the folder path) - colleagues collecting dashboards from several
+  # countries into one downloads folder would otherwise end up with several
+  # indistinguishable "Maize_dashboard.html" files.
+  country_slug <- gsub("[^A-Za-z0-9]+", "_", country_name)
+  output_basename <- paste0(crop, "_", country_slug, "_dashboard")
+
+  dashboard_rds_path <- file.path(result_dir, paste0(output_basename, "_data.RDS"))
+  saveRDS(dat, dashboard_rds_path)
+
+  rmarkdown::render(
+    input = file.path(repo_root, "main/DSSAT/dashboard_template.Rmd"),
+    output_file = paste0(output_basename, ".html"),
+    output_dir = result_dir,
+    params = list(
+      data_rds = dashboard_rds_path,
+      crop_name = crop,
+      country_name = country_name,
+      has_crop_mask = has_crop_mask,
+      project_root = repo_root
+    ),
+    envir = new.env()
+  )
+  out_path <- file.path(result_dir, paste0(output_basename, ".html"))
+  message("Dashboard rendered to: ", out_path)
+  invisible(out_path)
+}
+
+
 ### Plot maps of preferred planting dates for top 3 highest yields by cultivar
 plot_planting_date_gradients <- function(
     df, country_name = "Rwanda", output_dir = ".", file_prefix = "",
     crop = NA_character_, use_crop_mask = FALSE,
     crop_mask_dir = "Landing/crop_masks", project_root = ".") {
   if (isTRUE(use_crop_mask)) {
-    df <- apply_crop_mask(df, crop = crop, crop_mask_dir = crop_mask_dir)
+    df <- apply_crop_mask(df, crop = crop, crop_mask_dir = crop_mask_dir, country = country_name)
     file_prefix <- paste0(file_prefix, "cropmask_")
   }
   plot_df <- df %>%
@@ -286,7 +397,7 @@ plot_yield_gradients <- function(
     crop = NA_character_, use_crop_mask = FALSE,
     crop_mask_dir = "Landing/crop_masks", project_root = ".") {
   if (isTRUE(use_crop_mask)) {
-    df <- apply_crop_mask(df, crop = crop, crop_mask_dir = crop_mask_dir)
+    df <- apply_crop_mask(df, crop = crop, crop_mask_dir = crop_mask_dir, country = country_name)
     file_prefix <- paste0(file_prefix, "cropmask_")
   }
   plot_df <- df %>%
@@ -403,10 +514,10 @@ plot_yield_gradients <- function(
 summarize_and_save_dssat <- function(
     df, outputs = c("HWAH", "CWAM", "WUE"), output_dir = ".", file_prefix = "",
     crop = NA_character_, use_crop_mask = FALSE,
-    crop_mask_dir = "Landing/crop_masks") {
+    crop_mask_dir = "Landing/crop_masks", country = NULL) {
 
   if (isTRUE(use_crop_mask)) {
-    df <- apply_crop_mask(df, crop = crop, crop_mask_dir = crop_mask_dir)
+    df <- apply_crop_mask(df, crop = crop, crop_mask_dir = crop_mask_dir, country = country)
     file_prefix <- paste0(file_prefix, "cropmask_")
   }
 
@@ -475,7 +586,7 @@ export_top_combinations_nc <- function(
     crop_mask_dir = "Landing/crop_masks") {
 
   if (isTRUE(use_crop_mask)) {
-    df <- apply_crop_mask(df, crop = crop, crop_mask_dir = crop_mask_dir)
+    df <- apply_crop_mask(df, crop = crop, crop_mask_dir = crop_mask_dir, country = country)
     file_prefix <- paste0(file_prefix, "cropmask_")
   }
 
@@ -507,12 +618,36 @@ export_top_combinations_nc <- function(
     )
 
   # 3. Build one multi-layer SpatRaster per quantity, one layer per rank
+  #
+  # Pixel centers here come from a geospatial point grid (e.g. a
+  # cos-latitude-scaled km grid, clipped to an admin boundary) rather than
+  # this repo's own fixed-degree grid, so consecutive point spacing isn't
+  # always bit-for-bit constant (observed: LONG steps alternating 0.046/
+  # 0.047 deg, XLAT steps 0.044/0.045 deg for a Zambia usecase) - too small
+  # to be a real difference, but `terra::rast(df, type = "xyz")` demands
+  # exact regularity and errors ("cell sizes are not regular") on this kind
+  # of near-regular input. Build one shared template raster (resolution
+  # taken as the median observed step, extent from the full ranked data so
+  # every rank layer aligns) and terra::rasterize() each rank's points onto
+  # it instead - tolerant of the same few-thousandths-of-a-degree jitter
+  # that broke the strict xyz path.
+  all_lon <- sort(unique(df_ranked$LONG))
+  all_lat <- sort(unique(df_ranked$XLAT))
+  res_lon <- stats::median(diff(all_lon))
+  res_lat <- stats::median(diff(all_lat))
+  template <- terra::rast(
+    xmin = min(all_lon) - res_lon / 2, xmax = max(all_lon) + res_lon / 2,
+    ymin = min(all_lat) - res_lat / 2, ymax = max(all_lat) + res_lat / 2,
+    resolution = c(res_lon, res_lat), crs = "EPSG:4326")
+
   build_rank_layers <- function(value_col) {
     layers <- lapply(seq_len(top_n), function(r) {
       rank_df <- df_ranked %>%
         dplyr::filter(Combination_Rank == r) %>%
         dplyr::select(LONG, XLAT, dplyr::all_of(value_col))
-      terra::rast(rank_df, type = "xyz", crs = "EPSG:4326")
+      terra::rasterize(
+        as.matrix(rank_df[, c("LONG", "XLAT")]), template,
+        values = rank_df[[value_col]])
     })
     rr <- terra::rast(layers)
     terra::depth(rr) <- seq_len(top_n)
@@ -586,10 +721,10 @@ export_top_combinations_nc <- function(
 export_top_combinations_csv <- function(
     df, metric = "HWAH", top_n = 5, output_dir = ".", file_prefix = "",
     crop = NA_character_, use_crop_mask = FALSE,
-    crop_mask_dir = "Landing/crop_masks") {
+    crop_mask_dir = "Landing/crop_masks", country = NULL) {
 
   if (isTRUE(use_crop_mask)) {
-    df <- apply_crop_mask(df, crop = crop, crop_mask_dir = crop_mask_dir)
+    df <- apply_crop_mask(df, crop = crop, crop_mask_dir = crop_mask_dir, country = country)
     file_prefix <- paste0(file_prefix, "cropmask_")
   }
 

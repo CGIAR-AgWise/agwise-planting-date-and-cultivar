@@ -21,12 +21,32 @@ prepare_data_to_save <- function(results_df, project_root, country, useCaseName,
     select(1, 2) %>%
     deframe()
   
-  # Cultivar naming isn't consistent across crop genetic files: Maize's are
-  # prefixed (RWANDA_SHORT), Potato/Wheat's are suffixed (SHORT_RW). Strip both.
+  # Cultivar naming isn't consistent across crop genetic files or countries:
+  # Rwanda's Maize varieties are prefixed with the full country name
+  # (RWANDA_SHORT); Rwanda's Potato/Wheat are suffixed with the ISO2 code
+  # (SHORT_RW); Kenya's Maize are suffixed with the full country name
+  # (SHORT_KENYA); Malawi/Zambia/Mozambique's Maize share one regional block
+  # suffixed "_ZB" (SHORT_ZB) - not any of those countries' own ISO2 code, so
+  # stripping a country-derived prefix/suffix pattern (the previous approach)
+  # missed this case entirely, leaving "Short_zb" etc. in the data, which
+  # then read as NA wherever downstream code factors Cultivar to the
+  # canonical c("Short","Medium","Long","Longer") levels (e.g. the
+  # planting-date/yield gradient plots).
+  #
+  # Every convention observed always embeds one of the four canonical
+  # maturity-class words somewhere in the name, regardless of which
+  # country/region tag surrounds it - so extract that word directly instead
+  # of guessing at the tag. "Longer" is checked before "Long" so a Longer
+  # cultivar doesn't get truncated to "Long" via a substring match.
   results_df <- results_df %>%
     mutate(Cultivar = unname(var_map[as.character(Variety)])) %>%
-    mutate(Cultivar = gsub(paste0("^", toupper(country), "_|_RW$"), "", Cultivar)) %>%
-    mutate(Cultivar = str_to_title(Cultivar))
+    mutate(Cultivar = dplyr::case_when(
+      grepl("LONGER", Cultivar, ignore.case = TRUE) ~ "Longer",
+      grepl("LONG", Cultivar, ignore.case = TRUE) ~ "Long",
+      grepl("MEDIUM", Cultivar, ignore.case = TRUE) ~ "Medium",
+      grepl("SHORT", Cultivar, ignore.case = TRUE) ~ "Short",
+      TRUE ~ str_to_title(Cultivar)
+    ))
   return(results_df)
 }
 

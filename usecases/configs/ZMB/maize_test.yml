@@ -1,0 +1,17 @@
+name: Zambia Eastern maize test (pre-staged DSSAT weather/soil)
+country_code: ZMB
+country_name: Zambia
+use_case_name: test
+crop: Maize
+zones:
+  - Eastern
+season_start_month: 10
+season_start_day: 1
+season_year: 2026
+season_length_months: 3
+varietyids:
+  - 900111
+  - 900112
+  - 900113
+skip_weather_soil_creation: true
+build_dashboard: true

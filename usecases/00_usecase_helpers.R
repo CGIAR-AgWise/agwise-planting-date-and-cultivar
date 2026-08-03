@@ -221,9 +221,15 @@ usecase_runner_args <- function(usecase, cli, repo_root) {
     "--n-cores", as.character(cli[["n-cores"]] %||% usecase$n_cores %||% 1),
     "--variables", as_cli_vars(usecase$variables %||% c("PRCP", "TMAX", "TMIN", "SRAD")),
     "--base-dir", cli[["base-dir"]] %||% file.path(repo_root, "data"),
-    "--py-path", cli[["py-path"]] %||% usecase$py_path %||% "/home/jovyan/.conda-envs/agwise_fcst/bin/python"
+    "--py-path", cli[["py-path"]] %||% usecase$py_path %||% "/home/jovyan/.conda-envs/agwise_fcst/bin/python",
+    "--country-name", usecase$country_name,
+    "--use-case-name", usecase$use_case_name,
+    "--crop", usecase$crop
   )
 
+  if (!is.null(usecase$zones)) {
+    args <- c(args, "--geo-zones", as_cli_vars(usecase$zones))
+  }
   if (isTRUE(usecase$manual_extent)) {
     args <- c(args, "--manual-extent", "--extent", as_cli_vars(usecase$extent))
   }

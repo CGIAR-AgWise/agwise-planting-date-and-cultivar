@@ -537,12 +537,19 @@ get_filex_fields <- function(ex_profile, file_x, i, wsta_prefix) {
     mutate(
       WSTA = paste0(wsta_prefix, formatC(
         width = 4, as.integer((i)), flag = "0")),
-      ID_SOIL = paste0('TRAN', formatC(
-        width = 5, as.integer((i)), flag = "0")),
+      # Must match the PEDON id actually present in this point's SOIL.SOL -
+      # DSSAT's own model executable (not just our R code) looks up the
+      # soil profile by this id, so a value merely derived from `i` (e.g.
+      # hardcoded "TRAN#####") silently breaks for any SOIL.SOL that wasn't
+      # written by this pipeline's own readGeo_CM_zone.R (e.g. imported,
+      # pre-staged files using another convention like "P########") -
+      # DSSAT fails to find a matching profile and misreads the file
+      # (observed: "More than 19 layers in the soil profile" errors).
+      ID_SOIL = ex_profile$PEDON,
       XCRD = ex_profile$LONG,
       YCRD = ex_profile$LAT
     )
-  
+
   fields_df
 }
 

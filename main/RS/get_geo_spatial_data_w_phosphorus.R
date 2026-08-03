@@ -1877,16 +1877,26 @@ get_weather_seasonality <- function(
 
 ### Run the soil data pipeline for a forecast usecase
 get_soil_for_forecast <- function(
-    cfg, season = 1, inputData = NULL, level2 = FALSE, 
+    cfg, season = 1, inputData = NULL, level2 = FALSE,
     planting_window = 12, AOI = TRUE,
-    soilData = TRUE, weatherData = TRUE, soilProfile = TRUE) {
+    soilData = TRUE, weatherData = TRUE, soilProfile = TRUE,
+    zones = NULL) {
   
-  yml_config <- yaml::read_yaml(cfg$yml_config_path)
-  country <- yml_config$country_name
-  useCaseName <- yml_config$use_case_name
-  Crop <- yml_config$crop
+  if (!is.null(cfg$yml_config_path)) {
+    yml_config <- yaml::read_yaml(cfg$yml_config_path)
+    country <- yml_config$country_name
+    useCaseName <- yml_config$use_case_name
+    Crop <- yml_config$crop
+    country_code <- yml_config$country_code
+  } else {
+    # Allows callers that already have the use-case fields in hand (e.g. the
+    # automated forecast pipeline) to skip round-tripping through a YAML file.
+    country <- cfg$country_name
+    useCaseName <- cfg$use_case_name
+    Crop <- cfg$crop
+    country_code <- cfg$country_code
+  }
   country_shp_path <- cfg$dir_raw_admin
-  country_code <- yml_config$country_code
   dir_geo_cropmodel <- cfg$dir_geo_cropmodel
   
   message("Creating ISRIC soil data for ", country)
@@ -1909,12 +1919,14 @@ get_soil_for_forecast <- function(
       inputData = NULL)
   }
   
-  if (!level2 || is.na(level2)) {
-    zones <- unique(inputData$NAME_1)
-  } else if (level2) {
-    zones <- unique(inputData$NAME_2)
+  if (is.null(zones)) {
+    if (!level2 || is.na(level2)) {
+      zones <- unique(inputData$NAME_1)
+    } else if (level2) {
+      zones <- unique(inputData$NAME_2)
+    }
   }
-  
+
   # Get ISRIC soil data
   for (zone in zones) {
     message(paste0("Producing ISRIC soil data for ", zone))

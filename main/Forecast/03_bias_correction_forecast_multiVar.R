@@ -109,7 +109,12 @@ run_agwise_seasonal_forecast_BC <- function(
     export_dssat = TRUE,
     n_cores = NULL,
     run_downloader = TRUE,
-    parallel_backend = c("auto", "process", "fork", "none")
+    parallel_backend = c("auto", "process", "fork", "none"),
+    country_name = NULL,
+    use_case_name = NULL,
+    crop = NULL,
+    geo_zones = NULL,
+    geo_soil_script = file.path(main_script_dir, "..", "RS", "get_geo_spatial_data_w_phosphorus.R")
 ) {
   
     setwd(main_script_dir)
@@ -132,6 +137,24 @@ run_agwise_seasonal_forecast_BC <- function(
       country_data_dir(base_dir, country_code), "config",
       paste0(country_code, "_config_agwise.json"))
     aoi_config <- load_country_config_from_json(config_json_path)
+
+    # Pre-fetch (and cache to disk) the GADM country boundary used later to
+    # mask the bias-corrected output (see terra::mask() below), synchronously
+    # here in the single orchestrating process, before any per-variable
+    # parallel dispatch. Each variable's bias correction can run in its own
+    # separate Rscript subprocess (parallel_backend = "process") or fork
+    # (mclapply); for a country run for the first time, every worker would
+    # otherwise independently find the cache file missing and race to
+    # download it concurrently, corrupting the download (observed: workers
+    # each fetching a truncated/partial .rds, then terra::mask() failing with
+    # "x = SpatRaster, mask = NULL" for every one of them).
+    gadm_file <- file.path(
+      aoi_config$dir_raw_admin, "gadm", paste0("gadm41_", country_code, "_0_pk.rds"))
+    if (!file.exists(gadm_file)) {
+      message("Pre-fetching GADM country boundary for ", country_code, "...")
+      geodata::gadm(country_code, level = 0, path = aoi_config$dir_raw_admin)
+    }
+
     season_length <- aoi_config$season_length_months
     if (is.null(season_length) || is.na(season_length)) season_length <- 3
     seasons <- ((aoi_config$init_month - 1 + 0:(season_length - 1)) %% 12) + 1
@@ -242,8 +265,48 @@ run_agwise_seasonal_forecast_BC <- function(
     
     message("Proceeding to bias correction.........")
 
+    ensure_geo_cropmodel_data <- function() {
+      if (is.null(country_name) || is.null(use_case_name) || is.null(crop)) {
+        message("Skipping geo_4cropModel soil/DEM generation: country_name/use_case_name/crop not provided.")
+        return(invisible(NULL))
+      }
+      if (is.null(geo_zones)) {
+        existing <- list.files(
+          aoi_config$dir_geo_cropmodel,
+          pattern = "^SoilDEM_PointData_AOI_profile\\.RDS$",
+          recursive = TRUE, full.names = TRUE
+        )
+        if (length(existing) > 0) {
+          message("geo_4cropModel soil/DEM data already present (", length(existing), " zone file(s)); skipping generation.")
+          return(invisible(NULL))
+        }
+      } else {
+        zone_soil_file <- file.path(
+          aoi_config$dir_geo_cropmodel, geo_zones, "SoilDEM_PointData_AOI_profile.RDS")
+        if (all(file.exists(zone_soil_file))) {
+          message("geo_4cropModel soil/DEM data already present for zone(s): ", paste(geo_zones, collapse = ", "), "; skipping generation.")
+          return(invisible(NULL))
+        }
+      }
+      message("Generating geo_4cropModel soil/DEM data for ", country_name, "...")
+      t_geo <- Sys.time()
+      source(geo_soil_script)
+      get_soil_for_forecast(cfg = list(
+        dir_raw_admin = aoi_config$dir_raw_admin,
+        dir_geo_cropmodel = aoi_config$dir_geo_cropmodel,
+        dir_s2s = aoi_config$country_dir,
+        country_name = country_name,
+        use_case_name = use_case_name,
+        crop = crop,
+        country_code = country_code
+      ), zones = geo_zones)
+      message("geo_4cropModel generation time: ", round(difftime(Sys.time(), t_geo, units = "mins"), 2), " min")
+      invisible(NULL)
+    }
+
     run_dssat_export <- function() {
       if (!isTRUE(export_dssat)) return(invisible(NULL))
+      ensure_geo_cropmodel_data()
       message("Preparing DSSAT geo RDS forecast inputs for readGeo_CM_zone.R...")
       t_dssat <- Sys.time()
       dssat_cmd <- sprintf(

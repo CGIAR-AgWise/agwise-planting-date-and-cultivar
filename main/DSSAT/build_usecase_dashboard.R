@@ -9,8 +9,11 @@
 #          per-crop files are the reliable way to make crops mutually
 #          exclusive alternatives. This also keeps each file's payload to
 #          just its own crop instead of every crop combined.
-#          Standalone - run manually after some crops have finished; not
-#          wired into run_dssat_pipeline.R.
+#          run_dssat_pipeline.R now also builds each crop's dashboard
+#          automatically at the end of its own run (Step 6); this script
+#          remains useful standalone to rebuild dashboards for a whole
+#          usecase at once (e.g. after a template/styling change) without
+#          rerunning DSSAT.
 #
 # Example:
 #   Rscript main/DSSAT/build_usecase_dashboard.R \
@@ -91,47 +94,14 @@ find_base_filename <- function(result_dir, crop) {
   sub("\\.RDS$", "", candidates[[1]])
 }
 
-### For each crop: load (or build) its dashboard extract, then render its own
-### dashboard HTML directly into that crop's result folder, alongside its
-### other Step 5 outputs.
+### For each crop: build (or reuse) its dashboard, via the same function
+### run_dssat_pipeline.R now also calls automatically at the end of each
+### crop's own pipeline run.
 for (crop in names(crop_dirs)) {
   result_dir <- crop_dirs[[crop]]
-  extract_path <- file.path(result_dir, paste0(crop, "_dashboard_extract.RDS"))
-
-  if (file.exists(extract_path)) {
-    message("Loading cached dashboard extract for ", crop)
-    dat <- readRDS(extract_path)
-  } else {
-    message("No cached extract for ", crop, " - building it now")
-    base_filename <- find_base_filename(result_dir, crop)
-    masked_path <- file.path(result_dir, paste0(base_filename, "_cropmask.RDS"))
-    if (!file.exists(masked_path)) {
-      raw_path <- file.path(result_dir, paste0(base_filename, ".RDS"))
-      results_df <- readRDS(raw_path)
-      export_cropmask_full_results(
-        results_df = results_df, crop = crop, crop_mask_dir = crop_mask_dir,
-        output_dir = result_dir, base_filename = base_filename)
-    }
-    dat <- build_dashboard_extract(crop = crop, output_dir = result_dir, base_filename = base_filename)
-  }
-
-  dat$row_key <- paste(dat$XLAT, dat$LONG, dat$TRNO, dat$Cultivar, sep = "_")
-  has_crop_mask <- !is.na(find_crop_mask_file(crop, crop_mask_dir, must_exist = FALSE))
-
-  dashboard_rds_path <- file.path(result_dir, paste0(crop, "_dashboard_data.RDS"))
-  saveRDS(dat, dashboard_rds_path)
-
-  rmarkdown::render(
-    input = file.path(repo_root, "main/DSSAT/dashboard_template.Rmd"),
-    output_file = paste0(crop, "_dashboard.html"),
-    output_dir = result_dir,
-    params = list(
-      data_rds = dashboard_rds_path,
-      crop_name = crop,
-      country_name = country_name,
-      has_crop_mask = has_crop_mask
-    ),
-    envir = new.env()
-  )
-  message("Dashboard rendered to: ", file.path(result_dir, paste0(crop, "_dashboard.html")))
+  base_filename <- find_base_filename(result_dir, crop)
+  build_crop_dashboard(
+    crop = crop, result_dir = result_dir, base_filename = base_filename,
+    crop_mask_dir = crop_mask_dir, repo_root = repo_root,
+    country_name = country_name)
 }

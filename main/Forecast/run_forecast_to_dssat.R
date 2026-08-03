@@ -73,6 +73,11 @@ variables <- as_vars(arg(args, "variables", "PRCP,TMAX,TMIN,SRAD"))
 
 base_dir <- normalizePath(arg(args, "base-dir", file.path(script_dir, "..", "..", "data")), mustWork = FALSE)
 py_path <- arg(args, "py-path", "/home/jovyan/.conda-envs/agwise_fcst/bin/python")
+country_name <- arg(args, "country-name", NULL)
+use_case_name <- arg(args, "use-case-name", NULL)
+crop <- arg(args, "crop", NULL)
+geo_zones_arg <- arg(args, "geo-zones", NULL)
+geo_zones <- if (is.null(geo_zones_arg)) NULL else as_vars(geo_zones_arg)
 force_download <- isTRUE(args[["force-download"]])
 export_dssat <- !isTRUE(args[["skip-dssat"]])
 use_manual_extent <- isTRUE(args[["manual-extent"]])
@@ -99,5 +104,9 @@ run_agwise_seasonal_forecast_BC(
   variables_to_bc = variables,
   force_download = force_download,
   export_dssat = export_dssat,
-  n_cores = n_cores
+  n_cores = n_cores,
+  country_name = country_name,
+  use_case_name = use_case_name,
+  crop = crop,
+  geo_zones = geo_zones
 )

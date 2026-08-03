@@ -27,7 +27,9 @@ load_dssat_defaults <- function(usecase, repo_root) {
     planting_month_date = NULL,
     harvest_month_date  = NULL,
     planting_window     = 7,
-    use_crop_mask       = FALSE
+    use_crop_mask       = FALSE,
+    build_dashboard     = TRUE,
+    skip_weather_soil_creation = FALSE
   )
   
   # Combine keeping user choices first
@@ -86,24 +88,31 @@ run_dssat_pipeline <- function(
   
   # --- STEP 1: Soil and Weather Input File Creation ---
   # ISDA creation script would go here
-  message("Creating DSSAT weather and soil input files")
-  wth_sol_files_msg <- NULL
-  for (varietyid in varietyids) {
-    for (zone in zones) {
-      message("Creating DSSAT weather and soil input files for ", zone)
-      wth_sol_files_msg <- readGeo_CM_zone(
-        complete_usecase = complete_usecase, 
-        project_root    = repo_root, 
-        zone            = zone,
-        varietyid       = varietyid, 
-        fc_month = complete_usecase$season_start_month
-      )
+  # skip_weather_soil_creation lets a usecase supply its transform/DSSAT/AOI
+  # weather+soil files itself (e.g. pre-staged DSSAT-ready files from another
+  # pipeline) instead of generating them here from RDS forecast handoff data.
+  if (!isTRUE(complete_usecase$skip_weather_soil_creation)) {
+    message("Creating DSSAT weather and soil input files")
+    wth_sol_files_msg <- NULL
+    for (varietyid in varietyids) {
+      for (zone in zones) {
+        message("Creating DSSAT weather and soil input files for ", zone)
+        wth_sol_files_msg <- readGeo_CM_zone(
+          complete_usecase = complete_usecase,
+          project_root    = repo_root,
+          zone            = zone,
+          varietyid       = varietyid,
+          fc_month = complete_usecase$season_start_month
+        )
+      }
     }
-  }
-  if (exists("future::plan")) future::plan(future::sequential)
-  if (exists("write_dssat_log") && !is.null(wth_sol_files_msg)) {
-    write_dssat_log(wth_sol_files_msg, file = "readGeo_CM_zone.log",
-                    repo_root, country, useCaseName, Crop)
+    if (exists("future::plan")) future::plan(future::sequential)
+    if (exists("write_dssat_log") && !is.null(wth_sol_files_msg)) {
+      write_dssat_log(wth_sol_files_msg, file = "readGeo_CM_zone.log",
+                      repo_root, country, useCaseName, Crop)
+    }
+  } else {
+    message("Skipping DSSAT weather/soil input file creation (skip_weather_soil_creation = TRUE); using pre-staged files.")
   }
   
   if (length(varietyids) > 1 && exists("copy_WTH_SOIL_data_for_variety")) {
@@ -198,7 +207,8 @@ run_dssat_pipeline <- function(
   export_cropmask_full_results(
     results_df = results_df, crop = complete_usecase$crop,
     crop_mask_dir = file.path(repo_root, "Landing", "crop_masks"),
-    output_dir = result_output_dir, base_filename = dssat_output_base_filename)
+    output_dir = result_output_dir, base_filename = dssat_output_base_filename,
+    country = complete_usecase$country_name)
 
   # --- STEP 5: Produce Final Outputs ---
   message("Saving nc, plots, and statistics...")
@@ -226,7 +236,8 @@ run_dssat_pipeline <- function(
   summary_df <- summarize_and_save_dssat(
     df = plot_df, outputs = c("HWAH", "CWAM"), output_dir = result_output_dir,
     file_prefix = file_prefix, crop = complete_usecase$crop,
-    use_crop_mask = use_crop_mask, crop_mask_dir = crop_mask_dir)
+    use_crop_mask = use_crop_mask, crop_mask_dir = crop_mask_dir,
+    country = complete_usecase$country_name)
 
   export_top_combinations_nc(
     df = results_df, metric = "HWAH", top_n = 5, output_dir = result_output_dir,
@@ -243,8 +254,22 @@ run_dssat_pipeline <- function(
   comb_df <- export_top_combinations_csv(
     df = results_df, metric = "HWAH", top_n = 5, output_dir = result_output_dir,
     file_prefix = file_prefix, crop = complete_usecase$crop,
-    use_crop_mask = use_crop_mask, crop_mask_dir = crop_mask_dir
+    use_crop_mask = use_crop_mask, crop_mask_dir = crop_mask_dir,
+    country = complete_usecase$country_name
   )
+
+  # --- STEP 6: Build the results dashboard ---
+  # force_rebuild = TRUE: this run just (re)computed results_df above, so any
+  # dashboard_extract.RDS already on disk necessarily predates it and would
+  # otherwise be served stale.
+  if (isTRUE(complete_usecase$build_dashboard)) {
+    message("Building results dashboard...")
+    build_crop_dashboard(
+      crop = complete_usecase$crop, result_dir = result_output_dir,
+      base_filename = dssat_output_base_filename, crop_mask_dir = crop_mask_dir,
+      repo_root = repo_root, country_name = complete_usecase$country_name,
+      force_rebuild = TRUE)
+  }
 
 }
 

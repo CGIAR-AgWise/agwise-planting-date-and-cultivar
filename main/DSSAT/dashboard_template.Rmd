@@ -1,5 +1,5 @@
 ---
-title: "`r params$crop_name` — DSSAT results dashboard"
+title: "`r params$crop_name` planting date and cultivar recommendations — `r params$country_name`"
 output:
   html_document:
     self_contained: true
@@ -12,6 +12,7 @@ params:
   crop_name: ""
   country_name: ""
   has_crop_mask: FALSE
+  project_root: "."
 ---
 
 <style>
@@ -53,8 +54,14 @@ suppressPackageStartupMessages({
 # dynamically restyling already-rendered canvas markers would need custom
 # JS reaching into leaflet's internal layer registry that can't be verified
 # without a live browser.
+#
+# Two outline layers are drawn, styled distinctly: the country border (thin
+# black) and, when this run covers only part of the country, the zone
+# border (thicker blue) - so a colleague can see at a glance both where the
+# study area sits within the country and its own precise extent.
 build_dssat_map <- function(sd, element_id, color_formula, pal_fn, pal_values,
                              legend_title, label_formula, outline_parts,
+                             zone_outline_parts = list(), bounds = NULL,
                              leg_lab_format = NULL) {
   m <- leaflet::leaflet(
       sd, elementId = element_id, height = 480,
@@ -73,8 +80,21 @@ build_dssat_map <- function(sd, element_id, color_formula, pal_fn, pal_values,
 
   for (part in outline_parts) {
     m <- leaflet::addPolylines(
-      m, lng = part$long, lat = part$lat, color = "black", weight = 1.5, opacity = 0.7)
+      m, lng = part$long, lat = part$lat, color = "black", weight = 1, opacity = 0.6)
   }
+  for (part in zone_outline_parts) {
+    m <- leaflet::addPolylines(
+      m, lng = part$long, lat = part$lat, color = "#2c7fb8", weight = 2.5, opacity = 0.9)
+  }
+
+  # Explicit initial view, fit to where the simulated points actually are -
+  # without this, leaflet auto-fits to every added layer including the
+  # (much larger) country/zone outline polylines, so the map opens zoomed
+  # out to the whole country instead of the study area.
+  if (!is.null(bounds)) {
+    m <- leaflet::fitBounds(m, bounds$lng1, bounds$lat1, bounds$lng2, bounds$lat2)
+  }
+
   m
 }
 
@@ -90,6 +110,43 @@ map_col <- function(label, map_widget, readout_id, readout_label) {
       style = "margin-top: 4px; font-weight: bold; font-size: 0.9em;",
       paste0(readout_label, ": "), htmltools::tags$span(id = readout_id, "computing…"))
   )
+}
+
+# Administrative boundary outline (country, level 0, or a named zone/admin-1
+# unit), for context on the maps below. Prefers a boundary file already
+# cached on disk (reused from elsewhere in this pipeline) over a fresh
+# geodata::gadm() network fetch, so rendering an already-run usecase's
+# dashboard doesn't depend on network access. `zones`, when given, restricts
+# the result to admin-1 units whose name matches one of the requested zone
+# labels (partial, case-insensitive match, since a usecase's zone label -
+# e.g. "Central" - doesn't always exactly match GADM's own naming - e.g.
+# "Central Region") and dissolves them into a single outer boundary rather
+# than showing every internal sub-district line.
+fetch_admin_outline <- function(country_name, project_root, level, zones = NULL) {
+  tryCatch({
+    country_code <- countrycode::countrycode(
+      country_name, origin = "country.name", destination = "iso3c")
+    admin_dir <- file.path(project_root, "data", "countries", country_code, "admin")
+    cache_file <- file.path(
+      admin_dir, "gadm", paste0("gadm41_", country_code, "_", level, "_pk.rds"))
+    adm <- if (file.exists(cache_file)) {
+      terra::vect(cache_file)
+    } else {
+      geodata::gadm(country = country_code, level = level, path = admin_dir)
+    }
+    if (!is.null(zones) && length(zones) > 0) {
+      name_col <- paste0("NAME_", level)
+      pattern <- paste(zones, collapse = "|")
+      adm <- adm[grepl(pattern, adm[[name_col]][[1]], ignore.case = TRUE), ]
+      if (nrow(adm) == 0) return(NULL)
+      adm <- terra::aggregate(adm)
+    }
+    adm_sf <- sf::st_as_sf(adm)
+    coords <- sf::st_coordinates(adm_sf)
+    data.frame(
+      long = coords[, "X"], lat = coords[, "Y"],
+      group = paste(coords[, "L2"], coords[, "L1"], sep = "."))
+  }, error = function(e) NULL)
 }
 ```
 
@@ -108,28 +165,30 @@ dat <- dat[, display_cols]
 sd <- crosstalk::SharedData$new(dat, key = ~row_key, group = "dssat")
 ```
 
-# `r params$crop_name` — DSSAT results dashboard
+This dashboard presents planting-date and cultivar maturity-class
+recommendations for **`r params$crop_name`** in **`r params$country_name`**,
+generated using the DSSAT crop simulation model driven by seasonal forecast
+weather data (not historical or observed weather). At each simulated
+location, the model was run across 8 planting-date treatments — one week
+apart, beginning at the estimated onset of the rainy season — combined with
+`r length(cultivar_order)` cultivar maturity classes
+(`r paste(cultivar_order, collapse = ", ")`), for up to
+`r 8 * length(cultivar_order)` simulated planting-date/cultivar combinations
+per location.
 
-This dashboard summarizes DSSAT crop model simulations for
-**`r params$crop_name`**, driven by seasonal forecast weather data (not
-historical/observed weather). At each pixel, the model was run for 8
-planting-date treatments — spaced 7 days apart, starting from that pixel's
-forecasted rainy-season onset — crossed with `r length(cultivar_order)`
-cultivar maturity classes (`r paste(cultivar_order, collapse = ", ")`), for up
-to `r 8 * length(cultivar_order)` simulated planting-date/cultivar
-combinations per pixel. Open this file directly in a browser (no server or R
-install required); it works fully offline except for the optional background
-map imagery. Other crops in this usecase have their own separate dashboard
-file, one per crop, in their own result folder.
+This file is self-contained and can be opened directly in a web browser,
+without a server or R installation; only the background map imagery
+requires an internet connection. If this analysis covered more than one
+crop, each has its own dashboard file in its respective results folder.
 
-`r if (!isTRUE(params$has_crop_mask)) paste0("**Note:** no crop-mask layer is available yet for ", params$crop_name, " — the \"Crop mask\" filter below has no effect (all pixels are always shown).")`
+`r if (!isTRUE(params$has_crop_mask)) paste0("**Note:** a cropland mask is not yet available for ", params$crop_name, " in this region. The \"Crop mask\" filter below therefore has no effect, and all simulated locations are shown.")`
 
 ## Filters
 
 ```{r filters}
 crosstalk::bscols(
   widths = c(6, 6),
-  crosstalk::filter_checkbox("mask_filter", "Crop mask (checked = pixel is inside the mask)", sd, ~in_crop_mask),
+  crosstalk::filter_checkbox("mask_filter", "Crop mask (checked = location is inside the mask)", sd, ~in_crop_mask),
   crosstalk::filter_checkbox("cultivar_filter", "Cultivar", sd, ~Cultivar)
 )
 ```
@@ -148,9 +207,11 @@ window.addEventListener('load', function() {
 });
 </script>
 
-**Recommendation rank**: 1 = best yield at that pixel; higher numbers are
-progressively worse alternatives. Check **1** to see only each pixel's top
-recommendation; leave unchecked to see every combination.
+**Recommendation rank** orders each location's planting-date/cultivar
+combinations by simulated yield, with 1 as the best-performing option and
+higher numbers indicating progressively lower-yielding alternatives. Select
+**1** to view only each location's top recommendation, or leave all ranks
+selected to see every simulated combination.
 
 ```{r rank-filter}
 crosstalk::filter_checkbox("rank_filter", "Recommendation rank", sd, ~Combination_Rank, inline = TRUE)
@@ -161,14 +222,41 @@ crosstalk::filter_checkbox("rank_filter", "Recommendation rank", sd, ~Combinatio
 ```{r maps}
 label_formula <- ~sprintf("%s | %s | %.0f kg/ha", Cultivar, format(PDAT, "%Y-%m-%d"), HWAH)
 
-outline_raw <- tryCatch(
-  ggplot2::map_data("world", region = params$country_name),
-  error = function(e) NULL)
-outline_parts <- if (!is.null(outline_raw) && nrow(outline_raw) > 0) {
-  split(outline_raw, outline_raw$group)
+country_outline_df <- fetch_admin_outline(params$country_name, params$project_root, level = 0)
+if (is.null(country_outline_df)) {
+  country_outline_df <- tryCatch(
+    ggplot2::map_data("world", region = params$country_name),
+    error = function(e) NULL)
+}
+outline_parts <- if (!is.null(country_outline_df) && nrow(country_outline_df) > 0) {
+  split(country_outline_df, country_outline_df$group)
 } else {
   list()
 }
+
+# If this run covers one or more named zones rather than the whole country,
+# draw those zones' own boundary too (see fetch_admin_outline() above).
+zones_present <- sort(unique(as.character(dat$zone)))
+zone_outline_df <- if (length(zones_present) > 0) {
+  fetch_admin_outline(params$country_name, params$project_root, level = 1, zones = zones_present)
+} else {
+  NULL
+}
+zone_outline_parts <- if (!is.null(zone_outline_df) && nrow(zone_outline_df) > 0) {
+  split(zone_outline_df, zone_outline_df$group)
+} else {
+  list()
+}
+
+# Initial map view: fit to where the simulated locations actually are, not
+# the (typically much larger) country/zone outline extent.
+lng_range <- range(dat$LONG, na.rm = TRUE)
+lat_range <- range(dat$XLAT, na.rm = TRUE)
+lng_pad <- max(diff(lng_range) * 0.1, 0.05)
+lat_pad <- max(diff(lat_range) * 0.1, 0.05)
+map_bounds <- list(
+  lng1 = lng_range[1] - lng_pad, lat1 = lat_range[1] - lat_pad,
+  lng2 = lng_range[2] + lng_pad, lat2 = lat_range[2] + lat_pad)
 
 pal_yield <- leaflet::colorNumeric("YlOrRd", domain = dat$HWAH, na.color = "transparent")
 pal_cultivar <- leaflet::colorFactor("Dark2", domain = cultivar_order, na.color = "transparent")
@@ -177,16 +265,18 @@ pdat_leg_labFormat <- function(type, cuts, p) format(as.Date(cuts, origin = "197
 
 yield_map <- build_dssat_map(
   sd, "dssat_map_yield", ~pal_yield(HWAH), pal_yield, dat$HWAH,
-  "Yield (kg/ha)<br>(fixed color scale)", label_formula, outline_parts)
+  "Yield (kg/ha)<br>(fixed color scale)", label_formula, outline_parts,
+  zone_outline_parts, map_bounds)
 
 cultivar_map <- build_dssat_map(
   sd, "dssat_map_cultivar", ~pal_cultivar(Cultivar), pal_cultivar, cultivar_order,
-  "Cultivar<br>(fixed color scale)", label_formula, outline_parts)
+  "Cultivar<br>(fixed color scale)", label_formula, outline_parts,
+  zone_outline_parts, map_bounds)
 
 pdat_map <- build_dssat_map(
   sd, "dssat_map_pdat", ~pal_pdat(as.numeric(PDAT)), pal_pdat, as.numeric(dat$PDAT),
   "Planting date<br>(fixed color scale)", label_formula, outline_parts,
-  leg_lab_format = pdat_leg_labFormat)
+  zone_outline_parts, map_bounds, leg_lab_format = pdat_leg_labFormat)
 
 crosstalk::bscols(
   widths = c(4, 4, 4),
@@ -230,7 +320,7 @@ window.dssatCultivarLevels = `r cultivar_levels_json`;
     var el = document.getElementById("yield-range-text");
     if (!el) return;
     var vals = valuesFor(window.dssatYieldByKey, keys).filter(function(v) { return typeof v === "number" && !isNaN(v); });
-    if (vals.length === 0) { el.textContent = "no pixels match the current filters"; return; }
+    if (vals.length === 0) { el.textContent = "no locations match the current filters"; return; }
     var lo = Math.min.apply(null, vals);
     var hi = Math.max.apply(null, vals);
     el.textContent = fmt(lo) + " – " + fmt(hi) + " kg/ha (" + vals.length + " points)";
@@ -240,7 +330,7 @@ window.dssatCultivarLevels = `r cultivar_levels_json`;
     var el = document.getElementById("pdat-range-text");
     if (!el) return;
     var vals = valuesFor(window.dssatPdatByKey, keys).filter(function(v) { return typeof v === "string"; });
-    if (vals.length === 0) { el.textContent = "no pixels match the current filters"; return; }
+    if (vals.length === 0) { el.textContent = "no locations match the current filters"; return; }
     vals.sort();
     el.textContent = vals[0] + " – " + vals[vals.length - 1] + " (" + vals.length + " points)";
   }
@@ -281,9 +371,10 @@ window.dssatCultivarLevels = `r cultivar_levels_json`;
 
 ## Yield distribution by cultivar
 
-This plot responds to the same filters above, including recommendation rank —
-so if only rank 1 is checked, it shows the yield distribution of just each
-pixel's top choice per cultivar, not every planting-date treatment.
+This chart responds to the filters above, including recommendation rank.
+For example, with only rank 1 selected, it shows the yield distribution of
+each location's single top-recommended combination per cultivar, rather
+than every simulated planting-date treatment.
 
 ```{r boxplot}
 # Individual jittered points (box outline/fill made transparent) rather than
@@ -303,6 +394,15 @@ plotly::plot_ly(
 ```
 
 ## Recommendations table
+
+For each location, the model evaluated 8 candidate planting dates
+("treatments"), numbered 1–8 in chronological order. **Treatment 1**
+corresponds to that location's estimated rainy-season onset — the first day,
+on or after the 1st of the target planting month, on which at least 20 mm of
+rain falls within a 3-day window and no 10-day dry spell (10 or more
+consecutive days receiving less than 1 mm of rain) occurs within the
+following 20 days. Treatments 2 through 8 are subsequent candidate planting
+dates, spaced one week apart.
 
 ```{r table}
 hide_idx <- which(names(dat) == "row_key") - 1

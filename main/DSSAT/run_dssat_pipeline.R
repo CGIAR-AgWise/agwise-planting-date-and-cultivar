@@ -33,7 +33,12 @@ load_dssat_defaults <- function(usecase, repo_root) {
     # Only consulted when skip_weather_soil_creation is TRUE - overrides
     # import_prestaged_dssat_files()'s own default products directory for a
     # usecase that needs a non-standard source location.
-    dssat_source_products_dir = NULL
+    dssat_source_products_dir = NULL,
+    # Only consulted when skip_weather_soil_creation is TRUE - when set,
+    # generates the pre-staged export via agwise-datasourcing's own pipeline
+    # first (instead of this repo's main/Forecast downloader), before the
+    # unconditional import step stages it.
+    generate_dssat_via_datasourcing = FALSE
   )
   
   # Combine keeping user choices first
@@ -72,6 +77,7 @@ run_dssat_pipeline <- function(
   source(file.path(repo_root, "main/DSSAT/readGeo_CM_zone.R"))
   source(file.path(repo_root, "main/DSSAT/helpers_readGeo_CM_zone.R"))
   source(file.path(repo_root, "main/DSSAT/import_prestaged_dssat_files.R"))
+  source(file.path(repo_root, "main/DSSAT/run_datasourcing_export.R"))
   source(file.path(repo_root, "main/DSSAT/DSSAT_expfile.R"))
   source(file.path(repo_root, "main/DSSAT/helpers_DSSAT_expfile.R"))
   source(file.path(repo_root, "main/DSSAT/dssat_exec.R"))
@@ -118,6 +124,9 @@ run_dssat_pipeline <- function(
     }
   } else {
     message("skip_weather_soil_creation = TRUE - checking for pre-staged DSSAT files...")
+    if (isTRUE(complete_usecase$generate_dssat_via_datasourcing)) {
+      generate_prestaged_dssat_via_datasourcing(complete_usecase = complete_usecase, repo_root = repo_root)
+    }
     import_prestaged_dssat_files(complete_usecase = complete_usecase, repo_root = repo_root)
   }
   

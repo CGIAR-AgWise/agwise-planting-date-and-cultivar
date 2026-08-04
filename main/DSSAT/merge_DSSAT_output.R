@@ -31,7 +31,10 @@ prepare_data_to_save <- function(results_df, project_root, country, useCaseName,
   # missed this case entirely, leaving "Short_zb" etc. in the data, which
   # then read as NA wherever downstream code factors Cultivar to the
   # canonical c("Short","Medium","Long","Longer") levels (e.g. the
-  # planting-date/yield gradient plots).
+  # planting-date/yield gradient plots). Nigeria's Maize names its middle
+  # cultivar "AVERAGE" rather than "MEDIUM" - same maturity class, different
+  # word - so it's mapped to "Medium" explicitly below rather than being left
+  # as an unrecognized "Average" that those same hardcoded levels would drop.
   #
   # Every convention observed always embeds one of the four canonical
   # maturity-class words somewhere in the name, regardless of which
@@ -44,6 +47,7 @@ prepare_data_to_save <- function(results_df, project_root, country, useCaseName,
       grepl("LONGER", Cultivar, ignore.case = TRUE) ~ "Longer",
       grepl("LONG", Cultivar, ignore.case = TRUE) ~ "Long",
       grepl("MEDIUM", Cultivar, ignore.case = TRUE) ~ "Medium",
+      grepl("AVERAGE", Cultivar, ignore.case = TRUE) ~ "Medium",
       grepl("SHORT", Cultivar, ignore.case = TRUE) ~ "Short",
       TRUE ~ str_to_title(Cultivar)
     ))

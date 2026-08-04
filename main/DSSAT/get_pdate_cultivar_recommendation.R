@@ -333,7 +333,14 @@ plot_planting_date_gradients <- function(
   max_date <- max(plot_df$PDAT_clean, na.rm = TRUE)
   mid_date <- min_date + (max_date - min_date) / 2
   date_breaks <- c(min_date, mid_date, max_date)
-  
+
+  # Zoom the map to where the simulated points actually are, not the
+  # (typically much larger) country outline's extent - coord_equal() with
+  # no explicit limits otherwise expands to fit every layer, including the
+  # outline polygon, zooming out well past the study area.
+  map_xlim <- range(plot_df$LONG, na.rm = TRUE) + c(-1, 1) * max(diff(range(plot_df$LONG, na.rm = TRUE)) * 0.1, 0.05)
+  map_ylim <- range(plot_df$XLAT, na.rm = TRUE) + c(-1, 1) * max(diff(range(plot_df$XLAT, na.rm = TRUE)) * 0.1, 0.05)
+
   # Generate the map
   rec <- ggplot() +
     geom_tile(data = plot_df, aes(x = LONG, y = XLAT, fill = as.numeric(PDAT_clean))) +
@@ -364,8 +371,8 @@ plot_planting_date_gradients <- function(
       labels = format(date_breaks, "%b %d"),
       guide = guide_colorbar(reverse = TRUE)
     ) +
-    
-    coord_equal() +
+
+    coord_equal(xlim = map_xlim, ylim = map_ylim) +
     theme_bw() +
     labs(x = NULL, y = NULL) + 
     theme(
@@ -459,7 +466,13 @@ plot_yield_gradients <- function(
   # Use data masking to evaluate the chosen yield column safely
   max_yield <- max(plot_df[[yield_col]], na.rm = TRUE)
   yield_breaks <- seq(0, max_yield, length.out = 4)
-  
+
+  # Zoom the map to where the simulated points actually are, not the
+  # country outline's extent - see the identical fix/rationale in
+  # plot_planting_date_gradients().
+  map_xlim <- range(plot_df$LONG, na.rm = TRUE) + c(-1, 1) * max(diff(range(plot_df$LONG, na.rm = TRUE)) * 0.1, 0.05)
+  map_ylim <- range(plot_df$XLAT, na.rm = TRUE) + c(-1, 1) * max(diff(range(plot_df$XLAT, na.rm = TRUE)) * 0.1, 0.05)
+
   # Generate the map
   yields <- ggplot() +
     geom_tile(data = plot_df, aes(x = LONG, y = XLAT, fill = .data[[yield_col]])) +
@@ -485,8 +498,8 @@ plot_yield_gradients <- function(
       breaks = scales::breaks_pretty(n = 4),
       labels = scales::label_comma(accuracy = 1)
     ) +
-    
-    coord_equal() +
+
+    coord_equal(xlim = map_xlim, ylim = map_ylim) +
     theme_bw() +
     labs(x = NULL, y = NULL) + 
     theme(

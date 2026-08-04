@@ -1,0 +1,19 @@
+name: Nigeria Kaduna maize test (via agwise-datasourcing)
+country_code: NGA
+country_name: Nigeria
+use_case_name: test
+crop: Maize
+zones:
+  - Kaduna
+season_start_month: 6
+season_start_day: 1
+season_year: 2026
+season_length_months: 4
+lead_months: 1
+varietyids:
+  - 234001
+  - 234002
+  - 234003
+skip_weather_soil_creation: true
+generate_dssat_via_datasourcing: true
+build_dashboard: true

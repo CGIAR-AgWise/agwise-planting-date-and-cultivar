@@ -34,11 +34,31 @@ load_dssat_defaults <- function(usecase, repo_root) {
     # import_prestaged_dssat_files()'s own default products directory for a
     # usecase that needs a non-standard source location.
     dssat_source_products_dir = NULL,
-    # Only consulted when skip_weather_soil_creation is TRUE - when set,
-    # generates the pre-staged export via agwise-datasourcing's own pipeline
-    # first (instead of this repo's main/Forecast downloader), before the
-    # unconditional import step stages it.
-    generate_dssat_via_datasourcing = FALSE
+    # Only consulted when skip_weather_soil_creation is TRUE - defaults to
+    # TRUE so a usecase needing pre-staged files gets them generated via
+    # agwise-datasourcing's own pipeline automatically; safe to leave on
+    # even when a matching export already exists on disk, since
+    # generate_prestaged_dssat_via_datasourcing() is idempotent (skips
+    # generation whenever the target already has EXTE#### sites). Set to
+    # FALSE explicitly for a usecase that must only ever import
+    # already-staged files and never trigger a fresh generation.
+    generate_dssat_via_datasourcing = TRUE,
+    # Step 2 (dssat.expfile()) skips any site whose FILEX already exists
+    # when TRUE - lets an interrupted run resume mid-zone instead of
+    # redoing every already-finished site. Set to FALSE to force every
+    # FILEX to be rebuilt regardless of what's on disk - e.g. re-running
+    # the same usecase after a newer month's forecast has been released
+    # (a different lead_months means different weather, and therefore
+    # potentially different onset planting dates and FILEX content, so
+    # stale FILEX from the prior forecast vintage should not be reused).
+    reuse_existing_filex = TRUE,
+    # Site-grid spacing (km) passed to agwise-datasourcing's ad_make_grid()
+    # when generate_dssat_via_datasourcing generates a fresh export. Only
+    # consulted then - has no effect when pre-staged files already exist or
+    # skip_weather_soil_creation is FALSE. Default 5 matches this pipeline's
+    # historical grid density; a usecase can widen it (e.g. 10) to cut the
+    # site count ~4x for faster/coarser runs.
+    resolution_km = 5
   )
   
   # Combine keeping user choices first
@@ -125,7 +145,9 @@ run_dssat_pipeline <- function(
   } else {
     message("skip_weather_soil_creation = TRUE - checking for pre-staged DSSAT files...")
     if (isTRUE(complete_usecase$generate_dssat_via_datasourcing)) {
-      generate_prestaged_dssat_via_datasourcing(complete_usecase = complete_usecase, repo_root = repo_root)
+      generate_prestaged_dssat_via_datasourcing(
+        complete_usecase = complete_usecase, repo_root = repo_root,
+        res_km = complete_usecase$resolution_km)
     }
     import_prestaged_dssat_files(complete_usecase = complete_usecase, repo_root = repo_root)
   }

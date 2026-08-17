@@ -244,9 +244,49 @@ dssat.expfile <- function(
     indices <- seq_len(nrow(coords))
     n_indices <- length(indices)
   }
-  
-  
-  plan_multisession(per_worker_gb = 5)
+
+  # Skip sites whose FILEX already exists - lets an interrupted run resume
+  # mid-zone instead of redoing every already-finished site. Path built the
+  # same way create_filex() itself writes its output, so the check and the
+  # actual write target never drift apart. file.exists() is vectorized (one
+  # batched stat() pass), fast even for a zone with thousands of sites.
+  if (isTRUE(complete_usecase$reuse_existing_filex)) {
+    filex_paths <- vapply(indices, function(i) {
+      file.path(
+        create_dssat_working_path(
+          path.to.extdata = path.to.extdata, i = i, zone = zone, level2 = level2),
+        paste0('EXTE', formatC(width = 4, as.integer(i), flag = "0"), '.', crop_code, 'X'))
+    }, character(1))
+    already_done <- file.exists(filex_paths)
+    if (any(already_done)) {
+      message(
+        sum(already_done), " of ", length(indices),
+        " FILEX already exist for variety ", varietyid, ", zone: ", zone,
+        " - reusing them.")
+    }
+    indices <- indices[!already_done]
+    if (length(indices) == 0) {
+      message(
+        "All FILEX already exist for variety ", varietyid, ", zone: ", zone,
+        " - nothing to do.")
+      return(invisible(NULL))
+    }
+  }
+
+
+  # 5 GB/worker was a generic guess, not measured for this step specifically.
+  # Directly observed FILEX-creation workers (Zambia "full" Maize run,
+  # 2026-08-10) sat consistently at ~380-440 MB RSS - create_filex() just
+  # reads small per-site SOIL.SOL/WTH text files and manipulates small
+  # data.frames, nowhere near 5 GB. 1 GB/worker keeps a 2x+ safety margin
+  # over the observed peak while letting plan_multisession() size the pool
+  # from the real ~24 GB memory budget instead of artificially capping it at
+  # 4 workers on memory alone. In practice this pod's CPU allocation (not
+  # memory) ends up the binding constraint - parallelly::availableCores()
+  # is cgroup-CPU-quota-aware and reports far fewer usable cores than the
+  # host's raw nproc (40) - landing at 7 workers instead of 4, not the ~24
+  # memory alone would allow.
+  plan_multisession(per_worker_gb = 1)
 
   messages_list <- future_lapply(
     indices, 
@@ -254,37 +294,52 @@ dssat.expfile <- function(
       start_msg <- paste(
         "Start experiment:", i, "of", length(indices), "variety", varietyid
       )
-    
-    create_filex(
-      i = i,
-      path.to.temdata = path.to.temdata,
-      filex_temp = filex_temp,
-      path.to.extdata = path.to.extdata,
-      coords = coords,
-      AOI = AOI,
-      crop_code = crop_code,
-      plantingWindow = plantingWindow,
-      varietyid = varietyid,
-      zone = zone,
-      level2 = level2,
-      fertilizer = fertilizer,
-      fert_factorial = fert_factorial,
-      fert_grid_RS = fert_grid_RS,
-      NPK_ranges = NULL,
-      geneticfiles = geneticfiles,
-      dssat_model = dssat_model,
-      index_soilwat = index_soilwat,
-      plant_dates = coords$planting_dates[[i]]  # <<< RS-driven vector of Dates (4 per coordinate)
-    )
-    
-    end_msg <- paste(
-      "Finished experiment:", i, "of", length(indices), "variety", varietyid
-    )
-    
-    c(start_msg, end_msg)
+
+    # A single site's data gap (e.g. a source export with non-contiguous
+    # EXTE#### numbering - agwise-datasourcing skips sites with no valid
+    # weather data at generation time, but import_prestaged_dssat_files.R
+    # still creates a contiguous 1..n_indices working range, leaving an
+    # empty placeholder directory at the missing index) must not take down
+    # every other site in this future_lapply batch - future cancels the
+    # whole call on one worker's uncaught error. Caught here so one bad
+    # site is logged and skipped, matching how DSSAT-execution-time per-site
+    # failures are already tolerated elsewhere in this pipeline.
+    site_result <- tryCatch({
+      create_filex(
+        i = i,
+        path.to.temdata = path.to.temdata,
+        filex_temp = filex_temp,
+        path.to.extdata = path.to.extdata,
+        coords = coords,
+        AOI = AOI,
+        crop_code = crop_code,
+        plantingWindow = plantingWindow,
+        varietyid = varietyid,
+        zone = zone,
+        level2 = level2,
+        fertilizer = fertilizer,
+        fert_factorial = fert_factorial,
+        fert_grid_RS = fert_grid_RS,
+        NPK_ranges = NULL,
+        geneticfiles = geneticfiles,
+        dssat_model = dssat_model,
+        index_soilwat = index_soilwat,
+        plant_dates = coords$planting_dates[[i]]  # <<< RS-driven vector of Dates (4 per coordinate)
+      )
+      paste(
+        "Finished experiment:", i, "of", length(indices), "variety", varietyid
+      )
+    }, error = function(e) {
+      paste(
+        "Skipped experiment:", i, "of", length(indices), "variety", varietyid,
+        "- error:", conditionMessage(e)
+      )
+    })
+
+    c(start_msg, site_result)
     },
     
     future.packages = packages_required,
     future.seed = TRUE
-  )  
+  )
 }

@@ -254,7 +254,11 @@ run_forecast_usecase <- function(usecase, cli = parse_usecase_args(), repo_root 
   if (isTRUE(cli[["dry-run"]])) return(invisible(args))
 
   tmp_dir <- agwise_tmp_dir()
-  status <- system2("Rscript", args = args, env = paste0("TMPDIR=", tmp_dir))
+  # system2() joins `command` + `args` into one string and runs it through a
+  # shell - any arg containing a space (e.g. Rwanda's "Umujyi wa Kigali" zone
+  # name inside the comma-joined --geo-zones value) gets word-split by that
+  # shell unless individually quoted first.
+  status <- system2("Rscript", args = shQuote(args), env = paste0("TMPDIR=", tmp_dir))
   if (!identical(as.integer(status), 0L)) {
     stop("Forecast use case failed with exit status ", status, ": ", usecase$name %||% usecase$country_code)
   }

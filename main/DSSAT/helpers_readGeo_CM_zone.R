@@ -225,22 +225,41 @@ texture_class <- function (usda_clay, usda_silt) {
 
 
 ### Initialize folders for varieties ----
+# Copies only the variety-independent Step 1 inputs (weather, soil, onset
+# planting dates) from varietyids[1] into every other variety's directory -
+# NOT variety-specific outputs like the FILEX experiment file or DSSAT
+# execution artifacts. list.files(from_path) previously listed variety[1]'s
+# zone directories and file.copy(..., recursive = TRUE) copied each one
+# wholesale, so if variety[1]'s Step 2/3 had already produced FILEX/.OUT
+# files by the time this ran (e.g. resuming an interrupted "full" run,
+# exactly what reuse_existing_filex checkpointing is meant to support),
+# those got silently duplicated into every other variety's directory too -
+# each one keeping variety[1]'s own CULTIVARS entry, so every other variety
+# would silently simulate with the wrong cultivar instead of its own.
 copy_WTH_SOIL_data_for_variety <- function(
     country, useCaseName, Crop, project_root, AOI = FALSE, varietyids) {
-  
+
   usecase_dir <- project_usecase_dir(project_root, country, useCaseName)
   sub_folder <- if (AOI) "AOI" else "fieldData"
-  
+
   from_path <- file.path(usecase_dir, Crop, "transform", "DSSAT", sub_folder, varietyids[1])
 
-  items_to_copy <- list.files(from_path, full.names = TRUE)
+  all_files <- list.files(from_path, full.names = TRUE, recursive = TRUE)
+  keep_pattern <- "(^|/)([A-Za-z0-9]+\\.WTH|SOIL\\.SOL|onset_planting_dates\\.RDS)$"
+  items_to_copy <- all_files[grepl(keep_pattern, all_files)]
 
   for (varietyid in varietyids[-1]) {
     to_path <- file.path(usecase_dir, Crop, "transform", "DSSAT", sub_folder, varietyid)
 
-    dir.create(to_path, recursive = TRUE, showWarnings = FALSE)
+    rel_paths <- sub(paste0("^", from_path, "/"), "", items_to_copy)
+    dest_paths <- file.path(to_path, rel_paths)
 
-    file.copy(from = items_to_copy, to = to_path, recursive = TRUE)
+    dir.create(to_path, recursive = TRUE, showWarnings = FALSE)
+    for (dest_dir in unique(dirname(dest_paths))) {
+      dir.create(dest_dir, recursive = TRUE, showWarnings = FALSE)
+    }
+
+    file.copy(from = items_to_copy, to = dest_paths, overwrite = TRUE)
   }
 }
 

@@ -1,20 +1,13 @@
-name: Zambia full soybean (via agwise-datasourcing)
-country_code: ZMB
-country_name: Zambia
+name: Malawi full soybean (via agwise-datasourcing)
+country_code: MWI
+country_name: Malawi
 use_case_name: full
 crop: Soybean
 dssat_model: CRGRO
 zones:
-  - Central
-  - Copperbelt
-  - Eastern
-  - Luapula
-  - Lusaka
-  - Muchinga
-  - North-Western
-  - Northern
-  - Southern
-  - Western
+  - Central Region
+  - Southern Region
+  - Northern Region
 season_start_month: 10
 season_start_day: 1
 season_year: 2026
@@ -26,4 +19,5 @@ varietyids:
   - 880013
 skip_weather_soil_creation: true
 generate_dssat_via_datasourcing: true
+resolution_km: 10
 build_dashboard: true

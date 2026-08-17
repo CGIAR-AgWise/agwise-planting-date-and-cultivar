@@ -1,0 +1,66 @@
+name: Kenya full maize (via agwise-datasourcing)
+country_code: KEN
+country_name: Kenya
+use_case_name: full
+crop: Maize
+zones:
+  - Baringo
+  - Bomet
+  - Bungoma
+  - Busia
+  - Elgeyo-Marakwet
+  - Embu
+  - Garissa
+  - Homa Bay
+  - Isiolo
+  - Kajiado
+  - Kakamega
+  - Kericho
+  - Kiambu
+  - Kilifi
+  - Kirinyaga
+  - Kisii
+  - Kisumu
+  - Kitui
+  - Kwale
+  - Laikipia
+  - Lamu
+  - Machakos
+  - Makueni
+  - Mandera
+  - Marsabit
+  - Meru
+  - Migori
+  - Mombasa
+  - Murang'a
+  - Nairobi
+  - Nakuru
+  - Nandi
+  - Narok
+  - Nyamira
+  - Nyandarua
+  - Nyeri
+  - Samburu
+  - Siaya
+  - Taita Taveta
+  - Tana River
+  - Tharaka
+  - Trans Nzoia
+  - Turkana
+  - Uasin Gishu
+  - Vihiga
+  - Wajir
+  - West Pokot
+season_start_month: 10
+season_start_day: 1
+season_year: 2026
+season_length_months: 3
+lead_months: 2
+varietyids:
+  - 900111
+  - 900112
+  - 900113
+skip_weather_soil_creation: true
+generate_dssat_via_datasourcing: true
+resolution_km: 10
+build_dashboard: true

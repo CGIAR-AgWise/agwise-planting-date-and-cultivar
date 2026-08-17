@@ -368,7 +368,11 @@ plot_planting_date_gradients <- function(
       high = "firebrick",
       midpoint = as.numeric(mid_date),
       breaks = as.numeric(date_breaks),
-      labels = format(date_breaks, "%b %d"),
+      # Day-month, no year (e.g. "7 - Aug") - the underlying numeric breaks
+      # are full days-since-epoch, so a season spanning a year boundary
+      # (e.g. Nov -> Feb) still orders/positions correctly on the scale;
+      # only the displayed label drops the year.
+      labels = paste0(as.integer(format(date_breaks, "%d")), " - ", format(date_breaks, "%b")),
       guide = guide_colorbar(reverse = TRUE)
     ) +
 

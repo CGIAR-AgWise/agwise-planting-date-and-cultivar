@@ -1,19 +1,19 @@
-name: Zambia full maize (via agwise-datasourcing)
-country_code: ZMB
-country_name: Zambia
+name: Mozambique full maize (via agwise-datasourcing)
+country_code: MOZ
+country_name: Mozambique
 use_case_name: full
 crop: Maize
 zones:
-  - Central
-  - Copperbelt
-  - Eastern
-  - Luapula
-  - Lusaka
-  - Muchinga
-  - North-Western
-  - Northern
-  - Southern
-  - Western
+  - Cabo Delgado
+  - Gaza
+  - Inhambane
+  - Manica
+  - Maputo
+  - Nampula
+  - Niassa
+  - Sofala
+  - Tete
+  - Zambézia
 season_start_month: 10
 season_start_day: 1
 season_year: 2026
@@ -25,4 +25,5 @@ varietyids:
   - 900113
 skip_weather_soil_creation: true
 generate_dssat_via_datasourcing: true
+resolution_km: 10
 build_dashboard: true

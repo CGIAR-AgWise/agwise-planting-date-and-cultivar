@@ -130,10 +130,20 @@ generate_onset_dates_for_zone <- function(
   results <- unlist(parallel::mclapply(pending, process_one, mc.cores = mc_cores))
   failed <- results[results != "OK"]
   if (length(failed) > 0) {
-    stop(
+    # A site failing here (typically FAILED read_wth: an empty placeholder
+    # directory - agwise-datasourcing skips sites with no valid weather
+    # data at generation time, but the source export's EXTE#### numbering
+    # can be non-contiguous as a result, e.g. jumping from EXTE0299 to
+    # EXTE0301 - while stage_prestaged_dssat_zone() still creates a
+    # contiguous working range) must not abort the whole zone. Logged, not
+    # fatal: that site simply has no onset_planting_dates.RDS afterward,
+    # and Step 2 (dssat.expfile()) already skips a site gracefully when
+    # its onset file is missing rather than crashing its whole batch.
+    warning(
       length(failed), " of ", length(pending),
-      " site(s) failed onset-date generation in ", target_dir, ":\n  ",
-      paste(head(failed, 10), collapse = "\n  ")
+      " site(s) failed onset-date generation in ", target_dir,
+      " - skipped, will be skipped again at FILEX creation:\n  ",
+      paste(head(failed, 10), collapse = "\n  "), call. = FALSE
     )
   }
   invisible(NULL)

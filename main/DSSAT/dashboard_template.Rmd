@@ -261,7 +261,13 @@ map_bounds <- list(
 pal_yield <- leaflet::colorNumeric("YlOrRd", domain = dat$HWAH, na.color = "transparent")
 pal_cultivar <- leaflet::colorFactor("Dark2", domain = cultivar_order, na.color = "transparent")
 pal_pdat <- leaflet::colorNumeric("RdYlBu", domain = as.numeric(dat$PDAT), na.color = "transparent", reverse = TRUE)
-pdat_leg_labFormat <- function(type, cuts, p) format(as.Date(cuts, origin = "1970-01-01"), "%Y-%m-%d")
+# Day-month, no year (e.g. "7 - Aug") - cuts are full days-since-epoch, so a
+# season spanning a year boundary (e.g. Nov -> Feb) still positions/orders
+# correctly on the color scale; only the displayed label drops the year.
+pdat_leg_labFormat <- function(type, cuts, p) {
+  d <- as.Date(cuts, origin = "1970-01-01")
+  paste0(as.integer(format(d, "%d")), " - ", format(d, "%b"))
+}
 
 yield_map <- build_dssat_map(
   sd, "dssat_map_yield", ~pal_yield(HWAH), pal_yield, dat$HWAH,

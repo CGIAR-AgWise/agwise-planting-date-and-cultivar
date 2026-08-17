@@ -193,16 +193,49 @@ getGridCoordinates <- function(
 }
 
 
-### Detect available RAM in GB ----
+### Detect available RAM in GB, reserving headroom for other processes ----
+#
+# This JupyterHub pod's ~32 GiB cgroup memory limit is shared by everything
+# running in the session - RStudio, terminal shells, the agwise-datasourcing
+# Python process, etc. - not allocated separately per process (confirmed via
+# dmesg: a single rsession process alone hit the full 32 GiB and got OOM
+# killed by the kernel, crashing the whole pod). Sizing a parallel worker
+# pool off the FULL limit risks tipping the shared budget over even when
+# this step alone looks "safe" on paper - a headroom reserve (default 8 GB,
+# matching agwise-datasourcing's own memory.py, which documents the same
+# constraint) leaves room for everything else in the pod.
+#
+# Also checks cgroup v2 (memory.max) before the v1 path below - this
+# platform's nodes use v2, and the v1-only check previously in place here
+# silently fell through to /proc/meminfo's host-wide MemAvailable (~214 GiB
+# on this node, 7x the real ~32 GiB pod cap), the exact trap
+# agwise-datasourcing's memory.py was written to avoid.
 detect_available_ram_gb <- function() {
+  headroom_gb <- suppressWarnings(as.numeric(Sys.getenv("AGWISE_MEM_HEADROOM_GB", unset = NA_character_)))
+  if (is.na(headroom_gb)) headroom_gb <- 8
+
+  env_override <- suppressWarnings(as.numeric(Sys.getenv("AGWISE_MEM_LIMIT_GB", unset = NA_character_)))
+  if (!is.na(env_override)) return(max(1, env_override - headroom_gb))
+
+  cgroup_v2_file <- "/sys/fs/cgroup/memory.max"
+  if (file.exists(cgroup_v2_file)) {
+    raw <- trimws(suppressWarnings(readLines(cgroup_v2_file, warn = FALSE))[1])
+    if (length(raw) && !identical(raw, "max")) {
+      ram_limit_bytes <- suppressWarnings(as.numeric(raw))
+      if (!is.na(ram_limit_bytes)) return(max(1, ram_limit_bytes / 1024 ^ 3 - headroom_gb))
+    }
+  }
+
   ram_limit_file <- "/sys/fs/cgroup/memory/memory.limit_in_bytes"
   if (file.exists(ram_limit_file)) {
     ram_limit_bytes <- suppressWarnings(as.numeric(readLines(ram_limit_file, warn = FALSE)))
     if (!is.na(ram_limit_bytes) && ram_limit_bytes < 2 ^ 60) {
-      return(ram_limit_bytes / 1024 ^ 3)
+      return(max(1, ram_limit_bytes / 1024 ^ 3 - headroom_gb))
     }
   }
 
+  # No cgroup limit found - fall back to host-level free memory (only
+  # correct outside a container, e.g. bare metal/VM with no memory cap).
   if (file.exists("/proc/meminfo")) {
     mem_line <- grep("^MemAvailable:", readLines("/proc/meminfo", warn = FALSE), value = TRUE)
     mem_kb <- suppressWarnings(as.numeric(sub("^MemAvailable:[[:space:]]+([0-9]+).*", "\\1", mem_line[1])))

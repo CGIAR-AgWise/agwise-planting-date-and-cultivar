@@ -1,0 +1,35 @@
+name: Rwanda wheat seasonal forecast to DSSAT (August 2026 forecast init)
+country_code: RWA
+country_name: Rwanda
+use_case_name: august_init
+crop: Wheat
+dssat_model: CSCER
+zones:
+  - Amajyaruguru
+  - Amajyepfo
+  - Iburasirazuba
+  - Iburengerazuba
+  - Umujyi wa Kigali
+season_start_month: 9
+season_start_day: 1
+season_year: 2026
+season_length_months: 4
+lead_months: 1
+n_cores: 4
+variables:
+  - PRCP
+  - TMAX
+  - TMIN
+  - SRAD
+manual_extent: true
+extent:
+  - -0.8
+  - 28.7
+  - -2.9
+  - 31.1
+skip_dssat: false
+create_dssat_weather_files: true
+varietyids:
+  - IB1101
+  - IB1102
+  - IB1103

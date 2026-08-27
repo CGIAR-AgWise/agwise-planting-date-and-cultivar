@@ -3,6 +3,9 @@ data/
 data/archive/
 archive/
 
+# Ad-hoc assessment scratch folder (copied source rasters, not repo data)
+nigeria_maize_season_assessment/
+
 **/*.nc
 
 # History files
@@ -18,6 +21,10 @@ archive/
 
 # Example code in package build process
 *-Ex.R
+
+# Exploratory scripts
+main/DSSAT/package_dashboard_app_for_laptop.R
+check_n_points_in_region.R
 
 # Output files from R CMD build
 /*.tar.gz

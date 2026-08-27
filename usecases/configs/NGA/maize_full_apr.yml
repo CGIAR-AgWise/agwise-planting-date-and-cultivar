@@ -1,0 +1,32 @@
+name: Nigeria full maize - April-planting group (via agwise-datasourcing)
+country_code: NGA
+country_name: Nigeria
+use_case_name: full_apr
+crop: Maize
+zones:
+  - Abuja Federal Capital Territory
+  - Adamawa
+  - Bauchi
+  - Gombe
+  - Kaduna
+  - Kano
+  - Kebbi
+  - Kwara
+  - Nasarawa
+  - Niger
+  - Plateau
+  - Taraba
+  - Zamfara
+season_start_month: 4
+season_start_day: 1
+season_year: 2026
+season_length_months: 4
+lead_months: 1
+varietyids:
+  - 234001
+  - 234002
+  - 234003
+skip_weather_soil_creation: true
+generate_dssat_via_datasourcing: true
+resolution_km: 10
+build_dashboard: true

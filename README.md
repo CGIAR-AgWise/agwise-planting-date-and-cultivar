@@ -9,6 +9,13 @@ local implementation partners. Country-specific settings are stored in YAML
 configuration files, while the forecast and DSSAT processing logic remains in a
 shared production codebase.
 
+**If you're adding or running a country/crop use case, you should only ever
+need `usecases/` (see `usecases/README.md`) and, for viewing results,
+`README_shiny_dashboard.md`.** The scripts under `main/Forecast/` and
+`main/DSSAT/` are the shared engine that YAML configs drive - you shouldn't
+need to open or edit them for normal use (see "Creating a New Country or Crop
+Use Case" below).
+
 ## Overview
 
 The pipeline connects climate forecast processing with DSSAT crop-model input
@@ -180,11 +187,37 @@ The default Python executable in the current use-case configs is:
 
 Override this path with `--py-path` if needed.
 
+## New to running R scripts from a terminal?
+
+Everything in this README is run from a **terminal** (a command-line window),
+not by clicking "Run" in RStudio's script editor. If you're an RStudio user
+and haven't done this before:
+
+1. In RStudio, open the **Terminal** tab (next to the Console tab), or open
+   any terminal application and `cd` into this repository's folder.
+2. Every gray code block below starting with `Rscript ...` is a single
+   command you type (or copy-paste) into that terminal and press Enter.
+   `Rscript` is R's own command-line tool for running a `.R` file outside of
+   RStudio - it's the same R engine, just started from the terminal instead
+   of by clicking a "Run" button.
+3. Words starting with `--` (e.g. `--dry-run`, `--n-cores 4`) are called
+   **flags** or **options** - they're extra instructions you can add after
+   the script name to change how it behaves. You can copy a command exactly
+   as shown, or drop/add flags as needed.
+4. A **YAML file** (`.yml`) is a plain-text settings file - every use case's
+   country, crop, zones, season dates, etc. live in one, and you can open and
+   edit it in any text editor (including RStudio). You don't need to touch
+   any `.R` script to change a country's settings, only its YAML file.
+
+If a command below fails with something like `command not found`, it usually
+means the terminal isn't in the repository folder yet - `cd` into it first.
+
 ## Quick Start
 
 Always begin with a dry run. A dry run prints the command that would be
-executed and checks the configuration wiring without downloading or processing
-forecast data.
+executed and checks the configuration wiring **without** downloading or
+processing forecast data - it's a safe way to check your settings are wired
+up correctly before committing to a run that can take hours.
 
 ```bash
 Rscript usecases/run_usecase.R usecases/configs/KEN/maize_example.yml --dry-run

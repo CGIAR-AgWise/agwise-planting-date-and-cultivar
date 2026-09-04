@@ -44,6 +44,28 @@ project_usecase_dir <- function(project_root, country, useCaseName) {
 }
 
 
+### Discover crops with finished DSSAT results (any dir ending in
+### <Crop>/result/DSSAT/AOI under the given usecase folder) ----
+discover_crops <- function(usecase_dir) {
+  all_dirs <- list.dirs(usecase_dir, recursive = TRUE, full.names = TRUE)
+  aoi_dirs <- all_dirs[grepl("/result/DSSAT/AOI$", all_dirs)]
+  crop_names <- vapply(aoi_dirs, function(d) basename(dirname(dirname(dirname(d)))), character(1))
+  setNames(aoi_dirs, crop_names)
+}
+
+
+### Locate the raw merged RDS's base filename (the one merge_DSSAT_output()
+### and export_cropmask_full_results() share), excluding derived files ----
+find_base_filename <- function(result_dir, crop) {
+  candidates <- list.files(result_dir, pattern = "_AOI_season_[0-9]+\\.RDS$")
+  candidates <- candidates[!grepl("_cropmask\\.RDS$", candidates)]
+  if (length(candidates) == 0) {
+    stop("No raw merged RDS found for crop '", crop, "' in ", result_dir)
+  }
+  sub("\\.RDS$", "", candidates[[1]])
+}
+
+
 ### Usecase-specific path ----
 get_country_dir <- function(project_root, country, useCaseName) {
   data_root <- file.path(project_root, project_data_dir(project_root))

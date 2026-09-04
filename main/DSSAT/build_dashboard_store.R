@@ -25,14 +25,37 @@
 #          rebuilds the whole store from scratch (source RDS files are small
 #          and cheap to re-scan) rather than updating partitions in place.
 #
+#          Every successful run also repackages the laptop bundle (see
+#          package_dashboard_app_for_laptop.R) from the store just built, so
+#          the two never drift apart - pass --skip-bundle to build only the
+#          store (e.g. while iterating on the store itself, before caring
+#          about the laptop artifact).
+#
 # Usage:
-#   Rscript main/DSSAT/build_dashboard_store.R [--include-test]
+#   Rscript main/DSSAT/build_dashboard_store.R [--include-test] [--usecases <name1,name2,...>] [--skip-bundle]
 #
 #   --include-test  Also ingest usecase directories with "test" in their name
 #                    (skipped by default - they're dev-only stub runs, not
 #                    real per-country results, and some share a country+crop
 #                    with a "_full" run under an un-suffixed filename that
 #                    would otherwise collide with it).
+#
+#   --usecases      Comma-separated list of usecase DIRECTORY BASENAMES (as
+#                    they appear under data/usecases/, e.g.
+#                    useCase_Nigeria_full,useCase_Kenya_full - not bare
+#                    suffixes, since e.g. "full" alone is ambiguous across
+#                    countries) to restrict ingestion to exactly those
+#                    usecases. Lets an old/incomplete/pre-merge usecase
+#                    (e.g. Nigeria's four leadtime-split usecases once
+#                    merge_usecases.R has combined them into
+#                    useCase_Nigeria_full) be excluded from the dashboard
+#                    without deleting it from disk. When given, this is an
+#                    explicit allowlist and bypasses --include-test's
+#                    name-based filtering entirely. Omit to ingest every
+#                    usecase found (current default behavior).
+#
+#   --skip-bundle   Don't repackage the laptop bundle after building the
+#                    store (it's regenerated automatically otherwise).
 ###############################################################################
 
 suppressPackageStartupMessages({
@@ -49,7 +72,15 @@ script_dir <- if (length(file_arg)) {
 }
 repo_root <- normalizePath(file.path(script_dir, "..", ".."), mustWork = TRUE)
 
-include_test <- "--include-test" %in% commandArgs(trailingOnly = TRUE)
+cli_args <- commandArgs(trailingOnly = TRUE)
+include_test <- "--include-test" %in% cli_args
+
+usecases_flag_idx <- which(cli_args == "--usecases")
+usecases_filter <- if (length(usecases_flag_idx) == 1L && usecases_flag_idx < length(cli_args)) {
+  trimws(strsplit(cli_args[[usecases_flag_idx + 1L]], ",")[[1]])
+} else {
+  NULL
+}
 
 usecases_dir <- file.path(repo_root, "data", "usecases")
 # data/usecases/results/ is this repo's existing spot for cross-country
@@ -97,7 +128,18 @@ resolve_metadata <- function(file_path) {
 ### files 3 fixed path segments below each usecase dir. Listing only the
 ### known-shape path directly (usecase dirs -> their crop subdirs -> that
 ### crop's own result/DSSAT/AOI/) never touches transform/ at all.
-usecase_dirs <- list.dirs(usecases_dir, recursive = FALSE, full.names = TRUE)
+if (!is.null(usecases_filter)) {
+  usecase_dirs <- file.path(usecases_dir, usecases_filter)
+  not_found <- usecases_filter[!dir.exists(usecase_dirs)]
+  if (length(not_found) > 0) {
+    stop(
+      "--usecases named director(ies) not found under ", usecases_dir, ":\n  ",
+      paste(not_found, collapse = "\n  "))
+  }
+  message("--usecases given - restricting to: ", paste(usecases_filter, collapse = ", "))
+} else {
+  usecase_dirs <- list.dirs(usecases_dir, recursive = FALSE, full.names = TRUE)
+}
 all_files <- character(0)
 for (usecase_dir in usecase_dirs) {
   crop_dirs <- list.dirs(usecase_dir, recursive = FALSE, full.names = TRUE)
@@ -109,7 +151,7 @@ for (usecase_dir in usecase_dirs) {
   }
 }
 
-if (!include_test) {
+if (is.null(usecases_filter) && !include_test) {
   all_files <- all_files[!grepl("test", all_files, ignore.case = TRUE)]
 }
 
@@ -170,3 +212,22 @@ arrow::write_dataset(
 
 message("\nDashboard store written to: ", store_dir)
 message("Run the app with: shiny::runApp('main/DSSAT/dashboard_app')")
+
+### Repackage the laptop bundle from the store just built, so the bundle
+### zip a colleague downloads is never left pointing at a stale store - runs
+### as a fresh Rscript subprocess (not sourced) so it resolves its own
+### repo_root/script_dir independently, exactly as it would run standalone.
+if ("--skip-bundle" %in% cli_args) {
+  message("\n--skip-bundle given - not repackaging the laptop bundle.")
+} else {
+  message("\nRepackaging laptop bundle...")
+  bundle_script <- file.path(script_dir, "package_dashboard_app_for_laptop.R")
+  status <- system2("Rscript", shQuote(bundle_script))
+  if (!identical(status, 0L)) {
+    warning(
+      "package_dashboard_app_for_laptop.R exited with status ", status,
+      " - the dashboard store was built successfully, but the laptop ",
+      "bundle may now be stale or missing. Re-run it directly: Rscript ",
+      bundle_script)
+  }
+}

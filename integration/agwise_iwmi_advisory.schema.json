@@ -88,7 +88,8 @@
         "rainfall": { "$ref": "#/$defs/contextMeasure" },
         "et_fraction": { "$ref": "#/$defs/contextMeasure" },
         "irrigation": { "$ref": "#/$defs/contextMeasure" },
-        "water_stress": { "$ref": "#/$defs/contextMeasure" }
+        "water_stress": { "$ref": "#/$defs/contextMeasure" },
+        "errors": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": false
     },
@@ -114,7 +115,7 @@
         "run_id": { "type": "string", "minLength": 1 },
         "generated_at": { "type": "string", "format": "date-time" },
         "agwise_commit": { "type": "string" },
-        "iwmi_sources": { "type": "array", "items": { "type": "string" } },
+        "iwmi_sources": { "type": "array", "items": { "type": "string", "format": "uri" } },
         "limitations": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },

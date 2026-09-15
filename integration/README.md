@@ -40,6 +40,28 @@ The current example is **not an agronomic recommendation**. It uses one point,
 one provisional regional cultivar, a generic soil profile, and one forecast
 season. It exists to establish the interface before the IWMI adapter is built.
 
+## IWMI adapter
+
+[`iwmi_adapter.py`](./iwmi_adapter.py) is a credential-free adapter. It does
+not invent or embed IWMI endpoint URLs; provide the endpoint URLs verified for
+the Digital Twin deployment at runtime:
+
+```bash
+python integration/iwmi_adapter.py \
+  --input integration/examples/chokwe_maize_advisory.json \
+  --output integration/examples/chokwe_maize_advisory_with_iwmi.json \
+  --endpoint rainfall="https://<iwmi-host>/<rainfall-endpoint>" \
+  --endpoint et_fraction="https://<iwmi-host>/<et-endpoint>" \
+  --endpoint irrigation="https://<iwmi-host>/<irrigation-endpoint>" \
+  --endpoint water_stress="https://<iwmi-host>/<water-stress-endpoint>"
+```
+
+The adapter preserves the endpoint response under `iwmi.<name>.value`,
+records its source URL, and stops on HTTP, network, or invalid-JSON failures.
+Use `--allow-missing` only when an advisory is explicitly allowed to carry
+unavailable context. For deployments using bearer authentication, provide
+`IWMI_BEARER_TOKEN` at runtime; credentials must not be committed.
+
 ## Validation
 
 Any JSON Schema draft-2020-12 validator can validate a payload. The schema is

@@ -300,12 +300,17 @@ run_dssat_pipeline <- function(
   # dashboard_extract.RDS already on disk necessarily predates it and would
   # otherwise be served stale.
   if (isTRUE(complete_usecase$build_dashboard)) {
-    message("Building results dashboard...")
-    build_crop_dashboard(
-      crop = complete_usecase$crop, result_dir = result_output_dir,
-      base_filename = dssat_output_base_filename, crop_mask_dir = crop_mask_dir,
-      repo_root = repo_root, country_name = complete_usecase$country_name,
-      force_rebuild = TRUE)
+    if (!requireNamespace("rmarkdown", quietly = TRUE) ||
+        !rmarkdown::pandoc_available()) {
+      message("Skipping results dashboard: Pandoc is not available.")
+    } else {
+      message("Building results dashboard...")
+      build_crop_dashboard(
+        crop = complete_usecase$crop, result_dir = result_output_dir,
+        base_filename = dssat_output_base_filename, crop_mask_dir = crop_mask_dir,
+        repo_root = repo_root, country_name = complete_usecase$country_name,
+        force_rebuild = TRUE)
+    }
   }
 
 }

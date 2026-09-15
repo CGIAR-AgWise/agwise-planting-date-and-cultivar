@@ -1,0 +1,28 @@
+name: Mozambique Maize seasonal forecast to DSSAT
+country_code: MOZ
+country_name: Mozambique
+use_case_name: Chokwe
+crop: Maize
+zones: Chokwe
+season_start_month: 11
+season_start_day: 1
+season_year: 2025
+season_length_months: 4
+lead_months: 1
+n_cores: 2
+variables:
+  - PRCP
+  - TMAX
+  - TMIN
+  - SRAD
+manual_extent: true
+extent:
+  - -24.3
+  - 32.79
+  - -24.7
+  - 33.3
+skip_dssat: false
+create_dssat_weather_files: false
+varietyid: 900111
+varietyids:
+  - 900111

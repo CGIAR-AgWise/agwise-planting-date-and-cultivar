@@ -650,8 +650,13 @@ export_top_combinations_nc <- function(
   # that broke the strict xyz path.
   all_lon <- sort(unique(df_ranked$LONG))
   all_lat <- sort(unique(df_ranked$XLAT))
-  res_lon <- stats::median(diff(all_lon))
-  res_lat <- stats::median(diff(all_lat))
+  if (length(all_lon) < 1L || length(all_lat) < 1L) {
+    stop("Cannot export recommendation NetCDF: no finite spatial coordinates remain.")
+  }
+  res_lon <- if (length(all_lon) > 1L) stats::median(diff(all_lon)) else 0.1
+  res_lat <- if (length(all_lat) > 1L) stats::median(diff(all_lat)) else 0.1
+  if (!is.finite(res_lon) || res_lon <= 0) res_lon <- 0.1
+  if (!is.finite(res_lat) || res_lat <= 0) res_lat <- 0.1
   template <- terra::rast(
     xmin = min(all_lon) - res_lon / 2, xmax = max(all_lon) + res_lon / 2,
     ymin = min(all_lat) - res_lat / 2, ymax = max(all_lat) + res_lat / 2,
@@ -807,4 +812,3 @@ export_top_combinations_csv <- function(
   
   return(df_output)
 }
-

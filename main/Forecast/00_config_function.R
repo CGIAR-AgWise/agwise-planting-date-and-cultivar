@@ -164,7 +164,9 @@ country_data_dir <- function(base_dir, country_code) {
 build_country_config <- function( country_code, base_dir, use_manual_extent = FALSE, extent_manual = c(16, 34, 8, 40), 
 				manual_domain_name = "Manual_Domain", init_month_user = NA_integer_, init_day_user = NA_integer_, 
 				season_length_months = 4, forecast_year = as.integer(format(Sys.Date(), "%Y")),
-				forecast_lead_months = 1) {
+				forecast_lead_months = 1,
+				year_start_obs_override = NULL, year_end_obs_override = NULL,
+				year_hndS_override = NULL, year_hndE_override = NULL) {
 					
 					
 
@@ -231,11 +233,11 @@ build_country_config <- function( country_code, base_dir, use_manual_extent = FA
   # -----------------------------
   # 4) COUNTRY PARAMETERS (UNCHANGED)
   # -----------------------------
-  year_start_obs <- 1994
-  year_end_obs   <- 2024
+  year_start_obs <- if (is.null(year_start_obs_override)) 1994 else as.integer(year_start_obs_override)
+  year_end_obs   <- if (is.null(year_end_obs_override)) 2024 else as.integer(year_end_obs_override)
   
-  year_hndS   <- 1994
-  year_hndE   <- 2016
+  year_hndS   <- if (is.null(year_hndS_override)) 1994 else as.integer(year_hndS_override)
+  year_hndE   <- if (is.null(year_hndE_override)) 2016 else as.integer(year_hndE_override)
 
   center_variable <- c(
     "ECMWF_51.PRCP",

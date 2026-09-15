@@ -264,6 +264,8 @@ detect_available_ram_gb <- function() {
     if (length(mem_kb) && is.finite(mem_kb)) return(mem_kb / 1024 / 1024)
   }
 
+  if (.Platform$OS.type == "windows") return(NA_real_)
+
   sysctl_bytes <- suppressWarnings(as.numeric(system2("sysctl", c("-n", "hw.memsize"), stdout = TRUE, stderr = FALSE)))
   if (length(sysctl_bytes) && is.finite(sysctl_bytes)) return(sysctl_bytes / 1024 ^ 3)
 

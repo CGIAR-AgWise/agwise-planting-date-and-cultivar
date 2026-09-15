@@ -23,7 +23,13 @@ parse_args <- function(args) {
   while (i <= length(args)) {
     key <- args[[i]]
     if (!startsWith(key, "--")) stop("Unexpected argument: ", key)
-    name <- sub("^--", "", key)
+    inline_value <- grepl("=", key, fixed = TRUE)
+    name <- sub("^--([^=]*)(=.*)?$", "\\1", key)
+    if (inline_value) {
+      out[[name]] <- sub("^[^=]*=", "", sub("^--", "", key))
+      i <- i + 1L
+      next
+    }
     if (name %in% c("force-download", "skip-dssat", "manual-extent")) {
       out[[name]] <- TRUE
       i <- i + 1L
@@ -70,6 +76,10 @@ season_length_months <- as_int(arg(args, "season-length-months", "3"), "season-l
 lead_months <- as_int(arg(args, "lead-months", "1"), "lead-months")
 n_cores <- as_int(arg(args, "n-cores", "1"), "n-cores")
 variables <- as_vars(arg(args, "variables", "PRCP,TMAX,TMIN,SRAD"))
+year_start_obs <- as_int(arg(args, "year-start-obs", "1994"), "year-start-obs")
+year_end_obs <- as_int(arg(args, "year-end-obs", "2024"), "year-end-obs")
+year_hndS <- as_int(arg(args, "year-hnd-start", "1994"), "year-hnd-start")
+year_hndE <- as_int(arg(args, "year-hnd-end", "2016"), "year-hnd-end")
 
 base_dir <- normalizePath(arg(args, "base-dir", file.path(script_dir, "..", "..", "data")), mustWork = FALSE)
 py_path <- arg(args, "py-path", "/home/jovyan/.conda-envs/agwise_fcst/bin/python")
@@ -108,5 +118,9 @@ run_agwise_seasonal_forecast_BC(
   country_name = country_name,
   use_case_name = use_case_name,
   crop = crop,
-  geo_zones = geo_zones
+  geo_zones = geo_zones,
+  year_start_obs = year_start_obs,
+  year_end_obs = year_end_obs,
+  year_hndS = year_hndS,
+  year_hndE = year_hndE
 )

@@ -251,7 +251,10 @@ run_forecast_usecase <- function(usecase, cli = parse_usecase_args(), repo_root 
   message("Zones: ", paste(usecase$zones %||% "auto/from forecast points", collapse = ", "))
   message("Command: Rscript ", paste(shQuote(args), collapse = " "))
 
-  if (isTRUE(cli[["dry-run"]])) return(invisible(args))
+  if (isTRUE(cli[["dry-run"]])) {
+    message("Dry run: forecast execution and DSSAT processing were skipped.")
+    return(invisible(args))
+  }
 
   tmp_dir <- agwise_tmp_dir()
   # system2() joins `command` + `args` into one string and runs it through a
@@ -328,6 +331,9 @@ format_dssat_zones <- function(usecase, cli = parse_usecase_args(), repo_root = 
 run_usecase <- function(usecase) {
   cli <- parse_usecase_args()
   run_forecast_usecase(usecase, cli = cli)
+  if (isTRUE(cli[["dry-run"]])) {
+    return(invisible(usecase))
+  }
   # format_dssat_zones(usecase, cli = cli)
   source(file.path(repo_root, "main/DSSAT/run_dssat_pipeline.R"))
   message("Launching DSSAT module from run_usecase")
@@ -342,10 +348,13 @@ run_usecase_config <- function(config_path) {
   config_path <- usecase_config_file(config_path, repo_root)
   usecase <- read_usecase_yaml(config_path)
   run_forecast_usecase(usecase, cli = cli, repo_root = repo_root)
+  if (isTRUE(cli[["dry-run"]])) {
+    return(invisible(usecase))
+  }
   source(file.path(repo_root, "main/DSSAT/run_dssat_pipeline.R"))
   message("Launching DSSAT module from run_usecase_config")
   
-  if (isTRUE(cli[["dry-run"]]) || isTRUE(usecase$skip_dssat)) {
+  if (isTRUE(usecase$skip_dssat)) {
     return(invisible(NULL))
   }
   

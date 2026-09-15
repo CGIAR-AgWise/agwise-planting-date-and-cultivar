@@ -60,6 +60,19 @@ normalize_points <- function(df) {
   if (!all(c("longitude", "latitude") %in% names(df))) {
     stop("Soil/crop-model points must contain lon/lat or longitude/latitude columns")
   }
+  depth_labels <- c(
+    "5" = "0-5cm", "15" = "5-15cm", "30" = "15-30cm",
+    "60" = "30-60cm", "100" = "60-100cm", "200" = "100-200cm"
+  )
+  depth_names <- names(df)
+  for (depth in names(depth_labels)) {
+    depth_names <- sub(
+      paste0("_", depth, "$"),
+      paste0("_", depth_labels[[depth]]),
+      depth_names
+    )
+  }
+  names(df) <- depth_names
   if (!"NAME_1" %in% names(df)) df$NAME_1 <- "Forecast"
   if (!"NAME_2" %in% names(df)) df$NAME_2 <- "Forecast"
   df
@@ -105,8 +118,12 @@ read_forecast_raster <- function(path, var_code, allow_invalid = FALSE) {
   )
   lim <- limits[[var_code]]
   stats <- terra::global(r, fun = range, na.rm = TRUE)
-  found_min <- min(stats[, 1], na.rm = TRUE)
-  found_max <- max(stats[, 2], na.rm = TRUE)
+  valid_stats <- is.finite(stats[, 1]) & is.finite(stats[, 2])
+  if (!any(valid_stats)) {
+    stop(var_code, " forecast contains no finite values: ", path)
+  }
+  found_min <- min(stats[valid_stats, 1])
+  found_max <- max(stats[valid_stats, 2])
   if (!allow_invalid && (found_min < lim[1] || found_max > lim[2])) {
     stop(sprintf(
       "%s range %.3f to %.3f is outside expected %.1f to %.1f. Regenerate/fix forecasts before DSSAT handoff.",
@@ -287,8 +304,32 @@ main <- function() {
     soil <- drop_incomplete_soil(soil, zone)
     points <- unique(soil[, c("longitude", "latitude", "NAME_1", "NAME_2")])
     validate_points_in_extent(points, forecasts$PRCP$raster, zone)
-    points$startingDate <- min(common_dates)
-    points$endDate <- max(common_dates)
+    valid_dates <- vapply(seq_along(common_dates), function(i) {
+      date <- common_dates[[i]]
+      all(vapply(forecasts, function(forecast) {
+        layer <- match(date, forecast$dates)
+        values <- terra::extract(
+          forecast$raster[[layer]],
+          points[, c("longitude", "latitude")],
+          ID = FALSE
+        )
+        all(is.finite(as.matrix(values)))
+      }, logical(1)))
+    }, logical(1))
+    if (!all(valid_dates)) {
+      message(
+        "Dropping ", sum(!valid_dates),
+        " common forecast date(s) with missing values at zone ", zone
+      )
+      zone_dates <- common_dates[valid_dates]
+    } else {
+      zone_dates <- common_dates
+    }
+    if (length(zone_dates) < 1) {
+      stop("No valid forecast dates remain at zone ", zone)
+    }
+    points$startingDate <- min(zone_dates)
+    points$endDate <- max(zone_dates)
     meta <- points[, c("longitude", "latitude", "startingDate", "endDate", "NAME_1", "NAME_2")]
     meta$ID <- seq_len(nrow(meta))
     meta <- meta[, c("longitude", "latitude", "startingDate", "endDate", "ID", "NAME_1", "NAME_2")]
@@ -300,7 +341,7 @@ main <- function() {
         forecasts[[var_code]]$dates,
         points,
         specs[[var_code]]$prefix,
-        common_dates
+        zone_dates
       )
     }
     zone_values <- fix_temperature_order(zone_values, zone)
@@ -319,8 +360,8 @@ main <- function() {
       data.frame(
         zone = zone,
         points = nrow(points),
-        start_date = min(common_dates),
-        end_date = max(common_dates),
+        start_date = min(zone_dates),
+        end_date = max(zone_dates),
         output_dir = out_zone,
         stringsAsFactors = FALSE
       )
@@ -331,7 +372,7 @@ main <- function() {
   message(
     "Prepared DSSAT geo RDS inputs for readGeo_CM_zone.R: ",
     nrow(manifest), " zone(s), ", sum(manifest$points), " point(s), ",
-    length(common_dates), " daily timesteps. Output: ", output_dir
+    length(common_dates), " common daily timesteps. Output: ", output_dir
   )
 }
 

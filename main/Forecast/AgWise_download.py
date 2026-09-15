@@ -520,6 +520,7 @@ class AgWise_Download:
                 continue
     
             # 7. Post-process with xarray
+            ds = None
             try:
                 ##########################################################
                 # Take in account level pressure for some variables in this part
@@ -537,10 +538,41 @@ class AgWise_Download:
                 
                 if v in ["PRCP", "SRAD", "DLWR"]:
                     ds = self._daily_increment_by_lead(ds)
-                time = (ds['forecast_reference_time'] + ds['forecast_period']).data
-                ds = ds.assign_coords(time=(('forecast_reference_time', 'forecast_period'), time))
+                if "valid_time" not in ds.coords:
+                    forecast_period = ds["forecast_period"]
+                    period_units = forecast_period.attrs.get("units", "hours").split()[0].lower()
+                    unit_map = {
+                        "second": "s",
+                        "seconds": "s",
+                        "minute": "m",
+                        "minutes": "m",
+                        "hour": "h",
+                        "hours": "h",
+                        "day": "D",
+                        "days": "D",
+                    }
+                    if period_units not in unit_map:
+                        raise ValueError(
+                            f"Unsupported forecast_period units: {period_units!r}"
+                        )
+                    period_delta = pd.to_timedelta(
+                        forecast_period.values, unit=unit_map[period_units]
+                    )
+                    reference_time = pd.to_datetime(
+                        ds["forecast_reference_time"].values
+                    )
+                    valid_time = reference_time[:, None] + period_delta[None, :]
+                    ds = ds.assign_coords(
+                        valid_time=(
+                            ("forecast_reference_time", "forecast_period"),
+                            valid_time,
+                        )
+                    )
                 ds = ds.stack(time=('forecast_reference_time', 'forecast_period'))
-                ds = ds.drop_vars(['forecast_reference_time', 'forecast_period'])
+                ds = ds.drop_vars(
+                    ['forecast_reference_time', 'forecast_period'],
+                    errors="ignore",
+                )
                 ds = ds.rename({"valid_time":"time"})
                 ds = ds.rename_vars({nc_var: v})
     
@@ -577,6 +609,8 @@ class AgWise_Download:
                 print(f"Error reading or processing {temp_file}: {e}")
     
             finally:
+                if ds is not None:
+                    ds.close()
                 # Remove the temporary file
                 if temp_file.exists():
                     os.remove(temp_file)

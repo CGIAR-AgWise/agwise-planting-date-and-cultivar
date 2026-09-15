@@ -17,7 +17,7 @@ load_or_install <- function(pkg) {
 packages_required <- c(
   "yaml", "parallel", "foreach", "future", "mgsub", "countrycode", "slider",
   "future.apply", "furrr", "sp", "sf", "chirps", "rlang", "scales", "DSSAT",
-  "rgl", "geodata", "tidyverse", "terra", "tidyterra"
+  "rgl", "geodata", "tidyverse", "terra"
 )
 
 invisible(lapply(packages_required, load_or_install))

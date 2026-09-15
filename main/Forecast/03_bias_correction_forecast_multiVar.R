@@ -114,6 +114,10 @@ run_agwise_seasonal_forecast_BC <- function(
     use_case_name = NULL,
     crop = NULL,
     geo_zones = NULL,
+    year_start_obs = NULL,
+    year_end_obs = NULL,
+    year_hndS = NULL,
+    year_hndE = NULL,
     geo_soil_script = file.path(main_script_dir, "..", "RS", "get_geo_spatial_data_w_phosphorus.R")
 ) {
   
@@ -130,7 +134,11 @@ run_agwise_seasonal_forecast_BC <- function(
                          init_month_user = init_month_user, init_day_user = init_day_user,
                          season_length_months = season_length_months,
                          forecast_year = forecast_year,
-                         forecast_lead_months = forecast_lead_months)
+                         forecast_lead_months = forecast_lead_months,
+                         year_start_obs_override = year_start_obs,
+                         year_end_obs_override = year_end_obs,
+                         year_hndS_override = year_hndS,
+                         year_hndE_override = year_hndE)
     
     
     config_json_path <- file.path(
@@ -227,6 +235,9 @@ run_agwise_seasonal_forecast_BC <- function(
     }
     r_char_vec <- function(x) {
       paste0("c(", paste(vapply(x, r_quote, character(1)), collapse = ","), ")")
+    }
+    r_int_or_null <- function(x) {
+      if (is.null(x)) "NULL" else as.character(as.integer(x))
     }
     configured_init_token <- function(year = NULL) {
       token <- paste0(month.abb[as.integer(aoi_config$init_month)], as.integer(aoi_config$init_day))
@@ -353,7 +364,12 @@ run_agwise_seasonal_forecast_BC <- function(
     }
 
     if (parallel_backend == "auto") {
-      parallel_backend <- if (isTRUE(run_downloader) && n_cores > 1L && length(variables_to_bc) > 1L) "process" else "none"
+      parallel_backend <- if (
+        isTRUE(run_downloader) &&
+        n_cores > 1L &&
+        length(variables_to_bc) > 1L &&
+        .Platform$OS.type != "windows"
+      ) "process" else "none"
     }
 
     run_variable_worker <- function(var_code) {
@@ -381,6 +397,10 @@ run_agwise_seasonal_forecast_BC <- function(
         ", py_script=", r_quote(py_script),
         ", dssat_geo_script=", r_quote(dssat_geo_script),
         ", variables_to_bc=", r_char_vec(var_code),
+        ", year_start_obs=", r_int_or_null(year_start_obs),
+        ", year_end_obs=", r_int_or_null(year_end_obs),
+        ", year_hndS=", r_int_or_null(year_hndS),
+        ", year_hndE=", r_int_or_null(year_hndE),
         ", force_download=FALSE",
         ", export_dssat=FALSE",
         ", n_cores=1",
@@ -552,7 +572,10 @@ run_agwise_seasonal_forecast_BC <- function(
       nc_fcst_bc_interp$Variable$varName = cfg$model_var
       attr(nc_fcst_bc_interp$Variable, "longname") <- "Bias-corrected seasonal forecast"
 
-      nc_bc_rast <- terra::rast(grid2sp(nc_fcst_bc_interp))
+      nc_bc_sp <- grid2sp(nc_fcst_bc_interp)
+      sp::proj4string(nc_bc_sp) <- sp::CRS("+proj=longlat +datum=WGS84 +no_defs")
+      nc_bc_rast <- terra::rast(nc_bc_sp)
+      terra::crs(nc_bc_rast) <- "EPSG:4326"
       time(nc_bc_rast) <- as.Date(nc_fcst_bc_interp$Dates$start)
       
       aoi_file <- file.path(aoi_config$dir_raw_admin, "gadm",
@@ -564,7 +587,8 @@ run_agwise_seasonal_forecast_BC <- function(
         aoi <- geodata::gadm(
           country_code, level = 0, path = aoi_config$dir_raw_admin)
       }
-      
+      terra::crs(aoi) <- "EPSG:4326"
+
       nc_bc_rast_masked <- terra::mask(nc_bc_rast, aoi)
 
       terra::writeCDF(x = nc_bc_rast_masked, filename = outFile,
@@ -616,6 +640,8 @@ run_agwise_seasonal_forecast_BC <- function(
       hind_files <- list.files(aoi_config$dir_raw_model, pattern = hind_pattern,  full.names = TRUE)
       fcst_files <- list.files(aoi_config$dir_raw_model, pattern = fcst_pattern,full.names = TRUE)
       hind_files <- hind_files[grepl(configured_init_token(), basename(hind_files), fixed = TRUE)]
+      hind_year_token <- paste0("_", aoi_config$year_hndS, "_", aoi_config$year_hndE, "_")
+      hind_files <- hind_files[grepl(hind_year_token, basename(hind_files), fixed = TRUE)]
       fcst_files <- fcst_files[grepl(
         configured_init_token(aoi_config$forecast_init_year),
         basename(fcst_files),

@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/CGIAR-AgWise/agwise-planting-date-and-cultivar/blob/mhmd-review/integration/agwise_iwmi_advisory.schema.json",
+  "title": "AgWise-IWMI planting date and cultivar advisory",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "request",
+    "agwise",
+    "iwmi",
+    "recommendations",
+    "provenance"
+  ],
+  "properties": {
+    "contract_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "request": {
+      "type": "object",
+      "required": ["country_code", "location", "crop", "season"],
+      "properties": {
+        "country_code": { "type": "string", "pattern": "^[A-Z]{3}$" },
+        "location": {
+          "type": "object",
+          "required": ["name", "latitude", "longitude"],
+          "properties": {
+            "name": { "type": "string", "minLength": 1 },
+            "latitude": { "type": "number", "minimum": -90, "maximum": 90 },
+            "longitude": { "type": "number", "minimum": -180, "maximum": 180 }
+          },
+          "additionalProperties": false
+        },
+        "crop": { "type": "string", "minLength": 1 },
+        "season": {
+          "type": "object",
+          "required": ["year", "start_date", "length_months"],
+          "properties": {
+            "year": { "type": "integer" },
+            "start_date": { "type": "string", "format": "date" },
+            "length_months": { "type": "integer", "minimum": 1 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "agwise": {
+      "type": "object",
+      "required": ["status", "forecast", "dssat"],
+      "properties": {
+        "status": { "type": "string", "enum": ["available", "unavailable"] },
+        "forecast": {
+          "type": "object",
+          "required": ["variables", "lead_months"],
+          "properties": {
+            "variables": {
+              "type": "array",
+              "items": { "type": "string", "enum": ["PRCP", "TMAX", "TMIN", "SRAD"] },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "lead_months": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
+        },
+        "dssat": {
+          "type": "object",
+          "required": ["status", "metric", "recommendation_count"],
+          "properties": {
+            "status": { "type": "string", "enum": ["available", "unavailable"] },
+            "metric": { "type": "string", "const": "HWAH" },
+            "recommendation_count": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "iwmi": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["available", "unavailable", "not_requested"]
+        },
+        "rainfall": { "$ref": "#/$defs/contextMeasure" },
+        "et_fraction": { "$ref": "#/$defs/contextMeasure" },
+        "irrigation": { "$ref": "#/$defs/contextMeasure" },
+        "water_stress": { "$ref": "#/$defs/contextMeasure" }
+      },
+      "additionalProperties": false
+    },
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rank", "planting_date", "cultivar_id", "yield_kg_ha"],
+        "properties": {
+          "rank": { "type": "integer", "minimum": 1 },
+          "planting_date": { "type": "string", "format": "date" },
+          "cultivar_id": { "type": "string", "minLength": 1 },
+          "yield_kg_ha": { "type": "number", "minimum": 0 },
+          "water_context": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["run_id", "generated_at", "limitations"],
+      "properties": {
+        "run_id": { "type": "string", "minLength": 1 },
+        "generated_at": { "type": "string", "format": "date-time" },
+        "agwise_commit": { "type": "string" },
+        "iwmi_sources": { "type": "array", "items": { "type": "string" } },
+        "limitations": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "contextMeasure": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["available", "unavailable", "not_requested"]
+        },
+        "value": {},
+        "unit": { "type": "string" },
+        "period": { "type": "string" },
+        "source": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

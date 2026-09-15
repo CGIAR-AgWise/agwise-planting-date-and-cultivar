@@ -1,0 +1,61 @@
+{
+  "contract_version": "1.0",
+  "request": {
+    "country_code": "MOZ",
+    "location": {
+      "name": "Chokwe",
+      "latitude": -24.500676,
+      "longitude": 33.001806
+    },
+    "crop": "Maize",
+    "season": {
+      "year": 2025,
+      "start_date": "2025-11-01",
+      "length_months": 4
+    }
+  },
+  "agwise": {
+    "status": "available",
+    "forecast": {
+      "variables": ["PRCP", "TMAX", "TMIN", "SRAD"],
+      "lead_months": 1
+    },
+    "dssat": {
+      "status": "available",
+      "metric": "HWAH",
+      "recommendation_count": 8
+    }
+  },
+  "iwmi": {
+    "status": "not_requested"
+  },
+  "recommendations": [
+    {
+      "rank": 1,
+      "planting_date": "2026-01-24",
+      "cultivar_id": "900111",
+      "yield_kg_ha": 2439,
+      "water_context": "pending IWMI adapter"
+    },
+    {
+      "rank": 2,
+      "planting_date": "2025-12-06",
+      "cultivar_id": "900111",
+      "yield_kg_ha": 1657,
+      "water_context": "pending IWMI adapter"
+    }
+  ],
+  "provenance": {
+    "run_id": "moz-dssat-minimal-test",
+    "generated_at": "2026-09-15T00:00:00Z",
+    "agwise_commit": "6b3724a",
+    "iwmi_sources": [],
+    "limitations": [
+      "One provisional Chokwe point",
+      "Generic soil profile",
+      "Regional placeholder cultivar",
+      "Single forecast season",
+      "IWMI context not yet requested"
+    ]
+  }
+}

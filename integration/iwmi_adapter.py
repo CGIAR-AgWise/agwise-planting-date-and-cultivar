@@ -6,6 +6,7 @@ import json
 import os
 import sys
 from datetime import datetime, timezone
+from urllib.parse import urlencode
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -48,6 +49,39 @@ def fetch_json(url, timeout):
         raise RuntimeError(f"IWMI request failed: {url}: {error.reason}") from error
     except json.JSONDecodeError as error:
         raise RuntimeError(f"IWMI response was not valid JSON: {url}") from error
+
+
+def fetch_stac_item(catalog, collection, latitude, longitude, timeout):
+    query = urlencode(
+        {
+            "collections": collection,
+            "bbox": f"{longitude - 0.01},{latitude - 0.01},{longitude + 0.01},{latitude + 0.01}",
+            "limit": 1,
+        }
+    )
+    url = f"{catalog.rstrip('/')}/search?{query}"
+    payload = fetch_json(url, timeout)
+    features = payload.get("features", [])
+    if not features:
+        raise RuntimeError(f"IWMI STAC collection returned no item: {collection}")
+    item = features[0]
+    assets = item.get("assets", {})
+    data_asset = next(
+        (asset for asset in assets.values() if "data" in asset.get("roles", [])),
+        next(iter(assets.values()), {}),
+    )
+    return {
+        "status": "available",
+        "value": None,
+        "collection": collection,
+        "item_id": item.get("id"),
+        "asset_url": data_asset.get("href"),
+        "period": {
+            "start": item.get("properties", {}).get("start_datetime"),
+            "end": item.get("properties", {}).get("end_datetime"),
+        },
+        "source": url,
+    }
 
 
 def extract_value(payload):
@@ -111,6 +145,8 @@ def main():
     parser.add_argument("--input", required=True, help="AgWise advisory JSON payload.")
     parser.add_argument("--output", required=True, help="Output normalized advisory JSON.")
     parser.add_argument("--timeout", type=float, default=30.0)
+    parser.add_argument("--latitude", type=float)
+    parser.add_argument("--longitude", type=float)
     parser.add_argument(
         "--allow-missing",
         action="store_true",
@@ -119,17 +155,36 @@ def main():
     args = parser.parse_args()
 
     endpoints = dict(parse_endpoint(item) for item in args.endpoint)
-    for item in args.stac_collection:
-        name, collection = parse_endpoint(item)
-        endpoints[name] = f"{args.stac_catalog.rstrip('/')}/collections/{collection}"
-    if not endpoints:
+    stac_collections = dict(parse_endpoint(item) for item in args.stac_collection)
+    if not endpoints and not stac_collections:
         parser.error("provide at least one --endpoint or --stac-collection")
     with open(args.input, encoding="utf-8") as handle:
         payload = json.load(handle)
 
     payload["iwmi"] = build_context(endpoints, args.timeout, args.allow_missing)
+    if stac_collections:
+        if args.latitude is None or args.longitude is None:
+            parser.error("--latitude and --longitude are required with --stac-collection")
+        for name, collection in stac_collections.items():
+            try:
+                payload["iwmi"][name] = fetch_stac_item(
+                    args.stac_catalog, collection, args.latitude, args.longitude, args.timeout
+                )
+            except RuntimeError as error:
+                if not args.allow_missing:
+                    raise
+                payload["iwmi"][name] = {"status": "unavailable", "source": collection}
+                payload["iwmi"].setdefault("errors", []).append(str(error))
+        payload["iwmi"]["status"] = (
+            "available"
+            if all(payload["iwmi"][name]["status"] == "available" for name in stac_collections)
+            else "unavailable"
+        )
     payload.setdefault("provenance", {}).setdefault("iwmi_sources", [])
-    payload["provenance"]["iwmi_sources"] = list(endpoints.values())
+    payload["provenance"]["iwmi_sources"] = list(endpoints.values()) + [
+        f"{args.stac_catalog.rstrip('/')}/collections/{collection}"
+        for collection in stac_collections.values()
+    ]
     payload["provenance"]["generated_at"] = datetime.now(timezone.utc).isoformat()
 
     with open(args.output, "w", encoding="utf-8") as handle:

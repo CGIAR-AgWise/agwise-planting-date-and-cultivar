@@ -77,6 +77,22 @@ python integration/iwmi_adapter.py \
   --allow-missing
 ```
 
+For spatial item discovery at the Chókwè point, add the coordinates. The
+adapter returns the matching STAC item and raster asset URL; it does not yet
+pretend that a raster URL is a sampled value:
+
+```bash
+python integration/iwmi_adapter.py \
+  --input integration/examples/chokwe_maize_advisory.json \
+  --output integration/examples/chokwe_maize_advisory_with_iwmi.json \
+  --latitude -24.500676 --longitude 33.001806 \
+  --stac-collection rainfall=limpopo_jfm_rainfall \
+  --stac-collection et_fraction=et_fraction_africa \
+  --stac-collection irrigation=irrigated_areas_limpopo \
+  --stac-collection water_stress=evaporative_stress_index_africa \
+  --allow-missing
+```
+
 ## Validation
 
 Any JSON Schema draft-2020-12 validator can validate a payload. The schema is

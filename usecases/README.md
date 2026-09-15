@@ -31,6 +31,20 @@ Preview without running downloads or bias correction:
 Rscript usecases/run_usecase.R usecases/configs/KEN/maize_example.yml --dry-run
 ```
 
+The Mozambique Chokwe smoke-test wrapper can be previewed from any working
+directory:
+
+```bash
+Rscript usecases/mozambique_maize_chokwe_forecast.R --dry-run
+```
+
+An actual run requires R and the project packages, Python with `cdsapi` and
+the forecast dependencies, a configured CDS API account, and a local DSSAT
+installation. Set `AGWISE_PYTHON` (or pass `--py-path`) when Python is not on
+`PATH`, and set `DSSAT_CSM` to the full `DSCSM048.EXE` path on Windows. The
+forecast and DSSAT data workspaces are generated under `data/` and are not
+stored in Git.
+
 Run all configured country scenarios:
 
 ```bash

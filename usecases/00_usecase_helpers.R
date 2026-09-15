@@ -30,7 +30,7 @@ usecase_repo_root <- function() {
 }
 
 agwise_tmp_dir <- function() {
-  tmp_dir <- Sys.getenv("AGWISE_TMPDIR", unset = "/Volumes/T7/tmp")
+  tmp_dir <- Sys.getenv("AGWISE_TMPDIR", unset = tempdir())
   dir.create(tmp_dir, recursive = TRUE, showWarnings = FALSE)
   normalizePath(tmp_dir, mustWork = FALSE)
 }
@@ -221,7 +221,8 @@ usecase_runner_args <- function(usecase, cli, repo_root) {
     "--n-cores", as.character(cli[["n-cores"]] %||% usecase$n_cores %||% 1),
     "--variables", as_cli_vars(usecase$variables %||% c("PRCP", "TMAX", "TMIN", "SRAD")),
     "--base-dir", cli[["base-dir"]] %||% file.path(repo_root, "data"),
-    "--py-path", cli[["py-path"]] %||% usecase$py_path %||% "/home/jovyan/.conda-envs/agwise_fcst/bin/python",
+    "--py-path", cli[["py-path"]] %||% usecase$py_path %||%
+      Sys.getenv("AGWISE_PYTHON", unset = Sys.which("python")),
     "--country-name", usecase$country_name,
     "--use-case-name", usecase$use_case_name,
     "--crop", usecase$crop

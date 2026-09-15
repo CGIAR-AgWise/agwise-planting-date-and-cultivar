@@ -36,6 +36,7 @@ def fetch_json(url, timeout):
     bearer_token = os.getenv("IWMI_BEARER_TOKEN")
     if bearer_token:
         headers["Authorization"] = f"Bearer {bearer_token}"
+    headers["User-Agent"] = "AgWise-IWMI-adapter/1.0"
     request = Request(url, headers=headers)
     try:
         with urlopen(request, timeout=timeout) as response:
@@ -91,9 +92,21 @@ def main():
     parser.add_argument(
         "--endpoint",
         action="append",
-        required=True,
+        default=[],
         metavar="NAME=URL",
         help="IWMI endpoint; repeat for rainfall, et_fraction, irrigation, or water_stress.",
+    )
+    parser.add_argument(
+        "--stac-collection",
+        action="append",
+        default=[],
+        metavar="NAME=COLLECTION",
+        help="Live IWMI STAC collection name, using the default public catalog.",
+    )
+    parser.add_argument(
+        "--stac-catalog",
+        default="https://odc-explorer.iwmi.org/stac",
+        help="IWMI STAC catalog URL.",
     )
     parser.add_argument("--input", required=True, help="AgWise advisory JSON payload.")
     parser.add_argument("--output", required=True, help="Output normalized advisory JSON.")
@@ -106,6 +119,11 @@ def main():
     args = parser.parse_args()
 
     endpoints = dict(parse_endpoint(item) for item in args.endpoint)
+    for item in args.stac_collection:
+        name, collection = parse_endpoint(item)
+        endpoints[name] = f"{args.stac_catalog.rstrip('/')}/collections/{collection}"
+    if not endpoints:
+        parser.error("provide at least one --endpoint or --stac-collection")
     with open(args.input, encoding="utf-8") as handle:
         payload = json.load(handle)
 

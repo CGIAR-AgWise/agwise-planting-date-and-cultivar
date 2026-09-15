@@ -62,6 +62,21 @@ Use `--allow-missing` only when an advisory is explicitly allowed to carry
 unavailable context. For deployments using bearer authentication, provide
 `IWMI_BEARER_TOKEN` at runtime; credentials must not be committed.
 
+The public IWMI STAC catalog can be used for a live product-availability
+adapter. The collection metadata is retained under `value`; this does not
+claim to be a point-level measurement:
+
+```bash
+python integration/iwmi_adapter.py \
+  --input integration/examples/chokwe_maize_advisory.json \
+  --output integration/examples/chokwe_maize_advisory_with_iwmi.json \
+  --stac-collection rainfall=limpopo_jfm_rainfall \
+  --stac-collection et_fraction=et_fraction_africa \
+  --stac-collection irrigation=irrigated_areas_limpopo \
+  --stac-collection water_stress=evaporative_stress_index_africa \
+  --allow-missing
+```
+
 ## Validation
 
 Any JSON Schema draft-2020-12 validator can validate a payload. The schema is

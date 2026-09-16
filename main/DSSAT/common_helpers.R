@@ -125,6 +125,10 @@ create_dssat_working_path <- function(path.to.extdata, i, zone = NA,
   working_path <- file.path(path.to.extdata, sub_path)
 
   if (!dir.exists(working_path)) {
+    warning("create_dssat_working_path(): '", working_path,
+            "' did not already exist and had to be created - ",
+            "this is expected only for the legacy (non-pre-staged) ",
+            "generation path.")
     dir.create(working_path, recursive = TRUE)
   }
 
@@ -354,8 +358,12 @@ load_or_generate_inputData <- function(country, useCaseName, Crop, project_root,
 
 
 ### Function to write DSSAT progress log files ----
+# append = TRUE adds to an existing log instead of overwriting it, so a
+# log can be built up incrementally (e.g. one call per zone) and still
+# contain every zone processed so far even if a later zone crashes.
 write_dssat_log <- function(
-    messages_list, file, project_root, country, useCaseName, Crop) {
+    messages_list, file, project_root, country, useCaseName, Crop,
+    append = FALSE) {
   file_path <- file.path(
     project_usecase_dir(project_root, country, useCaseName),
     Crop,
@@ -366,28 +374,42 @@ write_dssat_log <- function(
   log_lines <- unlist(messages_list)
 
   # Write to file
-  writeLines(log_lines, con = file_path)
+  if (append) {
+    cat(log_lines, file = file_path, sep = "\n", append = TRUE)
+    cat("\n", file = file_path, append = TRUE)
+  } else {
+    writeLines(log_lines, con = file_path)
+  }
 
   message("Log written to: ", file_path)
 }
 
 
-### Get number of iterations to run ----
-count_exte_dirs <- function(base_dir, varietyid, zone) {
+### Get the real, on-disk EXTE#### numeric ids (sorted, possibly non-contiguous) ----
+# Pre-staged (datasourcing) exports skip sites with no valid weather data at
+# generation time, so EXTE#### numbering on disk can have gaps (e.g.
+# EXTE0299, EXTE0301, no EXTE0300) - this returns the real ids present,
+# rather than assuming a contiguous 1..count range.
+list_exte_indices <- function(base_dir, varietyid, zone) {
   # 1. Combine arguments into the final target path
   target_dir <- file.path(base_dir, varietyid, zone)
-  
+
   # Safety check
   if (!dir.exists(target_dir)) {
     warning(paste("Directory does not exist:", target_dir))
-    return(0)
+    return(integer(0))
   }
-  
+
   # 2. List immediate directories (non-recursively)
   all_subdirs <- list.dirs(path = target_dir, full.names = FALSE, recursive = FALSE)
-  
-  # 3. Count how many start with "EXTE"
-  num_exte_dirs <- sum(grepl("^EXTE", all_subdirs))
-  
-  return(num_exte_dirs)
+
+  # 3. Keep only those starting with "EXTE", recover their real numeric id
+  exte_dirs <- all_subdirs[grepl("^EXTE", all_subdirs)]
+  sort(as.integer(gsub("[^0-9]", "", exte_dirs)))
+}
+
+
+### Get number of iterations to run ----
+count_exte_dirs <- function(base_dir, varietyid, zone) {
+  length(list_exte_indices(base_dir, varietyid = varietyid, zone = zone))
 }

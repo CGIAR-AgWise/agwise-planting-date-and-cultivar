@@ -42,6 +42,17 @@ rundssat <- function(i, path.to.extdata, TRT, AOI = TRUE, crop_code) {
   if (file.exists(new_file)) {
     file.remove(new_file)
   }
+  # DSSAT-CSM writes ERROR.OUT instead of Summary.OUT on an input error
+  # (e.g. missing/degenerate soil or weather data) and file.rename() on a
+  # missing source only warns, it doesn't throw - so without this check a
+  # DSSAT-level failure would silently produce no output while still being
+  # reported "Finished" by the caller. Stop explicitly so it's caught by
+  # dssat.exec()'s tryCatch and counted correctly in its completeness summary.
+  if (!file.exists("Summary.OUT")) {
+    stop("DSSAT-CSM did not produce Summary.OUT for EXTE",
+         formatC(width = 4, as.integer(i), flag = "0"),
+         " - see ERROR.OUT/WARNING.OUT in that site's folder for the DSSAT-level cause.")
+  }
   file.rename("Summary.OUT", new_file)
   gc()
 }
@@ -107,31 +118,55 @@ dssat.exec <- function(country, useCaseName, Crop, project_root, AOI = T,
   cropid <- which(crops == Crop)
   crop_code <- cropcode_supported[cropid]
   
-  # Sequence of location indices
-  indices <- seq_along(matching_folders)
+  # Real, on-disk EXTE#### ids (matching_folders holds the real names -
+  # parse their real numeric suffixes rather than assuming they're
+  # contiguous 1..n; a pre-staged export can have gaps where
+  # agwise-datasourcing skipped a site with no valid weather data).
+  indices <- sort(as.integer(gsub("[^0-9]", "", matching_folders)))
   n_indices <- length(indices)
-  
+
   plan_multisession(per_worker_gb = 2)
-  
+
   messages_list <- future_lapply(
-    indices, 
+    indices,
     function(i) {
       start_msg <- paste(
         "Progress DSSAT run:", i, "out of", length(indices)
         )
 
-      rundssat(
-        i, path.to.extdata = path.to.extdata, TRT = TRT, AOI = AOI,
-        crop_code = crop_code)
-      
-      end_msg <- paste(
-        "Finished DSSAT run:", i, "out of", length(indices)
-        )
-      
-      c(start_msg, end_msg)
+      # One site's failure (a real gap not fully eliminated, a DSSAT-level
+      # input error such as missing/degenerate soil data, or any other
+      # unexpected error) must not take down every other site in this
+      # future_lapply batch - future cancels the whole call on one worker's
+      # uncaught error, which is what silently lost entire provinces of
+      # results the one time this went unguarded.
+      site_result <- tryCatch({
+        rundssat(
+          i, path.to.extdata = path.to.extdata, TRT = TRT, AOI = AOI,
+          crop_code = crop_code)
+        paste("Finished DSSAT run:", i, "out of", length(indices))
+      }, error = function(e) {
+        paste("Skipped DSSAT run:", i, "out of", length(indices),
+              "- error:", conditionMessage(e))
+      })
+
+      c(start_msg, site_result)
   },
-  
+
   future.packages = packages_required,
   future.seed = TRUE
   )
+
+  # Expected-vs-actual visibility: without this, a high per-site failure
+  # rate sits unnoticed inside a wall of per-site log lines. message()d
+  # live (not just returned/logged) so it's visible even on a run that's
+  # later interrupted.
+  n_finished <- sum(grepl("^Finished DSSAT run:", unlist(messages_list)))
+  n_skipped <- sum(grepl("^Skipped DSSAT run:", unlist(messages_list)))
+  summary_msg <- sprintf(
+    "Zone %s (variety %s) DSSAT-run summary: %d expected, %d finished, %d skipped",
+    zone, varietyid, n_indices, n_finished, n_skipped)
+  message(summary_msg)
+
+  c(unlist(messages_list), summary_msg)
 }

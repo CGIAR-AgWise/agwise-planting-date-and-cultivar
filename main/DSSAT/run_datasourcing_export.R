@@ -13,7 +13,7 @@
 ###############################################################################
 
 
-### Call agwise-data forecast-to-dssat directly, with a timeout and retries
+### Call agwise-data forecast-to-dssat directly, with stall detection and retries
 #
 # ad_forecast_to_dssat() (agwise_data.R) shells out via a plain system2()
 # with no timeout, so a hang inside the CLI blocks forever. Confirmed live
@@ -25,16 +25,58 @@
 # point never leaves partial/corrupt output behind for the idempotent
 # skip-check above to mistake for a finished zone.
 #
-# R's own timeout mechanisms (setTimeLimit/withTimeout) cannot interrupt a
-# system2() call already blocked in the OS waitpid() syscall - the timeout
-# has to be passed into system2() itself (supported since R 3.5). This
-# reimplements the same CLI call ad_forecast_to_dssat() makes (identical
-# argument set) so that timeout is available, then retries on timeout by
-# killing the stuck process tree and trying again - a real (non-timeout)
-# CLI failure still stops immediately, matching ad_run()'s own behavior.
+# IMPORTANT: this used to be a flat wall-clock timeout (kill after N seconds
+# elapsed, no matter what) - which is wrong, because it can't tell a genuine
+# 0%-CPU deadlock apart from a slow-but-actively-progressing fetch, and will
+# kill the latter just as readily as the former. Confirmed live: a real
+# 4-variable whole-country fetch (Mozambique, 2026-09-05) was killed 3 times
+# in a row by a 3600s wall-clock timeout while it was still making real
+# progress (each kill discarded whatever variable was mid-fetch, since only
+# a fully-finished variable gets written to the on-disk cache) - net effect
+# was 3 wasted hours and zero output, for a fetch that just needed more time,
+# not a restart.
+#
+# First fix attempt (output silence instead of wall-clock) was ALSO wrong for
+# the same underlying reason: a process can go silent while still doing real,
+# CPU-bound work with no per-step logging (e.g. opening/decompressing 24
+# years of local calibration files, exactly the step the documented deadlock
+# happens in - see below) - silence alone doesn't prove it's stuck. The
+# documented deadlock's own signature is specifically "wchan=futex_wait_
+# queue_me, 0% CPU" - i.e. CPU activity, not output, is the real signal.
+#
+# Fixed to require BOTH: no new output AND ~0% CPU (summed across the child
+# and any of its own child processes) for `stall_secs` straight (default 20
+# minutes) before treating it as a genuine stall. A process that's silently
+# burning CPU is left alone no matter how long it takes; only a process
+# that's both silent AND idle - matching the documented deadlock exactly -
+# gets killed and retried. A real (non-stall) CLI failure still stops
+# immediately, matching ad_run()'s own behavior.
+cpu_pct_tree <- function(pid) {
+  children <- suppressWarnings(system2("pgrep", c("-P", as.character(pid)), stdout = TRUE, stderr = FALSE))
+  pids <- c(pid, as.integer(children))
+  cpu <- suppressWarnings(system2(
+    "ps", c("-o", "%cpu=", "-p", paste(pids, collapse = ",")),
+    stdout = TRUE, stderr = FALSE))
+  vals <- suppressWarnings(as.numeric(trimws(cpu)))
+  sum(vals, na.rm = TRUE)
+}
+
+# Kill exactly this call's process tree (the launched pid and its own
+# children) - NOT a blanket `pkill -f <command substring>`, which would also
+# kill any OTHER concurrently-running call with the same command string
+# (confirmed live: this collateral-killed a second, healthy, unrelated
+# usecase run during testing on 2026-09-05).
+kill_process_tree <- function(pid) {
+  children <- suppressWarnings(system2("pgrep", c("-P", as.character(pid)), stdout = TRUE, stderr = FALSE))
+  for (p in c(as.integer(children), pid)) {
+    system2("kill", c("-9", as.character(p)), stdout = FALSE, stderr = FALSE)
+  }
+}
+
 ad_forecast_to_dssat_with_retry <- function(
     points, init_month, forecast_year, calib_years, bbox, country_name,
-    out_dir, ensemble = "mean", timeout_secs = 3600, max_attempts = 3) {
+    out_dir, ensemble = "mean", stall_secs = 1200, poll_secs = 20,
+    cpu_active_pct = 1.0, max_attempts = 3) {
 
   points_csv <- points
   if (is.data.frame(points)) {
@@ -51,37 +93,78 @@ ad_forecast_to_dssat_with_retry <- function(
             "--bbox", paste(bbox, collapse = ","))
 
   for (attempt in seq_len(max_attempts)) {
-    timed_out <- FALSE
-    out <- withCallingHandlers(
-      system2(ad_bin(), shQuote(args), stdout = TRUE, stderr = "", timeout = timeout_secs),
-      warning = function(w) {
-        if (grepl("timed out", conditionMessage(w))) timed_out <<- TRUE
-        invokeRestart("muffleWarning")
-      })
+    out_file <- tempfile(fileext = ".log")
+    # Launch in the background via a shell so we can capture the child's
+    # own PID (`$!`) - system2(..., wait = FALSE) doesn't hand back a PID,
+    # and R's own timeout mechanisms can't interrupt a system2() call
+    # already blocked in the OS waitpid() syscall, so polling a real PID
+    # from outside is the only reliable way to watch (and, if needed, kill)
+    # a specific run without touching any other concurrent zone's call.
+    launch_cmd <- paste0(
+      shQuote(ad_bin()), " ", paste(shQuote(args), collapse = " "),
+      " > ", shQuote(out_file), " 2>&1 & echo $!")
+    pid <- as.integer(trimws(system(launch_cmd, intern = TRUE)))
 
-    if (timed_out) {
+    # Stream new output as it's polled (via message(), so it flows through
+    # to this call's own stderr exactly as it would have with the old
+    # direct system2(stdout=TRUE) approach) - preserves live progress
+    # visibility (CDS status lines, download progress, etc.) instead of
+    # only surfacing output after the fact. Output growth and CPU activity
+    # are both "not stalled" signals - either one resets the stall clock.
+    last_byte_size <- 0
+    lines_streamed <- 0
+    last_change <- Sys.time()
+    stalled <- FALSE
+    repeat {
+      Sys.sleep(poll_secs)
+      alive <- identical(
+        system2("kill", c("-0", as.character(pid)), stdout = FALSE, stderr = FALSE), 0L)
+      if (!alive) break
+
+      cur_byte_size <- suppressWarnings(file.info(out_file)$size)
+      output_grew <- !is.na(cur_byte_size) && cur_byte_size > last_byte_size
+      if (output_grew) {
+        new_lines <- readLines(out_file, warn = FALSE)
+        if (length(new_lines) > lines_streamed) {
+          message(paste(new_lines[(lines_streamed + 1):length(new_lines)], collapse = "\n"))
+          lines_streamed <- length(new_lines)
+        }
+        last_byte_size <- cur_byte_size
+      }
+
+      cpu_active <- cpu_pct_tree(pid) > cpu_active_pct
+      if (output_grew || cpu_active) {
+        last_change <- Sys.time()
+      }
+      if (as.numeric(Sys.time() - last_change, units = "secs") > stall_secs) {
+        stalled <- TRUE
+        break
+      }
+    }
+
+    if (stalled) {
       message(
-        "  agwise-data forecast-to-dssat timed out after ", timeout_secs,
-        "s (attempt ", attempt, "/", max_attempts, ") - killing stuck process(es) and retrying...")
-      system2("pkill", c("-9", "-f", shQuote("agwise-data forecast-to-dssat")),
-               stdout = FALSE, stderr = FALSE)
+        "  agwise-data forecast-to-dssat produced no output AND no CPU ",
+        "activity for ", stall_secs, "s (attempt ", attempt, "/", max_attempts,
+        ") - treating as a genuine stall, killing and retrying...")
+      kill_process_tree(pid)
       Sys.sleep(2)
       next
     }
 
-    status <- attr(out, "status")
+    out <- readLines(out_file, warn = FALSE)
     json_lines <- grep("^\\{", out, value = TRUE)
     if (length(json_lines) > 0) {
       res <- jsonlite::fromJSON(tail(json_lines, 1), simplifyDataFrame = FALSE)
-      if (isTRUE(res$ok) && (is.null(status) || status == 0)) {
+      if (isTRUE(res$ok)) {
         return(invisible(NULL))
       }
     }
     stop("agwise-data forecast-to-dssat failed (attempt ", attempt, "/", max_attempts,
          "). Output:\n", paste(utils::tail(out, 20), collapse = "\n"))
   }
-  stop("agwise-data forecast-to-dssat timed out ", max_attempts,
-       " times in a row (", timeout_secs, "s each) for out_dir=", out_dir, " - giving up.")
+  stop("agwise-data forecast-to-dssat stalled (no output for ", stall_secs, "s) ",
+       max_attempts, " times in a row for out_dir=", out_dir, " - giving up.")
 }
 
 
@@ -119,14 +202,20 @@ generate_prestaged_dssat_via_datasourcing <- function(
     source(file.path(repo_root, "usecases", "00_usecase_helpers.R"))
   }
   init <- forecast_init_from_usecase(complete_usecase)
+  buffer_deg <- 0.5
 
+  zone_out_dir <- function(zone) file.path(
+    path.expand(datasourcing_products_dir),
+    paste0(
+      complete_usecase$country_code, "_", zone, "_forecast",
+      complete_usecase$season_year, "_", complete_usecase$use_case_name))
+
+  # --- Pass 1: which zones still need generating, and their (cheap,
+  # offline - no network calls) point grids ---
+  pending_zones <- character(0)
+  grids <- list()
   for (zone in complete_usecase$zones) {
-    out_dir <- file.path(
-      path.expand(datasourcing_products_dir),
-      paste0(
-        complete_usecase$country_code, "_", zone, "_forecast",
-        complete_usecase$season_year, "_", complete_usecase$use_case_name))
-
+    out_dir <- zone_out_dir(zone)
     existing_exte <- if (dir.exists(out_dir)) {
       list.files(out_dir, pattern = "^EXTE", full.names = FALSE)
     } else {
@@ -138,37 +227,55 @@ generate_prestaged_dssat_via_datasourcing <- function(
         length(existing_exte), " sites) - skipping datasourcing generation.")
       next
     }
+    pending_zones <- c(pending_zones, zone)
+    grids[[zone]] <- ad_make_grid(
+      country = complete_usecase$country_name, admin_level = 1,
+      admin_name = zone, res_km = res_km, tag_admin_level = 1)
+  }
 
+  if (length(pending_zones) == 0) {
+    message("All zones already pre-staged - nothing to generate.")
+    return(invisible(NULL))
+  }
+
+  # --- One shared bbox for the whole country: union of every PENDING
+  # zone's point-grid extent, with the same buffer applied once. Passing
+  # this SAME bbox to every zone's forecast-to-dssat call (rather than a
+  # fresh bbox per zone, as before) collapses them onto ONE CDS/SEAS5
+  # cache domain in the external CLI - its cache key is derived only from
+  # the (rounded) bbox, never from the points list, so the first zone
+  # processed pays the real CDS fetch and every later zone in this run
+  # becomes a cache hit. `points`/`out_dir` stay per-zone below, so the
+  # EXTE#### output layout (admin-level structure) is unaffected. For a
+  # single-zone usecase this union is bit-for-bit identical to the old
+  # per-zone bbox.
+  #
+  # Pass an explicit bbox (rather than country/admin_name) for the same
+  # reason as before: admin_name-based clipping fails with "NoDataInBounds"
+  # for at least one real admin unit (Zambia's Lusaka province) despite its
+  # geometry being valid and non-degenerate - a bug in agwise-datasourcing's
+  # own clip_geometry() domain resolution, not a real data gap (the
+  # identical request via --bbox succeeds). A bbox is always a superset of
+  # the admin polygon(s) it's derived from, and the final per-site values
+  # only depend on which grid cell each point lands in, so this remains a
+  # strictly safe substitution.
+  all_lon <- unlist(lapply(grids[pending_zones], `[[`, "lon"))
+  all_lat <- unlist(lapply(grids[pending_zones], `[[`, "lat"))
+  shared_bbox <- c(
+    min(all_lon) - buffer_deg, min(all_lat) - buffer_deg,
+    max(all_lon) + buffer_deg, max(all_lat) + buffer_deg)
+
+  # --- Pass 2: actually generate, same shared_bbox, own grid/out_dir ---
+  for (zone in pending_zones) {
     message(
       "Generating DSSAT export via agwise-datasourcing for zone: ", zone,
       " (init_month=", init$month, ", forecast_year=", init$year, ")")
 
-    grid <- ad_make_grid(
-      country = complete_usecase$country_name, admin_level = 1,
-      admin_name = zone, res_km = res_km, tag_admin_level = 1)
-
-    # Pass an explicit bbox (derived from the grid's own point extent, with
-    # a small buffer - the same convention agwise-datasourcing's own code
-    # uses when no region is given at all) rather than country/admin_name.
-    # Confirmed by direct reproduction: admin_name-based clipping fails with
-    # "NoDataInBounds" for at least one real admin unit (Zambia's Lusaka
-    # province) despite its geometry being valid and non-degenerate - a bug
-    # in agwise-datasourcing's own clip_geometry() domain resolution, not a
-    # real data gap (the identical request via --bbox succeeds). A bbox is
-    # always a superset of the admin polygon it's derived from, and the
-    # final per-site values only depend on which grid cell each point
-    # lands in, so this is a strictly safe substitution - it never changes
-    # what data ends up at any site, only sidesteps the buggy polygon clip.
-    buffer_deg <- 0.5
-    bbox <- c(
-      min(grid$lon) - buffer_deg, min(grid$lat) - buffer_deg,
-      max(grid$lon) + buffer_deg, max(grid$lat) + buffer_deg)
-
     ad_forecast_to_dssat_with_retry(
-      points = grid, init_month = init$month, forecast_year = init$year,
-      calib_years = calib_years, bbox = bbox,
-      country_name = complete_usecase$country_code,
-      out_dir = out_dir, ensemble = ensemble)
+      points = grids[[zone]], init_month = init$month,
+      forecast_year = init$year, calib_years = calib_years,
+      bbox = shared_bbox, country_name = complete_usecase$country_code,
+      out_dir = zone_out_dir(zone), ensemble = ensemble)
   }
   invisible(NULL)
 }

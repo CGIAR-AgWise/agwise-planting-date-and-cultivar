@@ -236,8 +236,8 @@ dssat.expfile <- function(
       "transform/DSSAT/AOI"
     )
     
-    n_indices <- count_exte_dirs(base_dir, varietyid = varietyid, zone = zone)
-    indices <- seq_len(n_indices)
+    indices <- list_exte_indices(base_dir, varietyid = varietyid, zone = zone)
+    n_indices <- length(indices)
     coords <- NULL
     
   } else if (exists("rs_schedule_df")) {
@@ -295,15 +295,15 @@ dssat.expfile <- function(
         "Start experiment:", i, "of", length(indices), "variety", varietyid
       )
 
-    # A single site's data gap (e.g. a source export with non-contiguous
-    # EXTE#### numbering - agwise-datasourcing skips sites with no valid
-    # weather data at generation time, but import_prestaged_dssat_files.R
-    # still creates a contiguous 1..n_indices working range, leaving an
-    # empty placeholder directory at the missing index) must not take down
-    # every other site in this future_lapply batch - future cancels the
-    # whole call on one worker's uncaught error. Caught here so one bad
-    # site is logged and skipped, matching how DSSAT-execution-time per-site
-    # failures are already tolerated elsewhere in this pipeline.
+    # indices now comes from list_exte_indices() (common_helpers.R), the
+    # real on-disk EXTE#### ids - a source export with non-contiguous
+    # numbering (agwise-datasourcing skips sites with no valid weather data
+    # at generation time) is handled by simply never visiting the missing
+    # id, rather than fabricating a placeholder for it. This tryCatch is
+    # defense-in-depth for any other per-site failure (e.g. a genuinely
+    # corrupt staged file) - one bad site must not take down every other
+    # site in this future_lapply batch, since future cancels the whole call
+    # on one worker's uncaught error.
     site_result <- tryCatch({
       create_filex(
         i = i,
@@ -342,4 +342,17 @@ dssat.expfile <- function(
     future.packages = packages_required,
     future.seed = TRUE
   )
+
+  # Expected-vs-actual visibility: without this, a high per-site failure
+  # rate (e.g. missing weather/soil data upstream) sits unnoticed inside a
+  # wall of per-site log lines. message()d live (not just returned/logged)
+  # so it's visible even on a run that's later interrupted.
+  n_finished <- sum(grepl("^Finished experiment:", unlist(messages_list)))
+  n_skipped <- sum(grepl("^Skipped experiment:", unlist(messages_list)))
+  summary_msg <- sprintf(
+    "Zone %s (variety %s) FILEX summary: %d expected, %d finished, %d skipped",
+    zone, varietyid, length(indices), n_finished, n_skipped)
+  message(summary_msg)
+
+  c(unlist(messages_list), summary_msg)
 }

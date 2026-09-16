@@ -327,7 +327,24 @@ format_dssat_zones <- function(usecase, cli = parse_usecase_args(), repo_root = 
 
 run_usecase <- function(usecase) {
   cli <- parse_usecase_args()
-  run_forecast_usecase(usecase, cli = cli)
+  # The legacy main/Forecast pipeline's output (forecast/dssat_handoff/) is
+  # never read by the datasourcing path (run_dssat_pipeline.R's
+  # skip_weather_soil_creation branch only touches
+  # generate_prestaged_dssat_via_datasourcing()/import_prestaged_dssat_files())
+  # - running it for a datasourcing usecase is pure wasted time (confirmed:
+  # its only call site for reading dssat_handoff, get_zone_coords_pdates(),
+  # is dead/commented-out code). Skip it entirely in that case.
+  if (isTRUE(usecase$skip_weather_soil_creation)) {
+    message("Use case: ", usecase$name %||% usecase$country_code)
+    message("Country: ", usecase$country_code)
+    message("Zones: ", paste(usecase$zones %||% "auto/from forecast points", collapse = ", "))
+    message(
+      "skip_weather_soil_creation = TRUE - skipping the legacy ",
+      "main/Forecast pipeline (its output isn't used by the ",
+      "datasourcing path).")
+  } else {
+    run_forecast_usecase(usecase, cli = cli)
+  }
   # format_dssat_zones(usecase, cli = cli)
   source(file.path(repo_root, "main/DSSAT/run_dssat_pipeline.R"))
   message("Launching DSSAT module from run_usecase")
@@ -341,7 +358,18 @@ run_usecase_config <- function(config_path) {
   repo_root <- usecase_repo_root()
   config_path <- usecase_config_file(config_path, repo_root)
   usecase <- read_usecase_yaml(config_path)
-  run_forecast_usecase(usecase, cli = cli, repo_root = repo_root)
+  # See the matching comment in run_usecase() above.
+  if (isTRUE(usecase$skip_weather_soil_creation)) {
+    message("Use case: ", usecase$name %||% usecase$country_code)
+    message("Country: ", usecase$country_code)
+    message("Zones: ", paste(usecase$zones %||% "auto/from forecast points", collapse = ", "))
+    message(
+      "skip_weather_soil_creation = TRUE - skipping the legacy ",
+      "main/Forecast pipeline (its output isn't used by the ",
+      "datasourcing path).")
+  } else {
+    run_forecast_usecase(usecase, cli = cli, repo_root = repo_root)
+  }
   source(file.path(repo_root, "main/DSSAT/run_dssat_pipeline.R"))
   message("Launching DSSAT module from run_usecase_config")
   

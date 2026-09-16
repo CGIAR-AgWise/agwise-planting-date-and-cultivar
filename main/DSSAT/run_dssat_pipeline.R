@@ -124,7 +124,10 @@ run_dssat_pipeline <- function(
   # pipeline) instead of generating them here from RDS forecast handoff data.
   if (!isTRUE(complete_usecase$skip_weather_soil_creation)) {
     message("Creating DSSAT weather and soil input files")
-    wth_sol_files_msg <- NULL
+    # Logged per-zone (appending), not once after the whole double loop, so
+    # a crash partway through still leaves a log covering every zone that
+    # completed before it, instead of nothing at all.
+    log_started <- FALSE
     for (varietyid in varietyids) {
       for (zone in zones) {
         message("Creating DSSAT weather and soil input files for ", zone)
@@ -135,13 +138,15 @@ run_dssat_pipeline <- function(
           varietyid       = varietyid,
           fc_month = complete_usecase$season_start_month
         )
+        if (exists("write_dssat_log") && !is.null(wth_sol_files_msg)) {
+          write_dssat_log(wth_sol_files_msg, file = "readGeo_CM_zone.log",
+                          repo_root, country, useCaseName, Crop,
+                          append = log_started)
+          log_started <- TRUE
+        }
       }
     }
     if (exists("future::plan")) future::plan(future::sequential)
-    if (exists("write_dssat_log") && !is.null(wth_sol_files_msg)) {
-      write_dssat_log(wth_sol_files_msg, file = "readGeo_CM_zone.log",
-                      repo_root, country, useCaseName, Crop)
-    }
   } else {
     message("skip_weather_soil_creation = TRUE - checking for pre-staged DSSAT files...")
     if (isTRUE(complete_usecase$generate_dssat_via_datasourcing)) {
@@ -166,7 +171,8 @@ run_dssat_pipeline <- function(
   
   # --- STEP 2: Create DSSAT Input Files ---
   message("Creating DSSAT experimental input files...")
-  expfile_msg <- NULL
+  # Logged per-zone (appending) - see Step 1's comment for why.
+  log_started <- FALSE
   for (varietyid in varietyids) {
     for (zone in zones) {
       expfile_msg <- invisible(
@@ -177,39 +183,46 @@ run_dssat_pipeline <- function(
           zone = zone
         )
       )
+      if (exists("write_dssat_log") && !is.null(expfile_msg) && length(expfile_msg) > 0) {
+        write_dssat_log(expfile_msg, file = "dssat.expfile.log",
+                        repo_root, country, useCaseName, Crop,
+                        append = log_started)
+        log_started <- TRUE
+      }
     }
   }
   if (exists("future::plan")) future::plan(future::sequential)
-  if (exists("write_dssat_log") && !is.null(expfile_msg) && length(expfile_msg) > 0) {
-    write_dssat_log(expfile_msg, file = "dssat.expfile.log",
-                    repo_root, country, useCaseName, Crop)
-  }
-  
+
   # --- STEP 3: Run DSSAT Simulations ---
   message("Running DSSAT simulations... Number of treatments set to 8 planting dates")
   TRT <- 1:8
-  
-  exemodel_msg <- NULL
+
+  # Logged per-zone (appending) - see Step 1's comment for why. This is the
+  # step that previously crashed mid-run with no tryCatch and no log at all
+  # to show for it; both are now fixed (see dssat.exec()).
+  log_started <- FALSE
   for (varietyid in varietyids) {
     for (zone in zones) {
       exemodel_msg <- dssat.exec(
-        country     = complete_usecase$country_name,  
+        country     = complete_usecase$country_name,
         useCaseName = complete_usecase$use_case_name,
-        Crop        = complete_usecase$crop, 
+        Crop        = complete_usecase$crop,
         project_root = repo_root,
-        AOI         = complete_usecase$aoi, 
-        TRT         = TRT, 
+        AOI         = complete_usecase$aoi,
+        TRT         = TRT,
         varietyid   = varietyid,
         zone        = zone
       )
+      if (exists("write_dssat_log") && !is.null(exemodel_msg)) {
+        write_dssat_log(exemodel_msg, file = "dssat.exec.log",
+                        repo_root, country, useCaseName, Crop,
+                        append = log_started)
+        log_started <- TRUE
+      }
     }
   }
   if (exists("future::plan")) future::plan(future::sequential)
-  if (exists("write_dssat_log") && !is.null(exemodel_msg)) {
-    write_dssat_log(exemodel_msg, file = "dssat.exec.log",
-                    repo_root, country, useCaseName, Crop)
-  }
-  
+
   # --- STEP 4: Merge Outputs ---
   message("Merging DSSAT output files...")
   results_df <- merge_DSSAT_output(

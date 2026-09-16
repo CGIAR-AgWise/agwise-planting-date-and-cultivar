@@ -1,0 +1,23 @@
+name: Rwanda maize full seasonal forecast to DSSAT (September 2026 forecast init, lead_months=0, via agwise-datasourcing)
+country_code: RWA
+country_name: Rwanda
+use_case_name: sep_init
+crop: Maize
+zones:
+  - City of Kigali
+  - Eastern Province
+  - Northern Province
+  - Southern Province
+  - Western Province
+season_start_month: 9
+season_start_day: 1
+season_year: 2026
+season_length_months: 4
+lead_months: 0
+varietyids:
+  - 890011
+  - 890012
+  - 890013
+skip_weather_soil_creation: true
+generate_dssat_via_datasourcing: true
+build_dashboard: true

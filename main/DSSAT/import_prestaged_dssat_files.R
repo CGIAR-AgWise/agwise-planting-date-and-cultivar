@@ -49,20 +49,25 @@ resolve_prestaged_dssat_source_dir <- function(
 # .ipynb_checkpoints/ artifacts (observed in at least one prior export) are
 # excluded. Idempotent: if target_dir already has as many EXTE#### folders
 # as source_dir, the copy is skipped (existing onset dates, if any, are
-# preserved rather than needlessly redone).
-stage_prestaged_dssat_zone <- function(source_dir, target_dir) {
+# preserved rather than needlessly redone). force_weather_refresh bypasses
+# that skip to overwrite .WTH/.SOL in place (e.g. a lead_months change) -
+# .MZX (FILEX) files already in target_dir are never matched by the copy
+# pattern, so they survive untouched either way.
+stage_prestaged_dssat_zone <- function(source_dir, target_dir, force_weather_refresh = FALSE) {
   source_exte <- list.files(source_dir, pattern = "^EXTE", full.names = FALSE)
   if (length(source_exte) == 0) {
     stop("No EXTE#### folders found in source dir: ", source_dir)
   }
 
   if (dir.exists(target_dir)) {
-    existing_exte <- list.files(target_dir, pattern = "^EXTE", full.names = FALSE)
-    if (length(existing_exte) >= length(source_exte)) {
-      message(
-        "Pre-staged files already present in ", target_dir, " (",
-        length(existing_exte), " sites) - skipping copy.")
-      return(invisible(target_dir))
+    if (!force_weather_refresh) {
+      existing_exte <- list.files(target_dir, pattern = "^EXTE", full.names = FALSE)
+      if (length(existing_exte) >= length(source_exte)) {
+        message(
+          "Pre-staged files already present in ", target_dir, " (",
+          length(existing_exte), " sites) - skipping copy.")
+        return(invisible(target_dir))
+      }
     }
   } else {
     dir.create(target_dir, recursive = TRUE)
@@ -70,7 +75,8 @@ stage_prestaged_dssat_zone <- function(source_dir, target_dir) {
 
   message(
     "Copying ", length(source_exte), " site(s) from ", source_dir,
-    " to ", target_dir, "...")
+    " to ", target_dir,
+    if (force_weather_refresh) " (forced weather-only refresh, FILEX preserved)" else "", "...")
   for (exte_name in source_exte) {
     from_dir <- file.path(source_dir, exte_name)
     to_dir <- file.path(target_dir, exte_name)
@@ -171,6 +177,11 @@ import_prestaged_dssat_files <- function(
     useCaseName = complete_usecase$use_case_name, Crop = complete_usecase$crop,
     varietyid = varietyid, AOI = complete_usecase$aoi)
 
+  # reuse_existing_filex doubles as "this is a weather-refresh rerun": Step 2
+  # already skips regenerating FILEX when it's set, so staging must likewise
+  # force fresh .WTH/.SOL in rather than skipping on folder-count match.
+  force_weather_refresh <- isTRUE(complete_usecase$reuse_existing_filex)
+
   for (zone in complete_usecase$zones) {
     message("Importing pre-staged DSSAT files for zone: ", zone)
     source_dir <- resolve_prestaged_dssat_source_dir(
@@ -180,7 +191,9 @@ import_prestaged_dssat_files <- function(
       datasourcing_products_dir = products_dir)
 
     target_dir <- file.path(path.to.extdata, zone)
-    stage_prestaged_dssat_zone(source_dir = source_dir, target_dir = target_dir)
+    stage_prestaged_dssat_zone(
+      source_dir = source_dir, target_dir = target_dir,
+      force_weather_refresh = force_weather_refresh)
     generate_onset_dates_for_zone(
       target_dir = target_dir, season_start_month = complete_usecase$season_start_month,
       zone = zone)

@@ -93,6 +93,21 @@ python integration/iwmi_adapter.py \
   --allow-missing
 ```
 
+## Terminal recommendation
+
+After a normalized advisory JSON has been produced, render the result as
+plain-language text:
+
+```bash
+python integration/advisory.py \
+  integration/examples/chokwe_maize_advisory.json
+```
+
+The terminal message identifies the highest-ranked DSSAT option, reports the
+simulated yield, states whether IWMI context is available, and lists the
+limitations. It is intentionally cautious: it does not present the current
+technical smoke test as a validated farm instruction.
+
 ## Validation
 
 Any JSON Schema draft-2020-12 validator can validate a payload. The schema is

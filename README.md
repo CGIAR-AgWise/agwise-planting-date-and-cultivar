@@ -33,6 +33,38 @@ Use-case YAML config
 The final output is daily climate data in a format suitable for DSSAT crop
 model simulations.
 
+## Quick start
+
+Create the reproducible environment first:
+
+```bash
+conda env create -f environment.yml
+conda activate agwise-integration
+Rscript install_pkgs.R
+```
+
+Copy `.env.example` to `.env` and set local paths such as `DSSAT_CSM`.
+Configure CDS credentials in the standard user-level `~/.cdsapirc` file; do
+not commit credentials.
+
+Preview the Chókwè workflow:
+
+```bash
+make dry-run
+```
+
+Run the forecast, DSSAT simulation, IWMI context lookup, and terminal advisory:
+
+```bash
+make workflow LOCATION=Chokwe CROP=Maize \
+  SEASON_START=2025-11-01 SEASON_END=2026-02-28
+```
+
+The Makefile keeps location, crop, season, and output paths configurable while
+the shared AgWise and integration code remains reusable. See
+[`integration/README.md`](integration/README.md) for the advisory contract and
+location registry.
+
 Core forecast variables:
 
 ```text

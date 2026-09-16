@@ -181,6 +181,22 @@ its country code and coordinates before using another place. For a one-off
 unregistered location, provide `--latitude`, `--longitude`, and optionally
 `--country-code`; explicit coordinates override the registry.
 
+## Simple project commands
+
+From the repository root, use the Makefile:
+
+```bash
+make dry-run
+make workflow LOCATION=Chokwe CROP=Maize \
+  SEASON_START=2025-11-01 SEASON_END=2026-02-28
+```
+
+`make workflow` runs the configured AgWise/DSSAT use case and then builds the
+natural-language advisory from its treatment summary. Create the environment
+with `conda env create -f environment.yml`, copy `.env.example` to `.env`,
+configure local DSSAT/CDS access, and run `Rscript install_pkgs.R` for the
+GitHub climate4R packages.
+
 ## Validation
 
 Any JSON Schema draft-2020-12 validator can validate a payload. The schema is

@@ -26,6 +26,7 @@ UNITS = {
     "irrigation": "product-specific class or probability",
     "water_stress": "index",
 }
+STATIC_COLLECTIONS = {"irrigated_areas_limpopo"}
 
 
 def parse_endpoint(value):
@@ -57,12 +58,20 @@ def fetch_json(url, timeout):
         raise RuntimeError(f"IWMI response was not valid JSON: {url}") from error
 
 
-def fetch_stac_item(catalog, collection, latitude, longitude, timeout):
+def overlaps(start, end, target_start, target_end):
+    if not start or not end or not target_start or not target_end:
+        return False
+    return start <= target_end and end >= target_start
+
+
+def fetch_stac_item(
+    catalog, collection, latitude, longitude, timeout, target_start=None, target_end=None
+):
     query = urlencode(
         {
             "collections": collection,
             "bbox": f"{longitude - 0.01},{latitude - 0.01},{longitude + 0.01},{latitude + 0.01}",
-            "limit": 1,
+            "limit": 100,
         }
     )
     url = f"{catalog.rstrip('/')}/search?{query}"
@@ -70,11 +79,32 @@ def fetch_stac_item(catalog, collection, latitude, longitude, timeout):
     features = payload.get("features", [])
     if not features:
         raise RuntimeError(f"IWMI STAC collection returned no item: {collection}")
-    item = features[0]
+    matching = [
+        item
+        for item in features
+        if overlaps(
+            item.get("properties", {}).get("start_datetime"),
+            item.get("properties", {}).get("end_datetime"),
+            target_start,
+            target_end,
+        )
+    ]
+    item = matching[0] if matching else features[0]
     assets = item.get("assets", {})
     data_asset = next(
         (asset for asset in assets.values() if "data" in asset.get("roles", [])),
         next(iter(assets.values()), {}),
+    )
+    period = {
+        "start": item.get("properties", {}).get("start_datetime"),
+        "end": item.get("properties", {}).get("end_datetime"),
+    }
+    temporal_role = (
+        "static_spatial_context"
+        if collection in STATIC_COLLECTIONS
+        else "current_season"
+        if matching
+        else "historical_reference"
     )
     return {
         "status": "available",
@@ -82,10 +112,9 @@ def fetch_stac_item(catalog, collection, latitude, longitude, timeout):
         "collection": collection,
         "item_id": item.get("id"),
         "asset_url": data_asset.get("href"),
-        "period": {
-            "start": item.get("properties", {}).get("start_datetime"),
-            "end": item.get("properties", {}).get("end_datetime"),
-        },
+        "period": period,
+        "temporal_role": temporal_role,
+        "season_overlap": bool(matching),
         "source": url,
     }
 
@@ -198,6 +227,8 @@ def main():
     parser.add_argument("--timeout", type=float, default=30.0)
     parser.add_argument("--latitude", type=float)
     parser.add_argument("--longitude", type=float)
+    parser.add_argument("--season-start", help="Target season start date (YYYY-MM-DD).")
+    parser.add_argument("--season-end", help="Target season end date (YYYY-MM-DD).")
     parser.add_argument(
         "--sample-raster",
         action="store_true",
@@ -209,6 +240,8 @@ def main():
         help="Write unavailable context instead of stopping on an endpoint failure.",
     )
     args = parser.parse_args()
+    if bool(args.season_start) != bool(args.season_end):
+        parser.error("--season-start and --season-end must be supplied together")
 
     endpoints = dict(parse_endpoint(item) for item in args.endpoint)
     stac_collections = dict(parse_endpoint(item) for item in args.stac_collection)
@@ -224,7 +257,13 @@ def main():
         for name, collection in stac_collections.items():
             try:
                 payload["iwmi"][name] = fetch_stac_item(
-                    args.stac_catalog, collection, args.latitude, args.longitude, args.timeout
+                    args.stac_catalog,
+                    collection,
+                    args.latitude,
+                    args.longitude,
+                    args.timeout,
+                    args.season_start,
+                    args.season_end,
                 )
                 if args.sample_raster:
                     payload["iwmi"][name] = add_raster_value(

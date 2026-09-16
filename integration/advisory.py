@@ -23,7 +23,13 @@ def format_measure(name, measure):
     if measure.get("status") != "available" or measure.get("value") is None:
         return f"- {labels[name]}: unavailable"
     unit = measure.get("unit", "value")
-    return f"- {labels[name]}: {measure['value']} ({unit})"
+    role = measure.get("temporal_role")
+    period = measure.get("period", {})
+    period_text = ""
+    if period.get("start") and period.get("end"):
+        period_text = f", period {period['start'][:10]} to {period['end'][:10]}"
+    role_text = f", {role.replace('_', ' ')}" if role else ""
+    return f"- {labels[name]}: {measure['value']} ({unit}{period_text}{role_text})"
 
 
 def interpret_water_context(iwmi):
@@ -146,6 +152,16 @@ def build_advisory(payload):
     )
     for limitation in payload.get("provenance", {}).get("limitations", []):
         lines.append(f"- {limitation}")
+    roles = {
+        measure.get("temporal_role")
+        for measure in iwmi.values()
+        if isinstance(measure, dict) and measure.get("temporal_role")
+    }
+    if "historical_reference" in roles or "static_spatial_context" in roles:
+        lines.append(
+            "- Some IWMI layers are historical references or static spatial context, "
+            "not direct observations for this season."
+        )
     lines.extend(
         [
             "",

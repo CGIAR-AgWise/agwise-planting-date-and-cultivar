@@ -102,6 +102,7 @@ python integration/iwmi_adapter.py \
   --input integration/examples/chokwe_maize_advisory.json \
   --output integration/examples/chokwe_maize_advisory_with_iwmi_values.json \
   --latitude -24.500676 --longitude 33.001806 \
+  --season-start 2025-11-01 --season-end 2026-02-28 \
   --sample-raster \
   --stac-collection rainfall=limpopo_jfm_rainfall \
   --stac-collection et_fraction=et_fraction_africa \
@@ -120,6 +121,11 @@ negative or positive rainfall anomaly is described as below or above the
 product reference average. ET fraction, irrigation class/probability, and
 water-stress values are displayed but are not assigned high/low thresholds
 until the corresponding IWMI product legends are confirmed.
+
+When season dates are supplied, each STAC item is classified as
+`current_season`, `historical_reference`, or `static_spatial_context`. A
+historical or static match is retained for context but is never described as
+a direct observation of the target season.
 
 ## Terminal recommendation
 

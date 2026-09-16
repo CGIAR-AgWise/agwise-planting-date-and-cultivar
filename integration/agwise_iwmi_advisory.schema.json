@@ -148,6 +148,11 @@
         "collection": { "type": "string" },
         "item_id": { "type": "string" },
         "asset_url": { "type": "string", "format": "uri-reference" },
+        "temporal_role": {
+          "type": "string",
+          "enum": ["current_season", "historical_reference", "static_spatial_context"]
+        },
+        "season_overlap": { "type": "boolean" },
         "sample": {
           "type": "object",
           "required": ["latitude", "longitude", "method"],

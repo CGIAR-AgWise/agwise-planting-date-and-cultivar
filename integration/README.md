@@ -115,6 +115,12 @@ Product units remain qualified because IWMI products can use different scales
 and meanings; they must be confirmed against the product metadata before
 changing DSSAT ranking.
 
+The terminal advisory currently makes only a conservative interpretation:
+negative or positive rainfall anomaly is described as below or above the
+product reference average. ET fraction, irrigation class/probability, and
+water-stress values are displayed but are not assigned high/low thresholds
+until the corresponding IWMI product legends are confirmed.
+
 ## Terminal recommendation
 
 After a normalized advisory JSON has been produced, render the result as

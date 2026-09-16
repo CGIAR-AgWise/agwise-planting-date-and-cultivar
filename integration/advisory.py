@@ -26,6 +26,42 @@ def format_measure(name, measure):
     return f"- {labels[name]}: {measure['value']} ({unit})"
 
 
+def interpret_water_context(iwmi):
+    statements = []
+    rainfall = iwmi.get("rainfall", {})
+    if rainfall.get("status") == "available" and isinstance(
+        rainfall.get("value"), (int, float)
+    ):
+        value = rainfall["value"]
+        if value < 0:
+            statements.append(
+                f"The rainfall product indicates a below-average anomaly ({value:.1f}%)."
+            )
+        elif value > 0:
+            statements.append(
+                f"The rainfall product indicates an above-average anomaly (+{value:.1f}%)."
+            )
+        else:
+            statements.append("The rainfall product is close to its reference average.")
+
+    if iwmi.get("et_fraction", {}).get("status") == "available":
+        statements.append(
+            "The ET fraction is reported, but its product-specific scale must be "
+            "confirmed before calling it low or high."
+        )
+    if iwmi.get("irrigation", {}).get("status") == "available":
+        statements.append(
+            "The irrigation layer reports a mapped product value; it should not "
+            "be treated as a probability without the IWMI product legend."
+        )
+    if iwmi.get("water_stress", {}).get("status") == "available":
+        statements.append(
+            "The water-stress value is shown for context, but no threshold is "
+            "applied to change the DSSAT ranking."
+        )
+    return statements
+
+
 def build_advisory(payload):
     request = payload["request"]
     location = request["location"]["name"]
@@ -72,6 +108,8 @@ def build_advisory(payload):
         for name in ("rainfall", "et_fraction", "irrigation", "water_stress"):
             if name in iwmi:
                 lines.append(format_measure(name, iwmi[name]))
+        lines.extend(["", "Interpretation", "--------------"])
+        lines.extend(f"- {statement}" for statement in interpret_water_context(iwmi))
         lines.append("")
     elif iwmi_status == "unavailable":
         lines.extend(

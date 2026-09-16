@@ -17,6 +17,7 @@ COLLECTIONS = {
     "irrigation": "irrigated_areas_limpopo",
     "water_stress": "evaporative_stress_index_africa",
 }
+DEFAULT_LOCATIONS = Path(__file__).with_name("locations.json")
 
 
 def first_value(row, names):
@@ -62,18 +63,55 @@ def load_recommendations(path, limit):
     ]
 
 
+def resolve_location(name, country_code, latitude, longitude, locations_path):
+    if latitude is not None and longitude is not None:
+        return {
+            "name": name,
+            "country_code": country_code,
+            "latitude": latitude,
+            "longitude": longitude,
+        }
+    if not locations_path.exists():
+        raise ValueError(
+            f"Location registry not found: {locations_path}. "
+            "Provide --latitude and --longitude."
+        )
+    with open(locations_path, encoding="utf-8") as handle:
+        locations = json.load(handle)
+    record = locations.get(name.lower())
+    if record is None:
+        available = ", ".join(sorted(locations))
+        raise ValueError(
+            f"Location '{name}' is not registered. Available locations: {available}. "
+            "Provide --latitude and --longitude for a new location."
+        )
+    if country_code and country_code != record["country_code"]:
+        raise ValueError(
+            f"Location '{name}' belongs to {record['country_code']}, "
+            f"not {country_code}."
+        )
+    return record
+
+
 def build_payload(args):
     season_start = date.fromisoformat(args.season_start)
     season_end = date.fromisoformat(args.season_end)
     recommendations = load_recommendations(args.dssat_summary, args.top)
+    location = resolve_location(
+        args.location,
+        args.country_code,
+        args.latitude,
+        args.longitude,
+        Path(args.locations_file),
+    )
     payload = {
         "contract_version": "1.0",
         "request": {
-            "country_code": args.country_code,
+            "country_code": location["country_code"],
             "location": {
-                "name": args.location,
-                "latitude": args.latitude,
-                "longitude": args.longitude,
+                "name": location["name"],
+                "latitude": location["latitude"],
+                "longitude": location["longitude"],
             },
             "crop": args.crop,
             "season": {
@@ -113,15 +151,15 @@ def build_payload(args):
             measure = fetch_stac_item(
                 args.stac_catalog,
                 collection,
-                args.latitude,
-                args.longitude,
+                location["latitude"],
+                location["longitude"],
                 args.timeout,
                 season_start.isoformat(),
                 season_end.isoformat(),
             )
             if args.sample_raster:
                 measure = add_raster_value(
-                    measure, name, args.latitude, args.longitude
+                    measure, name, location["latitude"], location["longitude"]
                 )
             payload["iwmi"][name] = measure
         payload["provenance"]["iwmi_sources"] = [
@@ -141,11 +179,16 @@ def build_payload(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dssat-summary", required=True)
-    parser.add_argument("--country-code", required=True)
+    parser.add_argument("--country-code")
     parser.add_argument("--location", required=True)
     parser.add_argument("--crop", required=True)
-    parser.add_argument("--latitude", required=True, type=float)
-    parser.add_argument("--longitude", required=True, type=float)
+    parser.add_argument("--latitude", type=float)
+    parser.add_argument("--longitude", type=float)
+    parser.add_argument(
+        "--locations-file",
+        default=str(DEFAULT_LOCATIONS),
+        help="Location registry JSON used when coordinates are omitted.",
+    )
     parser.add_argument("--season-start", required=True)
     parser.add_argument("--season-end", required=True)
     parser.add_argument("--season-length-months", type=int, default=4)

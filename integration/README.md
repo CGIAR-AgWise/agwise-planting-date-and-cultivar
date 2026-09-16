@@ -165,6 +165,22 @@ The command expects the summary to contain `PDAT`, a cultivar column such as
 `Cultivar` or `INGENO`, and `HWAH`. Use `--allow-missing` to print the DSSAT
 recommendation when IWMI is temporarily unavailable.
 
+Locations are resolved from [`locations.json`](./locations.json), so registered
+locations do not need coordinates on every command:
+
+```bash
+python integration/run_advisory.py \
+  --dssat-summary path/to/treatment_summary.csv \
+  --location Chokwe \
+  --crop Maize \
+  --season-start 2025-11-01 --season-end 2026-02-28
+```
+
+The registry currently contains Chokwe. Add a reviewed location record with
+its country code and coordinates before using another place. For a one-off
+unregistered location, provide `--latitude`, `--longitude`, and optionally
+`--country-code`; explicit coordinates override the registry.
+
 ## Validation
 
 Any JSON Schema draft-2020-12 validator can validate a payload. The schema is

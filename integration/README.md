@@ -142,6 +142,29 @@ simulated yield, states whether IWMI context is available, and lists the
 limitations. It is intentionally cautious: it does not present the current
 technical smoke test as a validated farm instruction.
 
+## End-to-end DSSAT-to-advisory command
+
+Use [`run_advisory.py`](./run_advisory.py) when a DSSAT treatment summary CSV
+is available. It ranks the CSV rows by `HWAH`, retrieves the Chókwè IWMI
+context, samples the rasters when requested, writes the normalized JSON, and
+prints the natural-language recommendation:
+
+```bash
+python integration/run_advisory.py \
+  --dssat-summary data/usecases/useCase_Mozambique_chokwe/Maize/result/DSSAT/AOI/Maize_2025_treatment_summary.csv \
+  --country-code MOZ \
+  --location Chokwe \
+  --crop Maize \
+  --latitude -24.500676 --longitude 33.001806 \
+  --season-start 2025-11-01 --season-end 2026-02-28 \
+  --sample-raster \
+  --output integration/examples/chokwe_maize_advisory_with_iwmi_values.json
+```
+
+The command expects the summary to contain `PDAT`, a cultivar column such as
+`Cultivar` or `INGENO`, and `HWAH`. Use `--allow-missing` to print the DSSAT
+recommendation when IWMI is temporarily unavailable.
+
 ## Validation
 
 Any JSON Schema draft-2020-12 validator can validate a payload. The schema is

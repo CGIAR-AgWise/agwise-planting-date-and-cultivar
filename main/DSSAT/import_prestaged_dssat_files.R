@@ -20,7 +20,9 @@
 # checking the filesystem.
 resolve_prestaged_dssat_source_dir <- function(
     country_code, zone, season_year, use_case_name,
-    datasourcing_products_dir = "~/agwise-datasourcing/dataops/datasourcing/Data/Global_GeoData/Processed/products") {
+    datasourcing_products_dir = Sys.getenv(
+      "AGWISE_DATASOURCING_PRODUCTS_DIR",
+      "~/agwise-datasourcing/dataops/datasourcing/Data/Global_GeoData/Processed/products")) {
 
   candidate_names <- c(
     paste0(country_code, "_", zone, "_forecast", season_year, "_", use_case_name),
@@ -166,7 +168,9 @@ generate_onset_dates_for_zone <- function(
 # calls is idempotent.
 import_prestaged_dssat_files <- function(
     complete_usecase, repo_root,
-    datasourcing_products_dir = "~/agwise-datasourcing/dataops/datasourcing/Data/Global_GeoData/Processed/products") {
+    datasourcing_products_dir = Sys.getenv(
+      "AGWISE_DATASOURCING_PRODUCTS_DIR",
+      "~/agwise-datasourcing/dataops/datasourcing/Data/Global_GeoData/Processed/products")) {
 
   products_dir <- complete_usecase$dssat_source_products_dir
   if (is.null(products_dir)) products_dir <- datasourcing_products_dir

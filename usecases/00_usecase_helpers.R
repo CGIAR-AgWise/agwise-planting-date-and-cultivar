@@ -30,7 +30,7 @@ usecase_repo_root <- function() {
 }
 
 agwise_tmp_dir <- function() {
-  tmp_dir <- Sys.getenv("AGWISE_TMPDIR", unset = "/Volumes/T7/tmp")
+  tmp_dir <- Sys.getenv("AGWISE_TMPDIR", unset = tempdir())
   dir.create(tmp_dir, recursive = TRUE, showWarnings = FALSE)
   normalizePath(tmp_dir, mustWork = FALSE)
 }

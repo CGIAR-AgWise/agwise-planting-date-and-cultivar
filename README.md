@@ -187,6 +187,31 @@ The default Python executable in the current use-case configs is:
 
 Override this path with `--py-path` if needed.
 
+### External repo dependencies (shared JupyterHub server)
+
+The DSSAT handoff (`main/DSSAT/run_datasourcing_export.R`,
+`main/DSSAT/import_prestaged_dssat_files.R`) assumes other AgWISE repos are
+reachable as sibling directories on this server:
+
+- `~/agwise-datasourcing` - the shared install. Provides the `agwise-data`
+  CLI binary (`envs/agwise_data/bin/agwise-data`), the R wrapper around it
+  (`code/data_sourcing/r/agwise_data.R`), and the pre-staged DSSAT export
+  products (`dataops/datasourcing/Data/Global_GeoData/Processed/products`).
+  `datasourcing_repo_dir` in `run_datasourcing_export.R` defaults to
+  `~/agwise-datasourcing/code/data_sourcing` for this reason - already
+  present for anyone on this server, no per-user setup needed.
+- Only if you're making pipeline-side fixes to the R wrapper itself and
+  don't want to touch the shared install: clone `data_sourcing` yourself and
+  point `AGWISE_DATASOURCING_REPO_DIR` at it. Also overridable:
+  `AGWISE_DATASOURCING_PRODUCTS_DIR` and `AGWISE_DATA_BIN`.
+
+Other environment variables scripts here read, all optional:
+
+- `AGWISE_TMPDIR` - scratch dir for forecast subprocess runs (defaults to
+  R's `tempdir()`).
+- `AGWISE_USECASES_DIR` - override for locating `usecases/` when a script is
+  sourced rather than run with `Rscript --file=`.
+
 ## New to running R scripts from a terminal?
 
 Everything in this README is run from a **terminal** (a command-line window),
@@ -638,6 +663,13 @@ Run multi-country dry-run:
 
 ```bash
 Rscript usecases/05_multi_country_maize_forecast.R --dry-run
+```
+
+Check the data_sourcing connection (no network calls, no shared writes - see
+"External repo dependencies" above):
+
+```bash
+Rscript tests/test_datasourcing_connection.R
 ```
 
 Check for old hard-coded active paths:

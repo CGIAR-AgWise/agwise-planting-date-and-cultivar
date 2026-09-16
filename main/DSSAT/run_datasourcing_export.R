@@ -181,20 +181,36 @@ ad_forecast_to_dssat_with_retry <- function(
 # already has EXTE#### sites, so re-running a usecase never re-downloads.
 generate_prestaged_dssat_via_datasourcing <- function(
     complete_usecase, repo_root,
-    # Own clone (not the shared ~/agwise-datasourcing install) so pipeline-
-    # side fixes to the R wrapper (e.g. quoting multi-word admin_name
-    # values like "Cabo Delgado" before they hit system2()) land without
-    # touching shared files. The CLI binary itself is still the shared,
-    # already-installed conda env - only the R source differs.
-    datasourcing_repo_dir = "~/Alvaro_repos/data_sourcing",
+    # Defaults to the shared ~/agwise-datasourcing install (code/data_sourcing,
+    # not dataops/datasourcing - that subtree only holds Data/, not the R
+    # wrapper) so this works out of the box for anyone on this server. Point
+    # AGWISE_DATASOURCING_REPO_DIR at your own clone instead when you need
+    # pipeline-side fixes to the R wrapper (e.g. quoting multi-word
+    # admin_name values like "Cabo Delgado" before they hit system2()) to
+    # land without touching shared files. The CLI binary itself is still the
+    # shared, already-installed conda env either way - only the R source
+    # differs.
+    datasourcing_repo_dir = Sys.getenv("AGWISE_DATASOURCING_REPO_DIR", "~/agwise-datasourcing/code/data_sourcing"),
     datasourcing_bin = "~/agwise-datasourcing/envs/agwise_data/bin/agwise-data",
-    datasourcing_products_dir = "~/agwise-datasourcing/dataops/datasourcing/Data/Global_GeoData/Processed/products",
+    datasourcing_products_dir = Sys.getenv(
+      "AGWISE_DATASOURCING_PRODUCTS_DIR",
+      "~/agwise-datasourcing/dataops/datasourcing/Data/Global_GeoData/Processed/products"),
     res_km = 5, calib_years = 1993:2016, ensemble = "mean") {
 
   if (!nzchar(Sys.getenv("AGWISE_DATA_BIN"))) {
     Sys.setenv(AGWISE_DATA_BIN = path.expand(datasourcing_bin))
   }
-  source(file.path(path.expand(datasourcing_repo_dir), "r", "agwise_data.R"))
+  agwise_data_r <- file.path(path.expand(datasourcing_repo_dir), "r", "agwise_data.R")
+  if (!file.exists(agwise_data_r)) {
+    stop(
+      "Can't find agwise_data.R at ", agwise_data_r, ".\n",
+      "generate_prestaged_dssat_via_datasourcing() expects the data_sourcing repo ",
+      "(shared install: ~/agwise-datasourcing/code/data_sourcing). If yours lives ",
+      "elsewhere, pass datasourcing_repo_dir or set the AGWISE_DATASOURCING_REPO_DIR ",
+      "environment variable to its path."
+    )
+  }
+  source(agwise_data_r)
 
   # forecast_init_from_usecase() lives in usecases/00_usecase_helpers.R,
   # which isn't guaranteed to already be sourced by the caller.

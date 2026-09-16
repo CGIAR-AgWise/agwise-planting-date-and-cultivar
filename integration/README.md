@@ -93,6 +93,28 @@ python integration/iwmi_adapter.py \
   --allow-missing
 ```
 
+Add `--sample-raster` to read the nearest GeoTIFF cell at Chókwè. The adapter
+uses a windowed remote read where supported; it does not download the entire
+large raster into memory:
+
+```bash
+python integration/iwmi_adapter.py \
+  --input integration/examples/chokwe_maize_advisory.json \
+  --output integration/examples/chokwe_maize_advisory_with_iwmi_values.json \
+  --latitude -24.500676 --longitude 33.001806 \
+  --sample-raster \
+  --stac-collection rainfall=limpopo_jfm_rainfall \
+  --stac-collection et_fraction=et_fraction_africa \
+  --stac-collection irrigation=irrigated_areas_limpopo \
+  --stac-collection water_stress=evaporative_stress_index_africa \
+  --allow-missing
+```
+
+The resulting measure includes `value`, `unit`, and the sampling coordinates.
+Product units remain qualified because IWMI products can use different scales
+and meanings; they must be confirmed against the product metadata before
+changing DSSAT ranking.
+
 ## Terminal recommendation
 
 After a normalized advisory JSON has been produced, render the result as

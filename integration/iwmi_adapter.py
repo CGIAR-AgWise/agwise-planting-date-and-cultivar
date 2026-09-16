@@ -20,6 +20,12 @@ VALUE_KEYS = (
     "results",
     "items",
 )
+UNITS = {
+    "rainfall": "percent anomaly",
+    "et_fraction": "fraction",
+    "irrigation": "product-specific class or probability",
+    "water_stress": "index",
+}
 
 
 def parse_endpoint(value):
@@ -82,6 +88,51 @@ def fetch_stac_item(catalog, collection, latitude, longitude, timeout):
         },
         "source": url,
     }
+
+
+def raster_url(asset_url):
+    if asset_url.startswith("/vsicurl/"):
+        return asset_url[len("/vsicurl/") :]
+    if asset_url.startswith("s3://"):
+        bucket, _, key = asset_url[5:].partition("/")
+        return f"https://{bucket}.s3.af-south-1.amazonaws.com/{key}"
+    return asset_url
+
+
+def sample_raster(asset_url, latitude, longitude):
+    try:
+        import rasterio
+    except ImportError as error:
+        raise RuntimeError(
+            "Raster sampling requires rasterio. Install it with: python -m pip install rasterio"
+        ) from error
+
+    url = raster_url(asset_url)
+    try:
+        with rasterio.open(url) as dataset:
+            sample = next(dataset.sample([(longitude, latitude)]))
+            value = float(sample[0])
+            nodata = dataset.nodata
+            if value != value or (nodata is not None and value == nodata):
+                raise RuntimeError("sampled raster cell contains no data")
+            return value, dataset.crs.to_string() if dataset.crs else None
+    except Exception as error:
+        if isinstance(error, RuntimeError):
+            raise
+        raise RuntimeError(f"Could not sample IWMI raster asset: {url}: {error}") from error
+
+
+def add_raster_value(measure, name, latitude, longitude):
+    value, crs = sample_raster(measure["asset_url"], latitude, longitude)
+    measure["value"] = value
+    measure["unit"] = UNITS.get(name, "product-specific")
+    measure["sample"] = {
+        "latitude": latitude,
+        "longitude": longitude,
+        "crs": crs,
+        "method": "nearest raster cell",
+    }
+    return measure
 
 
 def extract_value(payload):
@@ -148,6 +199,11 @@ def main():
     parser.add_argument("--latitude", type=float)
     parser.add_argument("--longitude", type=float)
     parser.add_argument(
+        "--sample-raster",
+        action="store_true",
+        help="Sample the matching IWMI raster at the supplied coordinates.",
+    )
+    parser.add_argument(
         "--allow-missing",
         action="store_true",
         help="Write unavailable context instead of stopping on an endpoint failure.",
@@ -170,6 +226,10 @@ def main():
                 payload["iwmi"][name] = fetch_stac_item(
                     args.stac_catalog, collection, args.latitude, args.longitude, args.timeout
                 )
+                if args.sample_raster:
+                    payload["iwmi"][name] = add_raster_value(
+                        payload["iwmi"][name], name, args.latitude, args.longitude
+                    )
             except RuntimeError as error:
                 if not args.allow_missing:
                     raise
@@ -186,6 +246,15 @@ def main():
         for collection in stac_collections.values()
     ]
     payload["provenance"]["generated_at"] = datetime.now(timezone.utc).isoformat()
+    if args.sample_raster:
+        payload["provenance"]["limitations"] = [
+            limitation
+            for limitation in payload.get("provenance", {}).get("limitations", [])
+            if limitation != "IWMI context not yet requested"
+        ]
+        payload["provenance"]["limitations"].append(
+            "IWMI values are sampled from product rasters and are not yet used to re-rank DSSAT options"
+        )
 
     with open(args.output, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2)

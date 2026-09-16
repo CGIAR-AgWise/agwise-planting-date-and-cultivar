@@ -13,6 +13,19 @@ def format_date(value):
     return f"{parsed.day} {parsed.strftime('%B')} {parsed.year}"
 
 
+def format_measure(name, measure):
+    labels = {
+        "rainfall": "Rainfall anomaly",
+        "et_fraction": "ET fraction",
+        "irrigation": "Irrigation context",
+        "water_stress": "Water-stress index",
+    }
+    if measure.get("status") != "available" or measure.get("value") is None:
+        return f"- {labels[name]}: unavailable"
+    unit = measure.get("unit", "value")
+    return f"- {labels[name]}: {measure['value']} ({unit})"
+
+
 def build_advisory(payload):
     request = payload["request"]
     location = request["location"]["name"]
@@ -54,9 +67,12 @@ def build_advisory(payload):
                     "Use them to distinguish how the result may apply to "
                     "rainfed and irrigated fields."
                 ),
-                "",
             ]
         )
+        for name in ("rainfall", "et_fraction", "irrigation", "water_stress"):
+            if name in iwmi:
+                lines.append(format_measure(name, iwmi[name]))
+        lines.append("")
     elif iwmi_status == "unavailable":
         lines.extend(
             [

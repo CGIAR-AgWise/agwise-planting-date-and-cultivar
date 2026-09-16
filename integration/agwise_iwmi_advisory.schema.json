@@ -136,8 +136,29 @@
         },
         "value": {},
         "unit": { "type": "string" },
-        "period": { "type": "string" },
-        "source": { "type": "string" }
+        "period": {
+          "type": "object",
+          "properties": {
+            "start": { "type": ["string", "null"], "format": "date-time" },
+            "end": { "type": ["string", "null"], "format": "date-time" }
+          },
+          "additionalProperties": false
+        },
+        "source": { "type": "string" },
+        "collection": { "type": "string" },
+        "item_id": { "type": "string" },
+        "asset_url": { "type": "string", "format": "uri-reference" },
+        "sample": {
+          "type": "object",
+          "required": ["latitude", "longitude", "method"],
+          "properties": {
+            "latitude": { "type": "number" },
+            "longitude": { "type": "number" },
+            "crs": { "type": ["string", "null"] },
+            "method": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
       },
       "additionalProperties": false
     }

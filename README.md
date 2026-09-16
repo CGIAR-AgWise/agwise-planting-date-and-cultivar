@@ -1,71 +1,41 @@
 # AgWISE Planting Date and Cultivar Pipeline
 
-AgWISE pipeline for preparing seasonal climate forecast data, applying daily
-bias correction, and generating DSSAT-ready weather and soil inputs for
-planting date and cultivar advisory workflows.
+AgWISE prepares seasonal climate forecasts for DSSAT crop-model simulations
+and uses those simulations to compare planting dates and cultivars. This
+branch also contains an integration prototype that combines AgWISE results
+with water-management context from the IWMI Limpopo Digital Twin.
 
-The project is designed to be reusable across countries, zones, crops, and
-local implementation partners. Country-specific settings are stored in YAML
-configuration files, while the forecast and DSSAT processing logic remains in a
-shared production codebase.
-
-**If you're adding or running a country/crop use case, you should only ever
-need `usecases/` (see `usecases/README.md`) and, for viewing results,
-`README_shiny_dashboard.md`.** The scripts under `main/Forecast/` and
-`main/DSSAT/` are the shared engine that YAML configs drive - you shouldn't
-need to open or edit them for normal use (see "Creating a New Country or Crop
-Use Case" below).
-
-## Overview
-
-The pipeline connects climate forecast processing with DSSAT crop-model input
-preparation.
+The project has two layers:
 
 ```text
-Use-case YAML config
-  -> Forecast configuration
-  -> ECMWF forecast and hindcast download
-  -> Daily bias correction
-  -> DSSAT handoff files
-  -> DSSAT weather and soil files
+AgWISE forecast and DSSAT simulation
+  -> ranked planting-date/cultivar results
+  -> AgWISE-IWMI advisory contract
+  -> IWMI context and terminal recommendation
 ```
 
-The final output is daily climate data in a format suitable for DSSAT crop
-model simulations.
+AgWISE remains responsible for the climate forecast and crop-model result.
+IWMI supplies additional rainfall, evapotranspiration, irrigation, and water
+stress context. The IWMI context qualifies the recommendation; it does not
+change the DSSAT ranking unless product meanings and agronomic thresholds have
+been formally validated.
 
-## Quick start
+## What the workflow does
 
-Create the reproducible environment first:
+For a configured country, location, crop, and season, the workflow:
 
-```bash
-conda env create -f environment.yml
-conda activate agwise-integration
-Rscript install_pkgs.R
-```
+1. Downloads seasonal forecast and hindcast data from the Copernicus Climate
+   Data Store.
+2. Converts and prepares the climate variables used by DSSAT.
+3. Applies daily bias correction.
+4. Creates DSSAT-ready weather, soil, and handoff files.
+5. Runs the configured DSSAT simulations.
+6. Ranks planting-date and cultivar treatments by simulated yield (`HWAH`).
+7. Resolves the location and queries the public IWMI STAC catalog.
+8. Optionally samples the nearest remote raster cell at the location.
+9. Writes a normalized JSON payload and prints a natural-language advisory.
 
-Copy `.env.example` to `.env` and set local paths such as `DSSAT_CSM`.
-Configure CDS credentials in the standard user-level `~/.cdsapirc` file; do
-not commit credentials.
-
-Preview the Chókwè workflow:
-
-```bash
-make dry-run
-```
-
-Run the forecast, DSSAT simulation, IWMI context lookup, and terminal advisory:
-
-```bash
-make workflow LOCATION=Chokwe CROP=Maize \
-  SEASON_START=2025-11-01 SEASON_END=2026-02-28
-```
-
-The Makefile keeps location, crop, season, and output paths configurable while
-the shared AgWise and integration code remains reusable. See
-[`integration/README.md`](integration/README.md) for the advisory contract and
-location registry.
-
-Core forecast variables:
+The core forecast variables are:
 
 ```text
 PRCP  daily rainfall, mm day-1
@@ -74,191 +44,383 @@ TMIN  daily minimum temperature, degC
 SRAD  daily solar radiation, MJ m-2 day-1
 ```
 
-## Key Features
+## Quick start
 
-- Country-agnostic use-case configuration.
-- One-month forecast lead time before crop season start.
-- Multi-country and single-country execution modes.
-- RStudio-friendly Kenya example workflow.
-- Daily bias correction for forecast variables.
-- Proper ECMWF de-accumulation and unit conversion for DSSAT.
-- Parallel processing support through `n_cores`.
-- DSSAT weather and soil file preparation.
-- Organized data folders for country data, shared geodata, and use-case files.
-- Legacy and unused files separated into archive folders.
+### 1. Create the environment
 
-## Repository Structure
-
-```text
-main/
-  Forecast/                  Forecast download, configuration, bias correction,
-                             and DSSAT handoff preparation
-  DSSAT/                     DSSAT weather and soil file preparation scripts
-
-usecases/
-  configs/                   YAML files for country/crop use cases
-  run_usecase.R              Generic runner for one YAML use case
-  run_multi_country.R        Generic runner for multiple YAML use cases
-  create_usecase_config.R    Helper for creating new YAML configs
-  *_forecast.R               Country wrapper scripts
-  07_kenya_*_rstudio*.R      Step-by-step Kenya RStudio workflow
-
-data/
-  countries/                 Country-specific forecast workspaces
-  global/                    Shared soil and geospatial inputs
-  usecases/                  DSSAT templates and generated crop-model files
-  archive/                   Archived legacy, stale, or metadata files
-
-tests/                       Smoke and validation checks
-archive/                     Archived legacy scripts and unused code
-```
-
-## Data Organization
-
-Country forecast data are stored by ISO3 country code.
-
-```text
-data/countries/<ISO3>/
-  config/
-    <ISO3>_config_agwise.json
-  observations/
-  forecast/
-    raw/
-    bias_corrected/
-    geo_4cropModel/
-    dssat_handoff/
-    dssat_weather/
-    extremes/
-    Onset_DoY/
-    logs/
-    diagnostics/
-    manifests/
-```
-
-DSSAT use-case data are stored separately from country-wide climate data.
-
-```text
-data/usecases/
-  useCase_<Country>_<UseCaseName>/
-    <Crop>/
-      DSSAT/
-      Landing/DSSAT/
-      transform/
-      result/
-      data_curation/
-```
-
-Shared soil and geospatial data are stored under:
-
-```text
-data/global/
-  soil/
-  admin_boundaries/
-```
-
-Traceability files:
-
-```text
-data/COUNTRY_DATA_MANIFEST.csv
-data/USECASE_DATA_MANIFEST.csv
-```
-
-## Requirements
-
-The full production workflow requires R, Python, Java support for `loadeR.java`,
-and access to the Copernicus Climate Data Store API.
-
-### R packages
-
-The forecast workflow uses packages including:
-
-```text
-loadeR.java
-geodata
-jsonlite
-ncdf4
-loadeR
-transformeR
-downscaleR
-loadeR.2nc
-visualizeR
-parallel
-terra
-gridExtra
-grid
-RColorBrewer
-```
-
-The DSSAT workflow also uses standard R data handling and geospatial packages
-loaded by the scripts in `main/DSSAT/`.
-
-### Python packages
-
-The ECMWF/CDS download workflow uses packages including:
-
-```text
-cdsapi
-xarray
-pandas
-numpy
-dask
-netCDF4
-h5netcdf
-rioxarray
-requests
-tqdm
-matplotlib
-cartopy
-```
-
-The default Python executable in the current use-case configs is:
-
-```text
-/opt/anaconda3/envs/WASS2S/bin/python
-```
-
-Override this path with `--py-path` if needed.
-
-## New to running R scripts from a terminal?
-
-Everything in this README is run from a **terminal** (a command-line window),
-not by clicking "Run" in RStudio's script editor. If you're an RStudio user
-and haven't done this before:
-
-1. In RStudio, open the **Terminal** tab (next to the Console tab), or open
-   any terminal application and `cd` into this repository's folder.
-2. Every gray code block below starting with `Rscript ...` is a single
-   command you type (or copy-paste) into that terminal and press Enter.
-   `Rscript` is R's own command-line tool for running a `.R` file outside of
-   RStudio - it's the same R engine, just started from the terminal instead
-   of by clicking a "Run" button.
-3. Words starting with `--` (e.g. `--dry-run`, `--n-cores 4`) are called
-   **flags** or **options** - they're extra instructions you can add after
-   the script name to change how it behaves. You can copy a command exactly
-   as shown, or drop/add flags as needed.
-4. A **YAML file** (`.yml`) is a plain-text settings file - every use case's
-   country, crop, zones, season dates, etc. live in one, and you can open and
-   edit it in any text editor (including RStudio). You don't need to touch
-   any `.R` script to change a country's settings, only its YAML file.
-
-If a command below fails with something like `command not found`, it usually
-means the terminal isn't in the repository folder yet - `cd` into it first.
-
-## Quick Start
-
-Always begin with a dry run. A dry run prints the command that would be
-executed and checks the configuration wiring **without** downloading or
-processing forecast data - it's a safe way to check your settings are wired
-up correctly before committing to a run that can take hours.
+The reproducible environment includes Python, R, geospatial libraries, CDS
+client support, and raster sampling dependencies:
 
 ```bash
-Rscript usecases/run_usecase.R usecases/configs/KEN/maize_example.yml --dry-run
+conda env create -f environment.yml
+conda activate agwise-integration
+Rscript install_pkgs.R
 ```
 
-Run the Kenya use case:
+If the environment already exists:
 
 ```bash
-Rscript usecases/run_usecase.R usecases/configs/KEN/maize_example.yml
+conda env update -f environment.yml --prune
+```
+
+### 2. Configure local paths
+
+Copy the local settings template:
+
+```bash
+cp .env.example .env
+```
+
+Set the local DSSAT executable and, if necessary, the Python executable:
+
+```text
+DSSAT_CSM=C:/DSSAT48/DSCSM048.EXE
+AGWISE_PYTHON=python
+AGWISE_N_CORES=2
+```
+
+Keep CDS credentials in the user-level `~/.cdsapirc` file. Never commit
+`.env`, `.cdsapirc`, API tokens, passwords, or downloaded data.
+
+### 3. Preview before running
+
+Always begin with:
+
+```bash
+make dry-run
+```
+
+The dry run checks the configured AgWISE YAML wiring without downloading
+forecast data or running the long processing steps.
+
+### 4. Run the Chokwe demonstration
+
+The configured demonstration is maize in Chokwe, Mozambique:
+
+```bash
+make workflow \
+  LOCATION=Chokwe \
+  CROP=Maize \
+  SEASON_START=2025-11-01 \
+  SEASON_END=2026-02-28
+```
+
+This runs the configured AgWISE use case first and then builds the IWMI-aware
+advisory from the DSSAT treatment summary.
+
+The current demonstration is a technical integration test, not a validated
+farm instruction. It uses one point, a generic soil profile, a provisional
+regional cultivar, and one forecast season.
+
+## Makefile commands
+
+Run commands from the repository root. The Makefile is intended for GNU Make,
+Git Bash, or another POSIX-compatible shell.
+
+| Command | Purpose |
+| --- | --- |
+| `make setup` | Print environment setup instructions |
+| `make dry-run` | Preview the configured AgWISE use case |
+| `make forecast` | Run the configured AgWISE/DSSAT use case |
+| `make advisory` | Build the advisory from an existing DSSAT summary |
+| `make workflow` | Run `forecast`, then `advisory` |
+| `make clean-python-cache` | Remove generated Python bytecode caches |
+
+The most important Makefile variables are:
+
+```text
+LOCATION          Location name, default: Chokwe
+CROP              Crop name, default: Maize
+SEASON_START      Target season start, default: 2025-11-01
+SEASON_END        Target season end, default: 2026-02-28
+SEASON_YEAR       AgWISE season year, default: 2025
+USECASE_CONFIG    AgWISE YAML configuration
+DSSAT_SUMMARY     DSSAT treatment summary CSV
+ADVISORY_OUTPUT   Normalized advisory JSON output
+```
+
+For example:
+
+```bash
+make dry-run \
+  USECASE_CONFIG=usecases/configs/MOZ/maize_chokwe.yml
+```
+
+## Use-case scenarios
+
+A use case is one complete experiment:
+
+```text
+location or zone + country + crop + season + forecast settings + DSSAT inputs
+```
+
+### Scenario 1: Run the complete Chokwe workflow
+
+Use this for the main internship demonstration:
+
+```bash
+make workflow \
+  LOCATION=Chokwe \
+  CROP=Maize \
+  SEASON_START=2025-11-01 \
+  SEASON_END=2026-02-28
+```
+
+Expected flow:
+
+```text
+Chokwe YAML
+  -> forecast download
+  -> bias correction
+  -> DSSAT preparation and simulation
+  -> best planting date and cultivar
+  -> IWMI context
+  -> terminal recommendation
+```
+
+### Scenario 2: Regenerate an advisory without rerunning the forecast
+
+Use this when a DSSAT treatment summary already exists:
+
+```bash
+make advisory \
+  LOCATION=Chokwe \
+  CROP=Maize \
+  DSSAT_SUMMARY=path/to/treatment_summary.csv
+```
+
+This reads the CSV, ranks rows by `HWAH`, resolves the location, retrieves
+IWMI context, writes the normalized JSON payload, and prints the
+recommendation. It avoids repeating the expensive forecast and DSSAT stages.
+
+The CSV is expected to contain:
+
+```text
+PDAT       planting date
+Cultivar   or INGENO, cultivar identifier
+HWAH       simulated harvested yield
+```
+
+### Scenario 3: Run another existing AgWISE configuration
+
+The repository includes configurations for:
+
+```text
+usecases/configs/ETH/maize_national.yml
+usecases/configs/GHA/maize_national.yml
+usecases/configs/KEN/maize_example.yml
+usecases/configs/MWI/maize_national.yml
+usecases/configs/MOZ/maize_chokwe.yml
+usecases/configs/MOZ/maize_full.yml
+usecases/configs/MOZ/maize_test.yml
+usecases/configs/MOZ/soybean_full.yml
+usecases/configs/RWA/maize_rab.yml
+```
+
+Preview Malawi, for example:
+
+```bash
+make dry-run \
+  USECASE_CONFIG=usecases/configs/MWI/maize_national.yml
+```
+
+Run it with the Makefile:
+
+```bash
+make workflow \
+  USECASE_CONFIG=usecases/configs/MWI/maize_national.yml \
+  LOCATION=MalawiLocation \
+  CROP=Maize \
+  SEASON_START=2025-11-01 \
+  SEASON_END=2026-02-28
+```
+
+The YAML must contain suitable country, location or zone, crop, season,
+forecast extent, soil, cultivar, and DSSAT settings. Changing only
+`LOCATION=...` or `CROP=...` does not create those scientific inputs.
+
+### Scenario 4: Compare two locations
+
+Run the same crop and season for two reviewed use cases and compare:
+
+```bash
+make workflow LOCATION=Chokwe CROP=Maize \
+  SEASON_START=2025-11-01 SEASON_END=2026-02-28
+
+make workflow LOCATION=OtherLocation CROP=Maize \
+  SEASON_START=2025-11-01 SEASON_END=2026-02-28
+```
+
+Compare the recommended planting date, cultivar, simulated yield, rainfall
+context, irrigation context, and water-stress context. Different results are
+expected because climate, soil, forecast, and water conditions vary by place.
+
+### Scenario 5: Compare different seasons
+
+Keep the location and crop fixed, but change the target season:
+
+```bash
+make workflow LOCATION=Chokwe CROP=Maize \
+  SEASON_START=2026-10-01 SEASON_END=2027-01-31
+```
+
+The advisory records whether each IWMI source overlaps the requested season.
+Historical and static context is retained, but it must not be described as a
+direct observation of the target season.
+
+### Scenario 6: Test a new location using coordinates
+
+The advisory can be tested for an unregistered location by supplying
+coordinates directly:
+
+```bash
+python integration/run_advisory.py \
+  --dssat-summary path/to/treatment_summary.csv \
+  --location "New Location" \
+  --latitude -23.0000 \
+  --longitude 32.5000 \
+  --crop Maize \
+  --season-start 2025-11-01 \
+  --season-end 2026-02-28 \
+  --sample-raster \
+  --allow-missing
+```
+
+This tests IWMI point lookup and advisory formatting. A full AgWISE forecast
+still requires a reviewed YAML configuration and supporting DSSAT data.
+
+## Integration components
+
+The `integration/` folder contains the AgWISE-IWMI boundary:
+
+| File | Purpose |
+| --- | --- |
+| `integration/run_advisory.py` | Reads DSSAT CSV, ranks treatments, queries IWMI, and prints the advisory |
+| `integration/iwmi_adapter.py` | Discovers IWMI STAC items and optionally samples remote rasters |
+| `integration/advisory.py` | Formats the normalized payload as plain-language terminal text |
+| `integration/locations.json` | Registry of reviewed locations and coordinates |
+| `integration/agwise_iwmi_advisory.schema.json` | JSON Schema for the normalized payload |
+| `integration/examples/` | Technical example advisory payloads |
+
+### Direct advisory command
+
+The registered Chokwe coordinates are resolved automatically:
+
+```bash
+python integration/run_advisory.py \
+  --dssat-summary data/usecases/useCase_Mozambique_chokwe/Maize/result/DSSAT/AOI/Maize_2025_treatment_summary.csv \
+  --country-code MOZ \
+  --location Chokwe \
+  --crop Maize \
+  --season-start 2025-11-01 \
+  --season-end 2026-02-28 \
+  --sample-raster \
+  --output integration/examples/chokwe_maize_advisory_with_iwmi_values.json
+```
+
+Use `--allow-missing` when IWMI is temporarily unavailable and the DSSAT
+recommendation should still be printed.
+
+### IWMI products and interpretation
+
+The adapter currently supports these public STAC collections:
+
+```text
+limpopo_jfm_rainfall
+et_fraction_africa
+irrigated_areas_limpopo
+evaporative_stress_index_africa
+```
+
+The adapter records the source item, period, asset URL, value, unit, CRS,
+coordinates, and sampling method. It classifies source periods as:
+
+```text
+current_season
+historical_reference
+static_spatial_context
+```
+
+Interpretation is deliberately conservative:
+
+- A negative rainfall anomaly is described as below the product reference
+  average.
+- A positive rainfall anomaly is described as above the product reference
+  average.
+- ET fraction, irrigation, and water-stress values are displayed but are not
+  labeled high or low until official legends and thresholds are confirmed.
+- IWMI context does not re-rank DSSAT planting dates or cultivars.
+
+## Location registry
+
+Registered locations are stored in
+[`integration/locations.json`](integration/locations.json). A record contains:
+
+```json
+{
+  "name": "Chokwe",
+  "country_code": "MOZ",
+  "latitude": -24.500676,
+  "longitude": 33.001806,
+  "iwmi_region": "Limpopo"
+}
+```
+
+Add a new location only after its coordinates, country, IWMI region, soil,
+crop calendar, and DSSAT assumptions have been reviewed. For one-off advisory
+tests, explicit `--latitude` and `--longitude` values override the registry.
+
+## Full AgWISE use cases versus advisory inputs
+
+The advisory layer is generalized around:
+
+```text
+location + latitude/longitude + crop + season + DSSAT summary
+```
+
+The full AgWISE forecast remains configuration-driven because it needs
+scientific inputs that cannot safely be inferred from a location name:
+
+```text
+country code
+forecast extent
+season length and lead time
+climate variables
+soil profile
+cultivar and variety identifiers
+crop calendar
+DSSAT templates and management settings
+```
+
+The correct process for a new crop or location is:
+
+1. Create or adapt a YAML use-case configuration.
+2. Review the extent, season, soil, cultivar, and DSSAT inputs.
+3. Run `make dry-run`.
+4. Run the forecast and DSSAT workflow.
+5. Register the location if it will be reused by the advisory.
+6. Run the advisory and review its limitations.
+
+This separation prevents a technically valid command from being mistaken for
+a scientifically validated recommendation.
+
+## Direct R workflow
+
+The Makefile is the recommended entry point for the integrated workflow. The
+underlying AgWISE runner can also be called directly:
+
+```bash
+Rscript usecases/run_usecase.R \
+  usecases/configs/MOZ/maize_chokwe.yml \
+  --dry-run
+```
+
+Run an existing YAML configuration:
+
+```bash
+Rscript usecases/run_usecase.R \
+  usecases/configs/MOZ/maize_chokwe.yml \
+  --season-year 2025
 ```
 
 Run all configured country use cases:
@@ -267,501 +429,90 @@ Run all configured country use cases:
 Rscript usecases/run_multi_country.R
 ```
 
-Preview all configured country use cases:
+The scripts under `main/Forecast/` and `main/DSSAT/` are the shared engine.
+Normal users should change YAML configuration and runtime variables rather
+than editing those shared scripts.
 
-```bash
-Rscript usecases/run_multi_country.R --dry-run
-```
-
-Run the Kenya wrapper script:
-
-```bash
-Rscript usecases/06_kenya_maize_example_forecast.R --dry-run
-```
-
-## Kenya RStudio Workflow
-
-The Kenya example includes a step-by-step script for users who prefer running
-the workflow from RStudio:
+## Repository structure
 
 ```text
-usecases/07_kenya_maize_example_workflow.R
+main/
+  Forecast/                  Forecast download, bias correction, and DSSAT handoff
+  DSSAT/                     DSSAT weather, soil, and simulation workflow
+
+usecases/
+  configs/                   Country and crop YAML configurations
+  run_usecase.R              Single use-case runner
+  run_multi_country.R        Multi-country runner
+  create_usecase_config.R    New YAML configuration helper
+
+integration/
+  run_advisory.py            DSSAT-to-IWMI advisory orchestration
+  iwmi_adapter.py            IWMI STAC and raster adapter
+  advisory.py                Terminal recommendation formatter
+  locations.json             Reviewed location registry
+
+data/
+  countries/                 Country forecast workspaces
+  global/                    Shared soil and geospatial inputs
+  usecases/                  DSSAT templates and generated outputs
 ```
 
-This script demonstrates how to:
+## Outputs and reproducibility
 
-- Define the country, crop, zone, season, and forecast lead time.
-- Set the CDS bounding box in `North, West, South, East` order.
-- Read available DSSAT variety options from the template file.
-- Select a DSSAT variety.
-- Create or update the YAML configuration.
-- Run the forecast pipeline.
-- Optionally prepare DSSAT weather and soil files.
-
-The script is controlled by:
-
-```r
-RUN_MODE <- "dry_run"
-RUN_MODE <- "forecast"
-RUN_MODE <- "forecast_and_dssat_files"
-```
-
-Recommended RStudio workflow:
-
-1. Open `usecases/07_kenya_maize_example_workflow.R`.
-2. Keep `RUN_MODE <- "dry_run"` for the first run.
-3. Check the printed command, extent, zone, and selected variety.
-4. Change to `RUN_MODE <- "forecast"` when CDS credentials and dependencies
-   are ready.
-5. Change to `RUN_MODE <- "forecast_and_dssat_files"` after DSSAT handoff files
-   exist and weather/soil files are needed.
-
-Current Kenya example:
+Forecast and DSSAT outputs are written under the configured `data/` use-case
+directories. The integration command writes a normalized JSON payload, for
+example:
 
 ```text
-country_code: KEN
-country_name: Kenya
-use_case_name: Example
-crop: Maize
-zones: Kisumu
-season_start_month: 10
-season_start_day: 1
-season_year: 2025
-season_length_months: 3
-lead_months: 1
-varietyid: 999993
+integration/examples/chokwe_maize_advisory_with_iwmi_values.json
 ```
 
-Current DSSAT variety option in the Kenya template:
-
-```text
-999993  SHORT_KENYA
-```
-
-## Active Use Cases
-
-Current YAML configurations:
-
-```text
-usecases/configs/KEN/maize_example.yml
-usecases/configs/RWA/maize_rab.yml
-usecases/configs/ETH/maize_national.yml
-usecases/configs/GHA/maize_national.yml
-usecases/configs/MWI/maize_national.yml
-```
-
-Current wrapper scripts:
-
-```text
-usecases/01_rwanda_maize_forecast.R
-usecases/02_ethiopia_maize_forecast.R
-usecases/03_ghana_maize_forecast.R
-usecases/04_malawi_maize_forecast.R
-usecases/05_multi_country_maize_forecast.R
-usecases/06_kenya_maize_example_forecast.R
-usecases/07_kenya_maize_example_workflow.R
-```
-
-The wrapper scripts call the same YAML-driven runner. They are provided for
-convenience and for country teams that prefer one script per scenario.
-
-## YAML Configuration
-
-A YAML config is the source of truth for each use case.
-
-Example:
-
-```yaml
-name: Kenya maize example seasonal forecast to DSSAT
-country_code: KEN
-country_name: Kenya
-use_case_name: Example
-crop: Maize
-zones:
-  - Kisumu
-season_start_month: 10
-season_start_day: 1
-season_year: 2025
-season_length_months: 3
-lead_months: 1
-n_cores: 4
-variables:
-  - PRCP
-  - TMAX
-  - TMIN
-  - SRAD
-manual_extent: true
-extent:
-  - 5.57
-  - 33.40
-  - -5.23
-  - 42.43
-skip_dssat: false
-create_dssat_weather_files: true
-varietyid: 999993
-```
-
-Field guide:
-
-```text
-name                         Human-readable use-case name
-country_code                 ISO3 country code
-country_name                 Country name used in DSSAT folder names
-use_case_name                Local partner or scenario name
-crop                         Crop folder name
-zones                        Zone names to process
-season_start_month           Crop season start month
-season_start_day             Crop season start day
-season_year                  Crop season year
-season_length_months         Number of crop-season months
-lead_months                  Forecast lead time before season start
-n_cores                      CPU cores for bias correction
-variables                    Variables to bias-correct and export
-manual_extent                TRUE when using a manual CDS bounding box
-extent                       North, West, South, East
-skip_dssat                   TRUE to skip DSSAT handoff preparation
-create_dssat_weather_files   TRUE to create WTH/SOL files after handoff
-varietyid                    DSSAT cultivar/variety code
-```
-
-## Creating a New Country or Crop Use Case
-
-New countries are added from `usecases/` only. Do not edit scripts in
-`main/Forecast/` or `main/DSSAT/`; those are shared production engines.
-
-Create a new YAML config, folder scaffold, and optional wrapper script with:
-
-```bash
-Rscript usecases/create_usecase_config.R \
-  --country TZA \
-  --country-name Tanzania \
-  --use-case National \
-  --crop Maize \
-  --zones Arusha,Dodoma \
-  --season-start-month 11 \
-  --season-start-day 1 \
-  --season-year 2026 \
-  --season-length-months 4 \
-  --lead-months 1 \
-  --n-cores 4 \
-  --extent -1.234,29.123,-11.222,40.987 \
-  --varietyid 999993
-```
-
-The creator validates the config, expands the CDS bounding box outward to the
-nearest `0.01` degree, writes:
-
-```text
-usecases/configs/<ISO3>/<crop_usecase>.yml
-usecases/<country>_<crop>_<usecase>_forecast.R
-```
-
-and prepares the folder scaffold:
-
-```text
-data/countries/<ISO3>/
-data/usecases/useCase_<Country>_<UseCaseName>/<Crop>/DSSAT/
-```
-
-Run the generated use case without editing main scripts:
-
-```bash
-Rscript usecases/run_usecase.R usecases/configs/TZA/maize_national.yml --dry-run --n-cores 4
-Rscript usecases/run_usecase.R usecases/configs/TZA/maize_national.yml --n-cores 4
-```
-
-or use the generated wrapper:
-
-```bash
-Rscript usecases/tanzania_maize_national_forecast.R --dry-run --n-cores 4
-```
-
-Minimum adaptation checklist:
-
-1. Choose country ISO3, country name, use-case name, crop, and zones.
-2. Create the YAML with `usecases/create_usecase_config.R`.
-3. Confirm the CDS extent uses `North, West, South, East`.
-4. Start with `--dry-run`.
-5. Run the forecast and bias correction.
-6. Inspect forecast logs and output folders.
-7. Confirm DSSAT handoff RDS files were created.
-8. Add DSSAT templates under `data/usecases/.../DSSAT/` before enabling WTH/SOL formatting.
-9. Add local cultivar rows to the DSSAT template CSV.
-10. Set `create_dssat_weather_files: true` or use `--format-zones` when WTH and SOL files are needed.
-
-## One-Month Forecast Lead Time
-
-The user provides the crop season start date. The pipeline derives the forecast
-initialization date by subtracting `lead_months`.
-
-Example:
-
-```text
-season_start_month: 10
-season_start_day: 1
-season_year: 2025
-lead_months: 1
-```
-
-This means:
-
-```text
-Crop season starts:       2025-10-01
-Forecast initialization:  2025-09-01
-```
-
-If the crop season starts in January, the forecast initialization rolls back
-into the previous calendar year.
-
-## Forecast and Bias Correction
-
-The main forecast runner is:
-
-```text
-main/Forecast/run_forecast_to_dssat.R
-```
-
-It calls the forecast setup, download, bias-correction, and DSSAT handoff
-scripts.
-
-Lower-level forecast command example:
-
-```bash
-Rscript main/Forecast/run_forecast_to_dssat.R \
-  --country KEN \
-  --season-start-month 10 \
-  --season-start-day 1 \
-  --season-year 2025 \
-  --season-length-months 3 \
-  --lead-months 1 \
-  --n-cores 4 \
-  --variables PRCP,TMAX,TMIN,SRAD \
-  --manual-extent \
-  --extent 5.57,33.40,-5.23,42.43
-```
-
-Bias-corrected NetCDF outputs are written to:
-
-```text
-data/countries/<ISO3>/forecast/bias_corrected/
-```
-
-DSSAT handoff outputs are written to:
-
-```text
-data/countries/<ISO3>/forecast/dssat_handoff/
-```
-
-## DSSAT Handoff and Formatting
-
-The forecast bridge writes handoff files such as:
-
-```text
-Rainfall_Season_1_PointData_AOI.RDS
-temperatureMax_Season_1_PointData_AOI.RDS
-temperatureMin_Season_1_PointData_AOI.RDS
-solarRadiation_Season_1_PointData_AOI.RDS
-SoilDEM_PointData_AOI_profile.RDS
-manifest.csv
-```
-
-The DSSAT formatting script is:
-
-```text
-main/DSSAT/readGeo_CM_zone.R
-```
-
-To create DSSAT WTH and SOL files after the handoff exists, set this in the
-YAML config:
-
-```yaml
-create_dssat_weather_files: true
-```
-
-or run:
-
-```bash
-Rscript usecases/run_usecase.R usecases/configs/KEN/maize_example.yml --format-zones
-```
-
-Generated DSSAT files are written under the matching use-case folder in:
-
-```text
-data/usecases/useCase_<Country>_<UseCaseName>/<Crop>/
-```
-
-## Expected DSSAT Weather Variables
-
-DSSAT weather files should contain daily rows with crop-model-ready units.
-
-```text
-DATE  daily date
-SRAD  solar radiation, MJ m-2 day-1
-TMAX  maximum temperature, degC
-TMIN  minimum temperature, degC
-RAIN  rainfall, mm day-1
-```
-
-Forecast periods can cross calendar years. Outputs should use the available
-forecast dates and should not be truncated at December 31.
-
-## Parallel Processing
-
-Set CPU cores in YAML:
-
-```yaml
-n_cores: 4
-```
-
-or override from the command line:
-
-```bash
-Rscript usecases/run_usecase.R usecases/configs/KEN/maize_example.yml --n-cores 8
-```
-
-Suggested starting points:
-
-```text
-Laptop or small VM:      2 to 4 cores
-Workstation:             4 to 8 cores
-Large server/HPC node:   8 or more cores after memory testing
-```
-
-## Quality Control Checklist
-
-After running the pipeline, confirm:
-
-- Country config exists under `data/countries/<ISO3>/config/`.
-- Raw forecast and hindcast files exist under `forecast/raw/`.
-- Bias-corrected files exist under `forecast/bias_corrected/`.
-- DSSAT handoff RDS files exist under `forecast/dssat_handoff/`.
-- `manifest.csv` lists the expected zones.
-- RAIN values are daily totals, not cumulative totals.
-- TMAX is generally greater than or equal to TMIN.
-- WTH files contain daily rows for the expected forecast horizon.
-- Forecast dates are not cut off at the end of one calendar year.
-- Soil profiles are present and aligned with forecast points.
-- Outputs are under `data/countries/` or `data/usecases/`, not old folders.
-
-## Validation Commands
-
-Parse active R scripts:
-
-```bash
-Rscript -e 'files <- c(list.files("usecases", pattern="[.]R$", full.names=TRUE), list.files("main/Forecast", pattern="[.]R$", full.names=TRUE), list.files("main/DSSAT", pattern="[.]R$", full.names=TRUE), "data/usecases/useCase_Kenya_Example/Maize/DSSAT/config.R"); for (f in files) { parse(f); cat("parse ok:", f, "\n") }'
-```
-
-Compile Python scripts:
-
-```bash
-python3 -m py_compile \
-  main/Forecast/AgWise_download.py \
-  main/Forecast/02_run_agwise_multi_country.py \
-  main/Forecast/config_read.py
-```
-
-Run Kenya dry-run:
-
-```bash
-Rscript usecases/06_kenya_maize_example_forecast.R --dry-run
-```
-
-Run multi-country dry-run:
-
-```bash
-Rscript usecases/05_multi_country_maize_forecast.R --dry-run
-```
-
-Check for old hard-coded active paths:
-
-```bash
-rg -n "Data/useCase_|data/useCase_|/Data/|/home/jovyan|Global_GeoData|geo_4cropModel_forecast|daily_model_data|Observation/|Scripts/generic" \
-  main/Forecast main/DSSAT usecases data -g '!data/archive/**'
-```
-
-No output means the active production path is clean.
+The payload is intended for downstream dashboards, APIs, or other platform
+consumers. It contains the request, AgWISE result, ranked recommendations,
+IWMI context, provenance, source periods, and limitations.
+
+Generated logs, NetCDF/RDS files, DSSAT outputs, downloaded source trees,
+Python caches, `.env`, and credentials should remain uncommitted unless they
+are intentionally being versioned as a small example fixture.
 
 ## Troubleshooting
 
-### CDS coordinate error
+### `make` is not available
 
-If CDS reports that a coordinate must be a multiple of `0.01`, round or expand
-the bounding box to two decimal places.
+Install GNU Make or use Git Bash. Alternatively, run the underlying
+`Rscript` and Python commands directly as shown above.
 
-Use this order:
+### CDS download fails
 
-```text
-North, West, South, East
-```
+Check that `~/.cdsapirc` exists, contains valid credentials, and that the
+selected forecast dates and extent are supported by the CDS service.
 
-Example:
+### DSSAT executable is not found
 
-```text
-5.57,33.40,-5.23,42.43
-```
-
-### Rainfall is cumulative
-
-Rainfall should be a daily total. If it grows every day like a cumulative
-curve, raw ECMWF total precipitation was not de-accumulated.
-
-Check:
+Set the executable path in `.env`:
 
 ```text
-RAIN = (current cumulative TP - previous cumulative TP) * 1,000
+DSSAT_CSM=C:/DSSAT48/DSCSM048.EXE
 ```
 
-### DSSAT files are missing
+### IWMI data are unavailable
 
-Check:
+Use `--allow-missing` for an advisory that reports DSSAT results while
+marking missing IWMI context explicitly. Do not replace missing measurements
+with invented values.
 
-- `data/countries/<ISO3>/forecast/dssat_handoff/` exists.
-- Expected RDS files are present.
-- The zone name in YAML matches the handoff manifest.
-- `create_dssat_weather_files: true` is set or `--format-zones` is used.
-- DSSAT templates exist under `data/usecases/`.
+### The result is not an agronomic recommendation
 
-### Wrong cultivar or variety
+The current integration is a reproducible technical prototype. Validate
+multiple seasons, locations, soils, cultivars, and official IWMI product
+legends before presenting output as operational farm advice.
 
-Check the DSSAT template CSV under:
+## Related documentation
 
-```text
-data/usecases/useCase_<Country>_<UseCaseName>/<Crop>/DSSAT/
-```
-
-The pipeline reads cultivar options from `INGENO` and the variety/name column.
-Set the selected cultivar with `varietyid` in the YAML config.
-
-
-## Documentation
-
-Additional documentation:
-
-```text
-data/README.md
-usecases/README.md
-main/Forecast/README.md
-```
-
-Important production scripts:
-
-```text
-main/Forecast/run_forecast_to_dssat.R
-main/Forecast/00_config_function.R
-main/Forecast/02_run_agwise_multi_country.py
-main/Forecast/03_bias_correction_forecast_multiVar.R
-main/Forecast/04_prepare_dssat_geo_inputs.R
-main/Forecast/AgWise_download.py
-main/DSSAT/readGeo_CM_zone.R
-main/DSSAT/helpers_readGeo_CM_zone.R
-usecases/00_usecase_helpers.R
-```
-
-## Author
-
-```text
-Author: Jemal S. Ahmed
-Email: jemal.ahmed@cgiar.org
-Institution: Alliance of Bioversity International and CIAT (CGIAR)
-Date: 2026-05-29
-```
+- [`integration/README.md`](integration/README.md): detailed contract and
+  adapter reference.
+- [`environment.yml`](environment.yml): Conda environment specification.
+- [`.env.example`](.env.example): local runtime settings template.
+- [`Makefile`](Makefile): workflow targets and overridable variables.
+- [`usecases/README.md`](usecases/README.md): use-case configuration details.

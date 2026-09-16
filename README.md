@@ -214,6 +214,196 @@ Run the Kenya wrapper script:
 Rscript usecases/06_kenya_maize_example_forecast.R --dry-run
 ```
 
+## Use-case Scenarios
+
+A use case is one complete experiment defined by a combination of:
+
+```text
+location or zone + country + crop + season + forecast settings + DSSAT inputs
+```
+
+For example, `Chókwè + maize + November 2025 season` is one use case. The
+configuration file supplies the scientific and operational details needed by
+AgWISE, while the reusable forecast and DSSAT code performs the processing.
+
+### 1. Run the complete workflow for an existing configuration
+
+Use this when you want to download the seasonal forecast, apply bias
+correction, prepare DSSAT inputs, and produce the model outputs:
+
+```bash
+Rscript usecases/run_usecase.R \
+  usecases/configs/KEN/maize_example.yml
+```
+
+The high-level flow is:
+
+```text
+YAML configuration
+  -> seasonal forecast download
+  -> daily bias correction
+  -> DSSAT weather and soil preparation
+  -> planting-date and cultivar simulations
+  -> recommendation inputs
+```
+
+### 2. Preview a workflow before running it
+
+Use a dry run when setting up a new machine or checking paths and parameters.
+It does not download or process forecast data:
+
+```bash
+Rscript usecases/run_usecase.R \
+  usecases/configs/KEN/maize_example.yml \
+  --dry-run
+```
+
+This is the safest first step because it exposes the selected country, crop,
+zone, season, forecast extent, and command wiring before a long run starts.
+
+### 3. Run only the advisory from an existing DSSAT result
+
+In the integration workflow, use this when the forecast and DSSAT simulation
+have already completed and you only need to regenerate the recommendation:
+
+```bash
+make advisory \
+  LOCATION=Chokwe \
+  CROP=Maize \
+  DSSAT_SUMMARY=path/to/treatment_summary.csv
+```
+
+This starts from the existing DSSAT summary, selects the highest-yielding
+treatment, obtains the IWMI context for the location, and prints the
+natural-language advisory. It avoids repeating the expensive forecast step.
+
+### 4. Run the complete Chókwè demonstration
+
+The integration demonstration uses Chókwè, Mozambique, maize, and a
+November 2025 to February 2026 season:
+
+```bash
+make workflow \
+  LOCATION=Chokwe \
+  CROP=Maize \
+  SEASON_START=2025-11-01 \
+  SEASON_END=2026-02-28
+```
+
+This combines the AgWISE forecast/DSSAT workflow with the IWMI context
+adapter and terminal advisory. It is the main end-to-end demonstration for
+the AgWISE--IWMI integration.
+
+### 5. Use another existing country or crop configuration
+
+The repository includes configurations for several existing use cases:
+
+```text
+usecases/configs/ETH/maize_national.yml
+usecases/configs/GHA/maize_national.yml
+usecases/configs/KEN/maize_example.yml
+usecases/configs/MWI/maize_national.yml
+usecases/configs/RWA/maize_rab.yml
+```
+
+For example, preview the Malawi configuration:
+
+```bash
+Rscript usecases/run_usecase.R \
+  usecases/configs/MWI/maize_national.yml \
+  --dry-run
+```
+
+With the integration Makefile, the corresponding full workflow is:
+
+```bash
+make workflow \
+  USECASE_CONFIG=usecases/configs/MWI/maize_national.yml \
+  LOCATION=MalawiLocation \
+  CROP=Maize \
+  SEASON_START=2025-11-01 \
+  SEASON_END=2026-02-28
+```
+
+The YAML file must contain suitable settings for the selected country,
+location, crop, season, soil, cultivar, and forecast extent. Changing
+`LOCATION=...` or `CROP=...` alone does not create those scientific inputs.
+
+### 6. Compare two locations
+
+Run the same crop and season with two reviewed configurations or locations:
+
+```bash
+make workflow \
+  LOCATION=Chokwe \
+  CROP=Maize \
+  SEASON_START=2025-11-01 \
+  SEASON_END=2026-02-28
+
+make workflow \
+  LOCATION=OtherLocation \
+  CROP=Maize \
+  SEASON_START=2025-11-01 \
+  SEASON_END=2026-02-28
+```
+
+The results can be compared by recommended planting date, cultivar,
+simulated yield, rainfall context, irrigation context, and water-stress
+context. A different result is expected because locations have different
+climate, soil, forecast, and water conditions.
+
+### 7. Compare different seasons
+
+To study how the target season changes the recommendation, keep the location
+and crop fixed but change the dates:
+
+```bash
+make workflow \
+  LOCATION=Chokwe \
+  CROP=Maize \
+  SEASON_START=2026-10-01 \
+  SEASON_END=2027-01-31
+```
+
+IWMI products may represent historical or static spatial context rather than
+direct observations for the target season. The advisory therefore labels the
+source period and should not present historical context as a current-season
+measurement.
+
+### 8. Test a new location using explicit coordinates
+
+For a location that is not yet in the location registry, the advisory command
+can be tested with latitude and longitude:
+
+```bash
+python integration/run_advisory.py \
+  --location "New Location" \
+  --latitude -23.0000 \
+  --longitude 32.5000 \
+  --crop Maize \
+  --season-start 2025-11-01 \
+  --season-end 2026-02-28 \
+  --dssat-summary path/to/treatment_summary.csv
+```
+
+This is useful for testing IWMI point lookup and advisory formatting. A full
+AgWISE forecast still requires a reviewed YAML configuration containing the
+country, forecast extent, soil, cultivar, crop calendar, and DSSAT templates.
+
+### What is generalized today?
+
+The advisory layer can already accept:
+
+```text
+location + latitude/longitude + crop + season + DSSAT summary
+```
+
+The full AgWISE forecast layer is configuration-driven. A new location or crop
+must first be represented by a suitable YAML use case and supporting DSSAT
+data. This separation is intentional: it prevents the system from producing
+a scientifically unsupported recommendation just because a new name or
+coordinate was supplied.
+
 ## Kenya RStudio Workflow
 
 The Kenya example includes a step-by-step script for users who prefer running

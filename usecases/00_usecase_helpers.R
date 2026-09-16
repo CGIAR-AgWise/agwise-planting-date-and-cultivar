@@ -245,7 +245,10 @@ run_forecast_usecase <- function(usecase, cli = parse_usecase_args(), repo_root 
   message("Zones: ", paste(usecase$zones %||% "auto/from forecast points", collapse = ", "))
   message("Command: Rscript ", paste(shQuote(args), collapse = " "))
 
-  if (isTRUE(cli[["dry-run"]])) return(invisible(args))
+  if (isTRUE(cli[["dry-run"]])) {
+    message("Dry run: forecast execution and DSSAT formatting were skipped.")
+    return(invisible(args))
+  }
 
   tmp_dir <- agwise_tmp_dir()
   status <- system2("Rscript", args = args, env = paste0("TMPDIR=", tmp_dir))
@@ -328,6 +331,8 @@ run_usecase_config <- function(config_path) {
   config_path <- usecase_config_file(config_path, repo_root)
   usecase <- read_usecase_yaml(config_path)
   run_forecast_usecase(usecase, cli = cli, repo_root = repo_root)
-  format_dssat_zones(usecase, cli = cli, repo_root = repo_root)
+  if (!isTRUE(cli[["dry-run"]])) {
+    format_dssat_zones(usecase, cli = cli, repo_root = repo_root)
+  }
   invisible(usecase)
 }

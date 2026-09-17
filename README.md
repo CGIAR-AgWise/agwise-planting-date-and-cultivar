@@ -126,6 +126,8 @@ Git Bash, or another POSIX-compatible shell.
 | `make forecast` | Run the configured AgWISE/DSSAT use case |
 | `make advisory` | Build the advisory from an existing DSSAT summary |
 | `make workflow` | Run `forecast`, then `advisory` |
+| `make status` | Show whether forecast and advisory checkpoints are reusable |
+| `make workflow FORCE=1` | Re-run both stages and refresh their checkpoints |
 | `make clean-python-cache` | Remove generated Python bytecode caches |
 
 The most important Makefile variables are:
@@ -140,6 +142,37 @@ USECASE_CONFIG    AgWISE YAML configuration
 DSSAT_SUMMARY     DSSAT treatment summary CSV
 ADVISORY_OUTPUT   Normalized advisory JSON output
 ```
+
+### Checkpointed reruns
+
+The forecast and advisory targets are checkpointed under `.agwise/state/`.
+Before reusing a checkpoint, the workflow verifies the relevant configuration
+or DSSAT summary content and confirms that the expected output is non-empty.
+This prevents an interrupted or stale run from being treated as complete.
+
+The first run performs the normal work:
+
+```bash
+make workflow AGWISE_N_CORES=4
+```
+
+Later runs with the same inputs reuse the completed AgWISE/DSSAT and IWMI
+stages. Change a configuration, season, worker count, or DSSAT summary and the
+corresponding stage runs again automatically. To inspect the state:
+
+```bash
+make status
+```
+
+To deliberately refresh cached work:
+
+```bash
+make workflow FORCE=1 AGWISE_N_CORES=4
+```
+
+`AGWISE_N_CORES` is passed to the AgWISE runner and should be chosen according
+to available CPU and memory. More workers are not always faster on a shared
+server; increase it only after checking resource usage.
 
 For example:
 

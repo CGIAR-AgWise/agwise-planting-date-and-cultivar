@@ -12,6 +12,7 @@ nigeria_maize_season_assessment/
 .Rhistory
 .Rapp.history
 .env
+.agwise/
 
 # Session Data files
 .RData

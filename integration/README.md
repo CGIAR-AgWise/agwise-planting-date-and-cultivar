@@ -197,6 +197,21 @@ with `conda env create -f environment.yml`, copy `.env.example` to `.env`,
 configure local DSSAT/CDS access, and run `Rscript install_pkgs.R` for the
 GitHub climate4R packages.
 
+The Makefile uses content-keyed checkpoints in `.agwise/state/`. A repeated
+run reuses a non-empty DSSAT summary and advisory JSON only when the
+configuration, summary content, and relevant command inputs are unchanged.
+This makes development reruns and recovery after an advisory failure faster
+without silently reusing stale outputs:
+
+```bash
+make status
+make workflow FORCE=1  # explicitly refresh both stages
+```
+
+The forecast target passes `AGWISE_N_CORES` to the AgWISE runner. Set it
+conservatively on shared servers, for example `AGWISE_N_CORES=4`, and increase
+it only after checking available memory.
+
 ## Validation
 
 Any JSON Schema draft-2020-12 validator can validate a payload. The schema is

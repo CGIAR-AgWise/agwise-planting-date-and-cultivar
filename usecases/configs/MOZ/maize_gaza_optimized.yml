@@ -1,0 +1,19 @@
+name: Mozambique Gaza maize optimized benchmark (pre-staged DSSAT weather/soil)
+country_code: MOZ
+country_name: Mozambique
+use_case_name: gaza_optimized
+crop: Maize
+zones:
+  - Gaza
+season_start_month: 10
+season_start_day: 1
+season_year: 2026
+season_length_months: 3
+varietyids:
+  - 900111
+  - 900112
+  - 900113
+skip_weather_soil_creation: true
+generate_dssat_via_datasourcing: true
+resolution_km: 10
+build_dashboard: true

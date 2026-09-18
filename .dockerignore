@@ -1,0 +1,7 @@
+.git
+data/
+archive/
+docs/
+.ipynb_checkpoints
+.Rproj.user/
+*.nc

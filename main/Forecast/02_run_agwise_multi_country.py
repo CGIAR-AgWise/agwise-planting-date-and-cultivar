@@ -229,13 +229,29 @@ def parse_args():
         help="Re-download/reprocess observation and model files even if outputs already exist"
     )
 
+    parser.add_argument(
+        "--download-retries", type=int, default=3,
+        help="Maximum attempts for each CDS download (default: 3)"
+    )
+    parser.add_argument(
+        "--retry-backoff", type=float, default=2.0,
+        help="Initial retry delay in seconds; delay doubles per attempt (default: 2)"
+    )
+    parser.add_argument(
+        "--no-resume", action="store_true",
+        help="Ignore valid file manifests and rerun downloads"
+    )
+
     return parser.parse_args()
 
 
 # ---------------------------------------------------------------------
 # 2. Helper: run pipeline for a single country (your logic kept)
 # ---------------------------------------------------------------------
-def run_country_pipeline(country_code: str, nb_cores: int = 10, force_download: bool = False):
+def run_country_pipeline(
+    country_code: str, nb_cores: int = 10, force_download: bool = False,
+    download_retries: int = 3, retry_backoff: float = 2.0, resume: bool = True,
+):
     """
     Run the AgWise download pipeline for a given country code
     (as defined in COUNTRY_CONFIGS).
@@ -291,6 +307,9 @@ def run_country_pipeline(country_code: str, nb_cores: int = 10, force_download: 
         year_end=year_end_obs,
         area=extent_obs,
         force_download=force_download,
+        retries=download_retries,
+        retry_backoff=retry_backoff,
+        resume=resume,
     )
 
     season_year = int(cfg.get("forecast_year", datetime.now().year))
@@ -302,6 +321,9 @@ def run_country_pipeline(country_code: str, nb_cores: int = 10, force_download: 
         year_end=target_obs_year,
         area=extent_obs,
         force_download=force_download,
+        retries=download_retries,
+        retry_backoff=retry_backoff,
+        resume=resume,
     )
 
     # -----------------------------------------------------------------
@@ -344,6 +366,9 @@ def run_country_pipeline(country_code: str, nb_cores: int = 10, force_download: 
         year_forecast=None,
         ensemble_mean=ensemble_mean,
         force_download=force_download,
+        retries=download_retries,
+        retry_backoff=retry_backoff,
+        resume=resume,
     )
 
     print(
@@ -362,6 +387,9 @@ def run_country_pipeline(country_code: str, nb_cores: int = 10, force_download: 
         year_forecast=forecast_init_year,
         ensemble_mean=ensemble_mean,
         force_download=force_download,
+        retries=download_retries,
+        retry_backoff=retry_backoff,
+        resume=resume,
     )
 
     # Try to keep memory stable for multi-country runs
@@ -407,6 +435,9 @@ def main():
             country_code=country,
             nb_cores=args.nb_cores,
             force_download=args.force_download,
+            download_retries=args.download_retries,
+            retry_backoff=args.retry_backoff,
+            resume=not args.no_resume,
         )
 
     print("\nAll requested countries processed.")

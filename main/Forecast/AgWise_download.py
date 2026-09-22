@@ -44,6 +44,9 @@ Version: 1.5
 import logging
 import os
 import math
+import hashlib
+import json
+import time
 import cdsapi
 import urllib3
 import calendar
@@ -81,6 +84,83 @@ import rioxarray as rioxr
 # Suppress warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 logging.getLogger("cdsapi").setLevel(logging.ERROR)
+
+
+MANIFEST_VERSION = 1
+
+
+def _file_sha256(path):
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _manifest_path(output_path):
+    """Return the sidecar manifest path without changing the established filename."""
+    output_path = Path(output_path)
+    return output_path.with_name(output_path.name + ".manifest.json")
+
+
+def _write_manifest(output_path, payload):
+    """Atomically persist file-level progress and validation metadata."""
+    manifest_path = _manifest_path(output_path)
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"manifest_version": MANIFEST_VERSION, **payload}
+    temporary = manifest_path.with_name(manifest_path.name + ".tmp")
+    with temporary.open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, default=str)
+    os.replace(temporary, manifest_path)
+
+
+def _validate_output(output_path, manifest=None):
+    """Validate that a completed NetCDF is readable and non-empty."""
+    output_path = Path(output_path)
+    if not output_path.is_file() or output_path.stat().st_size == 0:
+        return False
+    if manifest and manifest.get("size") and manifest["size"] != output_path.stat().st_size:
+        return False
+    if manifest and manifest.get("sha256") and manifest["sha256"] != _file_sha256(output_path):
+        return False
+    try:
+        with xr.open_dataset(output_path) as dataset:
+            return bool(dataset.dims)
+    except Exception:
+        return False
+
+
+def _load_manifest(output_path):
+    try:
+        with _manifest_path(output_path).open("r", encoding="utf-8") as handle:
+            return json.load(handle)
+    except (OSError, ValueError):
+        return {}
+
+
+def _print_cds_progress(total, completed, skipped, failed, retrying=False):
+    remaining = max(0, total - completed - skipped - failed)
+    suffix = " (retrying)" if retrying else ""
+    print(
+        f"[CDS progress] completed={completed}/{total}, skipped={skipped}, "
+        f"failed={failed}, remaining={remaining}{suffix}"
+    )
+
+
+def _download_with_retry(operation, description, retries=3, backoff=2.0, on_retry=None):
+    """Run a CDS download with bounded exponential backoff."""
+    retries = max(1, int(retries))
+    for attempt in range(1, retries + 1):
+        try:
+            return operation()
+        except Exception as error:
+            if attempt == retries:
+                raise
+            delay = float(backoff) * (2 ** (attempt - 1))
+            if on_retry:
+                on_retry()
+            print(f"{description} failed (attempt {attempt}/{retries}): {error}; retrying in {delay:g}s")
+            time.sleep(delay)
 
 
 class AgWise_Download:
@@ -240,6 +320,9 @@ class AgWise_Download:
         year_end,
         area,
         force_download=False,
+        retries=3,
+        retry_backoff=2.0,
+        resume=True,
     ):
         """
         Download daily agro-meteorological indicators for specified variables and years.
@@ -277,12 +360,32 @@ class AgWise_Download:
             var_short = var.split(".")[1]
             output_path = dir_to_save / f"Daily_{var.split('.')[1]}_{year_start}_{year_end}.nc"
     
-            if not force_download and os.path.exists(output_path):
+            existing_manifest = _load_manifest(output_path)
+            if resume and not force_download and _validate_output(output_path, existing_manifest):
                 print(f"{output_path} already exists. Skipping download.") 
+                _print_cds_progress(year_end - year_start + 1, 0, year_end - year_start + 1, 0)
+                continue
+            completed_years = set(existing_manifest.get("completed_years", [])) if resume else set()
+            total_requests = year_end - year_start + 1
+            completed_count = min(len(completed_years), total_requests)
+            skipped_count = int(existing_manifest.get("skipped_cached", 0)) if resume else 0
+            failed_count = int(existing_manifest.get("failed", 0)) if resume else 0
+            _write_manifest(output_path, {
+                "status": "in_progress",
+                "output": str(output_path),
+                "variable": var,
+                "year_start": year_start,
+                "year_end": year_end,
+                "completed_years": sorted(completed_years),
+                "total_requests": total_requests,
+                "completed": completed_count,
+                "skipped_cached": skipped_count,
+                "failed": failed_count,
+            })
+            _print_cds_progress(total_requests, completed_count, skipped_count, failed_count)
         
-            else:
-                combined_datasets = []
-                for year in range(year_start, year_end + 1):
+            combined_datasets = []
+            for year in range(year_start, year_end + 1):
                     zip_file_path = dir_to_save / f"Daily_{var.split('.')[1]}_{year}.zip"
                 
                     dataset = "sis-agrometeorological-indicators"
@@ -303,10 +406,29 @@ class AgWise_Download:
                     try:
                         client = cdsapi.Client()
                         print(f"Downloading {cds_variable} ({statistic}) data for {year}...")
-                        client.retrieve(dataset, request).download(str(zip_file_path))
+                        def download_zip():
+                            client.retrieve(dataset, request).download(str(zip_file_path))
+                            if not zipfile.is_zipfile(zip_file_path):
+                                raise ValueError(f"Downloaded file is not a ZIP archive: {zip_file_path}")
+
+                        _download_with_retry(
+                            download_zip,
+                            f"{var} {year}", retries, retry_backoff,
+                            on_retry=lambda: _print_cds_progress(
+                                total_requests, completed_count, skipped_count, failed_count, True
+                            ),
+                        )
                         print(f"Downloaded: {zip_file_path}")
                     except Exception as e:
+                        failed_count += 1
                         print(f"Failed to download {cds_variable} ({statistic}) data for {year}: {e}")
+                        _write_manifest(output_path, {
+                            "status": "failed", "output": str(output_path),
+                            "variable": var, "failed_year": year, "error": str(e),
+                            "total_requests": total_requests, "completed": completed_count,
+                            "skipped_cached": skipped_count, "failed": failed_count,
+                        })
+                        _print_cds_progress(total_requests, completed_count, skipped_count, failed_count)
                         continue
     
                     # Extract NetCDF files from the ZIP archive
@@ -318,9 +440,20 @@ class AgWise_Download:
     
                     os.remove(zip_file_path)
                     print(f"Deleted ZIP file: {zip_file_path}")
+                    if year not in completed_years:
+                        completed_years.add(year)
+                        completed_count += 1
+                    _write_manifest(output_path, {
+                        "status": "in_progress", "output": str(output_path),
+                        "variable": var, "year_start": year_start, "year_end": year_end,
+                        "completed_years": sorted(completed_years),
+                        "total_requests": total_requests, "completed": completed_count,
+                        "skipped_cached": skipped_count, "failed": failed_count,
+                    })
+                    _print_cds_progress(total_requests, completed_count, skipped_count, failed_count)
     
                 # Concatenate all daily datasets into a single file
-                if combined_datasets:
+            if combined_datasets:
                     combined_ds = xr.concat(combined_datasets, dim="time")
                     combined_ds = combined_ds.rename_vars({nc_var: var.split('.')[1]})
                     # Convert temperature data from Kelvin to Celsius if needed
@@ -336,6 +469,21 @@ class AgWise_Download:
                     combined_ds = combined_ds.isel(lat=slice(None, None, -1))
                     combined_ds.to_netcdf(output_path)
                     print(f"File downloaded and combined dataset for {var} is saved to {output_path}")
+                    _write_manifest(output_path, {
+                        "status": "complete", "output": str(output_path),
+                        "variable": var, "year_start": year_start, "year_end": year_end,
+                        "size": output_path.stat().st_size,
+                        "sha256": _file_sha256(output_path),
+                        "total_requests": total_requests, "completed": completed_count,
+                        "skipped_cached": skipped_count, "failed": failed_count,
+                    })
+            else:
+                _write_manifest(output_path, {
+                    "status": "failed", "output": str(output_path), "variable": var,
+                    "error": "No yearly downloads completed",
+                    "total_requests": total_requests, "completed": completed_count,
+                    "skipped_cached": skipped_count, "failed": failed_count,
+                })
 
     def AgWise_Download_Models_Daily(
         self,
@@ -350,6 +498,9 @@ class AgWise_Download:
         year_forecast=None,
         ensemble_mean=None,
         force_download=False,
+        retries=3,
+        retry_backoff=2.0,
+        resume=True,
     ):
         """
         Download daily/sub-daily seasonal forecast model data (original)
@@ -451,6 +602,10 @@ class AgWise_Download:
         dir_to_save = Path(dir_to_save)
         dir_to_save.mkdir(parents=True, exist_ok=True)
         store_file_path = {}
+        total_requests = len(center_variable)
+        progress_completed = 0
+        progress_skipped = 0
+        progress_failed = 0
         # 4. Loop over each center-variable combination
         for cv in center_variable:
             # Example: "ECMWF_51.PRCP"
@@ -481,10 +636,23 @@ class AgWise_Download:
                 f"{file_prefix}_{cent}{syst}_{v}_{abb_mont_ini}{day_of_initialization}_{years_str}_{lead_str}.nc"
             )
     
-            if not force_download and output_file.exists():
+            manifest = _load_manifest(output_file)
+            if resume and manifest:
+                progress_completed = max(progress_completed, int(manifest.get("completed", 0)))
+                progress_skipped = max(progress_skipped, int(manifest.get("skipped_cached", 0)))
+                progress_failed = max(progress_failed, int(manifest.get("failed", 0)))
+            if resume and not force_download and _validate_output(output_file, manifest):
                 print(f"{output_file} already exists. Skipping download.")
                 store_file_path[f"{cent}{syst}"] = output_file
+                progress_skipped += 1
+                _print_cds_progress(total_requests, progress_completed, progress_skipped, progress_failed)
                 continue
+            _write_manifest(output_file, {
+                "status": "in_progress", "output": str(output_file),
+                "variable": cv, "years": years,
+                "total_requests": total_requests, "completed": progress_completed,
+                "skipped_cached": progress_skipped, "failed": progress_failed,
+            })
 
             if cent == "jma" and year_forecast is None:
                 day_of_initialization = init_day_dict_jma[month_of_initialization]
@@ -513,14 +681,27 @@ class AgWise_Download:
             client = cdsapi.Client()
             try:
                 print(f"Requesting data from '{dataset}' for {cv}...")
-                client.retrieve(dataset, request).download(str(temp_file))
+                _download_with_retry(
+                    lambda: client.retrieve(dataset, request).download(str(temp_file)),
+                    cv, retries, retry_backoff,
+                    on_retry=lambda: _print_cds_progress(
+                        total_requests, progress_completed, progress_skipped, progress_failed, True
+                    ),
+                )
                 print(f"Downloaded: {temp_file}")
             except Exception as e:
+                progress_failed += 1
                 print(f"Failed to download data for {cv}: {e}")
+                _write_manifest(output_file, {
+                    "status": "failed", "output": str(output_file),
+                    "variable": cv, "error": str(e), "total_requests": total_requests,
+                    "completed": progress_completed, "skipped_cached": progress_skipped,
+                    "failed": progress_failed,
+                })
+                _print_cds_progress(total_requests, progress_completed, progress_skipped, progress_failed)
                 continue
     
             # 7. Post-process with xarray
-            ds = None
             try:
                 ##########################################################
                 # Take in account level pressure for some variables in this part
@@ -538,41 +719,10 @@ class AgWise_Download:
                 
                 if v in ["PRCP", "SRAD", "DLWR"]:
                     ds = self._daily_increment_by_lead(ds)
-                if "valid_time" not in ds.coords:
-                    forecast_period = ds["forecast_period"]
-                    period_units = forecast_period.attrs.get("units", "hours").split()[0].lower()
-                    unit_map = {
-                        "second": "s",
-                        "seconds": "s",
-                        "minute": "m",
-                        "minutes": "m",
-                        "hour": "h",
-                        "hours": "h",
-                        "day": "D",
-                        "days": "D",
-                    }
-                    if period_units not in unit_map:
-                        raise ValueError(
-                            f"Unsupported forecast_period units: {period_units!r}"
-                        )
-                    period_delta = pd.to_timedelta(
-                        forecast_period.values, unit=unit_map[period_units]
-                    )
-                    reference_time = pd.to_datetime(
-                        ds["forecast_reference_time"].values
-                    )
-                    valid_time = reference_time[:, None] + period_delta[None, :]
-                    ds = ds.assign_coords(
-                        valid_time=(
-                            ("forecast_reference_time", "forecast_period"),
-                            valid_time,
-                        )
-                    )
+                time = (ds['forecast_reference_time'] + ds['forecast_period']).data
+                ds = ds.assign_coords(time=(('forecast_reference_time', 'forecast_period'), time))
                 ds = ds.stack(time=('forecast_reference_time', 'forecast_period'))
-                ds = ds.drop_vars(
-                    ['forecast_reference_time', 'forecast_period'],
-                    errors="ignore",
-                )
+                ds = ds.drop_vars(['forecast_reference_time', 'forecast_period'])
                 ds = ds.rename({"valid_time":"time"})
                 ds = ds.rename_vars({nc_var: v})
     
@@ -602,15 +752,33 @@ class AgWise_Download:
                 # 8. Save the processed data
                 ds.to_netcdf(output_file)
                 ds.close()
+                if not _validate_output(output_file):
+                    raise ValueError(f"Validation failed for {output_file}")
+                _write_manifest(output_file, {
+                    "status": "complete", "output": str(output_file),
+                    "variable": cv, "years": years,
+                    "size": output_file.stat().st_size,
+                    "sha256": _file_sha256(output_file),
+                    "total_requests": total_requests, "completed": progress_completed + 1,
+                    "skipped_cached": progress_skipped, "failed": progress_failed,
+                })
+                progress_completed += 1
+                _print_cds_progress(total_requests, progress_completed, progress_skipped, progress_failed)
                 print(f"Saved processed data to: {output_file}")
                 store_file_path[f"{cent}{syst}"] = output_file
         
             except Exception as e:
+                progress_failed += 1
                 print(f"Error reading or processing {temp_file}: {e}")
+                _write_manifest(output_file, {
+                    "status": "failed", "output": str(output_file),
+                    "variable": cv, "error": str(e), "total_requests": total_requests,
+                    "completed": progress_completed, "skipped_cached": progress_skipped,
+                    "failed": progress_failed,
+                })
+                _print_cds_progress(total_requests, progress_completed, progress_skipped, progress_failed)
     
             finally:
-                if ds is not None:
-                    ds.close()
                 # Remove the temporary file
                 if temp_file.exists():
                     os.remove(temp_file)

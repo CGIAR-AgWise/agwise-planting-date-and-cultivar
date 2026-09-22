@@ -10,6 +10,10 @@ season_year: 2025
 season_length_months: 4
 lead_months: 1
 n_cores: 2
+year_start_obs: 1994
+year_end_obs: 2016
+year_hndS: 1994
+year_hndE: 2016
 variables:
   - PRCP
   - TMAX
@@ -17,10 +21,10 @@ variables:
   - SRAD
 manual_extent: true
 extent:
-  - -24.3
-  - 32.79
-  - -24.7
-  - 33.3
+  - -23.5
+  - 32.5
+  - -25.5
+  - 33.5
 skip_dssat: false
 create_dssat_weather_files: false
 varietyid: 900111

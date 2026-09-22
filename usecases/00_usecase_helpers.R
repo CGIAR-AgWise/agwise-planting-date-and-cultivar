@@ -225,7 +225,11 @@ usecase_runner_args <- function(usecase, cli, repo_root) {
       Sys.getenv("AGWISE_PYTHON", unset = Sys.which("python")),
     "--country-name", usecase$country_name,
     "--use-case-name", usecase$use_case_name,
-    "--crop", usecase$crop
+    "--crop", usecase$crop,
+    "--year-start-obs", as.character(usecase$year_start_obs %||% 1994),
+    "--year-end-obs", as.character(usecase$year_end_obs %||% 2024),
+    "--year-hnd-start", as.character(usecase$year_hndS %||% 1994),
+    "--year-hnd-end", as.character(usecase$year_hndE %||% 2016)
   )
 
   if (!is.null(usecase$zones)) {
@@ -246,11 +250,16 @@ usecase_runner_args <- function(usecase, cli, repo_root) {
 run_forecast_usecase <- function(usecase, cli = parse_usecase_args(), repo_root = usecase_repo_root()) {
   if (is.null(usecase$country_code)) stop("usecase$country_code is required.")
   args <- usecase_runner_args(usecase, cli, repo_root)
+  quoted_args <- vapply(
+    args,
+    function(value) if (grepl("[[:space:]]", value)) shQuote(value) else value,
+    character(1)
+  )
 
   message("Use case: ", usecase$name %||% usecase$country_code)
   message("Country: ", usecase$country_code)
   message("Zones: ", paste(usecase$zones %||% "auto/from forecast points", collapse = ", "))
-  message("Command: Rscript ", paste(shQuote(args), collapse = " "))
+  message("Command: Rscript ", paste(quoted_args, collapse = " "))
 
   if (isTRUE(cli[["dry-run"]])) {
     message("Dry run: forecast execution and DSSAT processing were skipped.")
@@ -258,11 +267,19 @@ run_forecast_usecase <- function(usecase, cli = parse_usecase_args(), repo_root 
   }
 
   tmp_dir <- agwise_tmp_dir()
-  # system2() joins `command` + `args` into one string and runs it through a
-  # shell - any arg containing a space (e.g. Rwanda's "Umujyi wa Kigali" zone
-  # name inside the comma-joined --geo-zones value) gets word-split by that
-  # shell unless individually quoted first.
-  status <- system2("Rscript", args = shQuote(args), env = paste0("TMPDIR=", tmp_dir))
+  # system2() invokes a shell on Windows. Quote only arguments that contain
+  # whitespace; quoting every argument can concatenate adjacent arguments
+  # (for example, `--crop""Maize`) on some Windows R installations.
+  old_tmpdir <- Sys.getenv("TMPDIR", unset = NA_character_)
+  Sys.setenv(TMPDIR = tmp_dir)
+  on.exit({
+    if (is.na(old_tmpdir)) {
+      Sys.unsetenv("TMPDIR")
+    } else {
+      Sys.setenv(TMPDIR = old_tmpdir)
+    }
+  }, add = TRUE)
+  status <- system(paste(c("Rscript", quoted_args), collapse = " "))
   if (!identical(as.integer(status), 0L)) {
     stop("Forecast use case failed with exit status ", status, ": ", usecase$name %||% usecase$country_code)
   }

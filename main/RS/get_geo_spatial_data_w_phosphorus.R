@@ -158,7 +158,7 @@ Paths_Vars <- function(
     Harvest_month_date, varName, soilProfile =TRUE, AOI = TRUE, pathOut = NULL,
     global_geodata_landing = Sys.getenv(
       "AGWISE_GLOBAL_GEODATA_LANDING", unset = ""
-    )) 
+    ))
   {
   landing_root <- global_geodata_landing
   if (!nzchar(landing_root)) {

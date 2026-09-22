@@ -15,7 +15,7 @@ packages_required <- c(
 
 load_or_install <- function(pkg) {
   if (!requireNamespace(pkg, quietly = TRUE)) {
-    install.packages(pkg)
+    install.packages(pkg, repos = "https://cloud.r-project.org")
   }
   suppressPackageStartupMessages(library(pkg, character.only = TRUE))
 }

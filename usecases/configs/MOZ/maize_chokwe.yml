@@ -27,6 +27,7 @@ extent:
   - 33.5
 skip_dssat: false
 create_dssat_weather_files: false
+global_geodata_landing: data/global_geodata/Landing
 varietyid: 900111
 varietyids:
   - 900111

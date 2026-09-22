@@ -118,6 +118,9 @@ run_agwise_seasonal_forecast_BC <- function(
     year_end_obs = NULL,
     year_hndS = NULL,
     year_hndE = NULL,
+    global_geodata_landing = Sys.getenv(
+      "AGWISE_GLOBAL_GEODATA_LANDING", unset = ""
+    ),
     geo_soil_script = file.path(main_script_dir, "..", "RS", "get_geo_spatial_data_w_phosphorus.R")
 ) {
   
@@ -309,7 +312,8 @@ run_agwise_seasonal_forecast_BC <- function(
         country_name = country_name,
         use_case_name = use_case_name,
         crop = crop,
-        country_code = country_code
+        country_code = country_code,
+        global_geodata_landing = global_geodata_landing
       ), zones = geo_zones)
       message("geo_4cropModel generation time: ", round(difftime(Sys.time(), t_geo, units = "mins"), 2), " min")
       invisible(NULL)

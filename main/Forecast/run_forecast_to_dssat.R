@@ -80,6 +80,18 @@ year_start_obs <- as_int(arg(args, "year-start-obs", "1994"), "year-start-obs")
 year_end_obs <- as_int(arg(args, "year-end-obs", "2024"), "year-end-obs")
 year_hndS <- as_int(arg(args, "year-hnd-start", "1994"), "year-hnd-start")
 year_hndE <- as_int(arg(args, "year-hnd-end", "2016"), "year-hnd-end")
+global_geodata_landing <- arg(
+  args, "global-geodata-landing",
+  Sys.getenv("AGWISE_GLOBAL_GEODATA_LANDING", unset = "")
+)
+if (!nzchar(global_geodata_landing)) global_geodata_landing <- NULL
+if (!is.null(global_geodata_landing) &&
+    !grepl("^(?:[A-Za-z]:[\\\\/]|/|~)", global_geodata_landing)) {
+  global_geodata_landing <- file.path(script_dir, "..", "..", global_geodata_landing)
+}
+if (!is.null(global_geodata_landing)) {
+  global_geodata_landing <- normalizePath(global_geodata_landing, mustWork = FALSE)
+}
 
 base_dir <- normalizePath(arg(args, "base-dir", file.path(script_dir, "..", "..", "data")), mustWork = FALSE)
 py_path <- arg(args, "py-path", "/home/jovyan/.conda-envs/agwise_fcst/bin/python")
@@ -122,5 +134,6 @@ run_agwise_seasonal_forecast_BC(
   year_start_obs = year_start_obs,
   year_end_obs = year_end_obs,
   year_hndS = year_hndS,
-  year_hndE = year_hndE
+  year_hndE = year_hndE,
+  global_geodata_landing = global_geodata_landing
 )

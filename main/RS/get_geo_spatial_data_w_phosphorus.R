@@ -155,13 +155,29 @@ getGridCoordinates_forecast <- function(
 #' @examples
 Paths_Vars <- function(
     country, useCaseName, Crop, inputData = NULL, Planting_month_date,
-    Harvest_month_date, varName, soilProfile =TRUE, AOI = TRUE, pathOut = NULL) 
+    Harvest_month_date, varName, soilProfile =TRUE, AOI = TRUE, pathOut = NULL,
+    global_geodata_landing = Sys.getenv(
+      "AGWISE_GLOBAL_GEODATA_LANDING", unset = ""
+    )) 
   {
+  landing_root <- global_geodata_landing
+  if (!nzchar(landing_root)) {
+    landing_root <- "/home/jovyan/agwise-datasourcing/dataops/datasourcing/Data/Global_GeoData/Landing/"
+  }
+  landing_root <- normalizePath(landing_root, mustWork = FALSE)
+  soil_profile_dir <- file.path(landing_root, "Soil", "soilGrids", "profile")
+  if (soilProfile && country != "Honduras" && !dir.exists(soil_profile_dir)) {
+    stop(
+      "SoilGrids profile directory not found: ", soil_profile_dir,
+      ". Copy the CGLabs Global_GeoData/Landing/Soil tree locally and set ",
+      "global_geodata_landing in the use-case YAML."
+    )
+  }
   if(country=="Honduras"){
-    varsbasePath <- "/home/jovyan/agwise-datasourcing/dataops/datasourcing/Data/Global_GeoData/Landing/Honduras/"
-    varsbasePathSoil <- "/home/jovyan/agwise-datasourcing/dataops/datasourcing/Data/Global_GeoData/Landing/"
+    varsbasePath <- file.path(landing_root, "Honduras")
+    varsbasePathSoil <- landing_root
   }else{
-    varsbasePath <- "/home/jovyan/agwise-datasourcing/dataops/datasourcing/Data/Global_GeoData/Landing/"
+    varsbasePath <- landing_root
   }
   dataPath <- "~/agwise-datacuration/dataops/datacuration/Data/useCase_"
   OutputPath <- "~/agwise-datasourcing/dataops/datasourcing/Data/useCase_"
@@ -865,12 +881,16 @@ extract_geoSpatialPointData <- function(
     AOI = FALSE, 
     Planting_month_date = NULL, Harvest_month_date = NULL, plantingWindow = 1, 
     weatherData = TRUE, soilData = TRUE, soilProfile = FALSE, season = 1, 
-    pathOut = NULL, jobs = 10) {
+    pathOut = NULL, jobs = 10,
+    global_geodata_landing = Sys.getenv(
+      "AGWISE_GLOBAL_GEODATA_LANDING", unset = ""
+    )) {
   
   
   ARD <- Paths_Vars(country=country, useCaseName=useCaseName, Crop=Crop, inputData = inputData, 
                     Planting_month_date=Planting_month_date, Harvest_month_date=Harvest_month_date,
-                    soilProfile =soilProfile, AOI = AOI,  pathOut = pathOut)
+                    soilProfile =soilProfile, AOI = AOI,  pathOut = pathOut,
+                    global_geodata_landing = global_geodata_landing)
   
   inputData <- ARD[[1]]
   listRasterRF <- ARD[[2]]
@@ -1946,7 +1966,8 @@ get_soil_for_forecast <- function(
       Planting_month_date = NULL, 
       Harvest_month_date = NULL,
       soilData = soilData, weatherData = weatherData, soilProfile = soilProfile, 
-      plantingWindow = NULL, season = season, pathOut = pathOut
+      plantingWindow = NULL, season = season, pathOut = pathOut,
+      global_geodata_landing = cfg$global_geodata_landing
     )
   }
   message("All geospatial data produced.")

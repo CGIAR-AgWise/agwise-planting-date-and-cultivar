@@ -229,7 +229,9 @@ usecase_runner_args <- function(usecase, cli, repo_root) {
     "--year-start-obs", as.character(usecase$year_start_obs %||% 1994),
     "--year-end-obs", as.character(usecase$year_end_obs %||% 2024),
     "--year-hnd-start", as.character(usecase$year_hndS %||% 1994),
-    "--year-hnd-end", as.character(usecase$year_hndE %||% 2016)
+    "--year-hnd-end", as.character(usecase$year_hndE %||% 2016),
+    "--global-geodata-landing", usecase$global_geodata_landing %||%
+      Sys.getenv("AGWISE_GLOBAL_GEODATA_LANDING", unset = "")
   )
 
   if (!is.null(usecase$zones)) {

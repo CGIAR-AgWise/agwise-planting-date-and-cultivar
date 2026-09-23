@@ -193,26 +193,26 @@ Paths_Vars <- function(
     }
   }
   
-  listRasterRF <-list.files(path=paste0(varsbasePath, "Rainfall/chirps"), pattern=".nc$", full.names = TRUE)[-c(1:2)]
-  listRasterTmax <-list.files(path=paste0(varsbasePath, "TemperatureMax/AgEra"), pattern=".nc$", full.names = TRUE)
-  listRasterTMin <-list.files(path=paste0(varsbasePath, "TemperatureMin/AgEra"), pattern=".nc$", full.names = TRUE)
-  listRasterRH <-list.files(path=paste0(varsbasePath, "RelativeHumidity/AgEra"), pattern=".nc$", full.names = TRUE)
-  listRasterSR <-list.files(path=paste0(varsbasePath, "SolarRadiation/AgEra"), pattern=".nc$", full.names = TRUE)
-  listRasterWS <-list.files(path=paste0(varsbasePath, "WindSpeed/AgEra"), pattern=".nc$", full.names = TRUE)
+  listRasterRF <-list.files(path=file.path(varsbasePath, "Rainfall", "chirps"), pattern=".nc$", full.names = TRUE)[-c(1:2)]
+  listRasterTmax <-list.files(path=file.path(varsbasePath, "TemperatureMax", "AgEra"), pattern=".nc$", full.names = TRUE)
+  listRasterTMin <-list.files(path=file.path(varsbasePath, "TemperatureMin", "AgEra"), pattern=".nc$", full.names = TRUE)
+  listRasterRH <-list.files(path=file.path(varsbasePath, "RelativeHumidity", "AgEra"), pattern=".nc$", full.names = TRUE)
+  listRasterSR <-list.files(path=file.path(varsbasePath, "SolarRadiation", "AgEra"), pattern=".nc$", full.names = TRUE)
+  listRasterWS <-list.files(path=file.path(varsbasePath, "WindSpeed", "AgEra"), pattern=".nc$", full.names = TRUE)
   
   if(soilProfile == TRUE){
     if(country=="Honduras"){
-      listRaster_soil <-list.files(path=paste0(varsbasePathSoil, "Soil/soilGrids/profile/World"), pattern=".tif$")
-      readLayers_soil <- terra::rast(paste(paste0(varsbasePathSoil, "Soil/soilGrids/profile/World"), listRaster_soil, sep="/"))
-      shapefileHC <- st_read(paste0(varsbasePathSoil, "Soil/HC27/HC27 CLASSES.shp"), quiet= TRUE)%>%
+      listRaster_soil <-list.files(path=file.path(varsbasePathSoil, "Soil", "soilGrids", "profile", "World"), pattern=".tif$")
+      readLayers_soil <- terra::rast(paste(file.path(varsbasePathSoil, "Soil", "soilGrids", "profile", "World"), listRaster_soil, sep="/"))
+      shapefileHC <- st_read(file.path(varsbasePathSoil, "Soil", "HC27", "HC27 CLASSES.shp"), quiet= TRUE)%>%
         st_make_valid()
     }else{
-      listRaster_soil <-list.files(path=paste0(varsbasePath, "Soil/soilGrids/profile"), pattern=".tif$")
-      listRaster_soil_P <-list.files(path=paste0(varsbasePath, "Soil/soilGrids"), pattern="p.*\\.tif$")
-      readLayers_soil <- terra::rast(paste(paste0(varsbasePath, "Soil/soilGrids/profile"), listRaster_soil, sep="/"))
+      listRaster_soil <-list.files(path=file.path(varsbasePath, "Soil", "soilGrids", "profile"), pattern=".tif$")
+      listRaster_soil_P <-list.files(path=file.path(varsbasePath, "Soil", "soilGrids"), pattern="p.*\\.tif$")
+      readLayers_soil <- terra::rast(paste(file.path(varsbasePath, "Soil", "soilGrids", "profile"), listRaster_soil, sep="/"))
       readLayers_soil_P <- NULL
-      try(readLayers_soil_P <- terra::rast(paste(paste0(varsbasePath, "Soil/soilGrids"), listRaster_soil_P, sep="/")))
-      shapefileHC <- st_read(paste0(varsbasePath, "Soil/HC27/HC27 CLASSES.shp"), quiet= TRUE)%>%
+      try(readLayers_soil_P <- terra::rast(paste(file.path(varsbasePath, "Soil", "soilGrids"), listRaster_soil_P, sep="/")))
+      shapefileHC <- st_read(file.path(varsbasePath, "Soil", "HC27", "HC27 CLASSES.shp"), quiet= TRUE)%>%
         st_make_valid() 
     }
     
@@ -220,10 +220,10 @@ Paths_Vars <- function(
       pathOut <- paste(OutputPath, country, "_", useCaseName,"/", Crop, "/result/geo_4cropModel/", sep="")
     }
   }else{
-    listRaster_soil <-list.files(path=paste0(varsbasePath, "Soil/iSDA"), pattern=".tif$")
-    readLayers_soil <- terra::rast(paste(paste0(varsbasePath, "Soil/iSDA"), listRaster_soil, sep="/"))
-    listRaster_soil_isric <-list.files(path=paste0(varsbasePath, "Soil/soilGrids"), pattern=".tif$")
-    readLayers_soil_isric <- terra::rast(paste(paste0(varsbasePath, "Soil/soilGrids"), listRaster_soil_isric, sep="/"))
+    listRaster_soil <-list.files(path=file.path(varsbasePath, "Soil", "iSDA"), pattern=".tif$")
+    readLayers_soil <- terra::rast(paste(file.path(varsbasePath, "Soil", "iSDA"), listRaster_soil, sep="/"))
+    listRaster_soil_isric <-list.files(path=file.path(varsbasePath, "Soil", "soilGrids"), pattern=".tif$")
+    readLayers_soil_isric <- terra::rast(paste(file.path(varsbasePath, "Soil", "soilGrids"), listRaster_soil_isric, sep="/"))
     if(is.null(pathOut)){
       pathOut <- paste(OutputPath, country, "_", useCaseName,"/", Crop, "/result/geo_4ML/", sep="")
     }
@@ -1899,7 +1899,7 @@ get_weather_seasonality <- function(
 get_soil_for_forecast <- function(
     cfg, season = 1, inputData = NULL, level2 = FALSE,
     planting_window = 12, AOI = TRUE,
-    soilData = TRUE, weatherData = TRUE, soilProfile = TRUE,
+    soilData = TRUE, weatherData = FALSE, soilProfile = TRUE,
     zones = NULL) {
   
   if (!is.null(cfg$yml_config_path)) {
@@ -1951,7 +1951,7 @@ get_soil_for_forecast <- function(
   for (zone in zones) {
     message(paste0("Producing ISRIC soil data for ", zone))
     
-    zone_inputData <- inputData[inputData$NAME_1 == zone, ]
+    zone_inputData <- if (isTRUE(level2)) inputData[inputData$NAME_2 == zone, ] else inputData[inputData$NAME_1 == zone, ]
     
     pathOut <- paste0(
       dir_geo_cropmodel, "/", zone, "/")

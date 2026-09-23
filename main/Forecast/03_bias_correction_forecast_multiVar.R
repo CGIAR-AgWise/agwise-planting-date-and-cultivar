@@ -314,7 +314,7 @@ run_agwise_seasonal_forecast_BC <- function(
         crop = crop,
         country_code = country_code,
         global_geodata_landing = global_geodata_landing
-      ), zones = geo_zones)
+      ), zones = geo_zones, level2 = TRUE)
       message("geo_4cropModel generation time: ", round(difftime(Sys.time(), t_geo, units = "mins"), 2), " min")
       invisible(NULL)
     }

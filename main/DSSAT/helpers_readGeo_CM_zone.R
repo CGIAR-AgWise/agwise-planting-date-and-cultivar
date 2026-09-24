@@ -24,7 +24,13 @@ read_and_filter <- function(file, zone = NA, level2 = NA) {
   }
   
   if (!is.na(zone)) {  # Filter by zone
-    x <- x[x$NAME_1 == zone, ]
+    if ("NAME_1" %in% names(x) && zone %in% x$NAME_1) {
+      x <- x[x$NAME_1 == zone, ]
+    } else if ("NAME_2" %in% names(x) && zone %in% x$NAME_2) {
+      x <- x[x$NAME_2 == zone, ]
+    } else {
+      x <- x[x$NAME_1 == zone, ]  # preserves original (now-empty) behavior if truly unmatched
+    }
   }
   if (!is.na(level2)) {
     x <- x[x$NAME_2 == level2, ]    # Filter by level2
@@ -431,6 +437,7 @@ modify_ex_profile <- function(
     ALB, SLU, LRO, LDR, Depth, LL15, SAT, DUL, SSS, BDM, LOC, LCL, LSI, LNI,
     LHW, CEC, RGF, i, soil_p = FALSE, P_data = NULL
 ) {
+  location <- iconv(location, to = "ASCII//TRANSLIT")
   soilid <- template_ex_profile %>%
     mutate(PEDON = paste0('TRAN', formatC(width = 5, (as.integer(i)), flag = "0")),
            SOURCE = "ISRIC V2",

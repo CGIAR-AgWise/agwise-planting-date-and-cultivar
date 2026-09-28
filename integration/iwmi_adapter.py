@@ -58,11 +58,20 @@ def fetch_json(url, timeout):
         raise RuntimeError(f"IWMI response was not valid JSON: {url}") from error
 
 
+def to_date(value):
+    if not value:
+        return None
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).date()
+
+def item_end(item):
+    return item.get("properties", {}).get("end_datetime") or ""
+
 def overlaps(start, end, target_start, target_end):
-    if not start or not end or not target_start or not target_end:
+    start, end = to_date(start), to_date(end)
+    target_start, target_end = to_date(target_start), to_date(target_end)
+    if not (start and end and target_start and target_end):
         return False
     return start <= target_end and end >= target_start
-
 
 def fetch_stac_item(
     catalog, collection, latitude, longitude, timeout, target_start=None, target_end=None
@@ -89,7 +98,7 @@ def fetch_stac_item(
             target_end,
         )
     ]
-    item = matching[0] if matching else features[0]
+    item = max(matching or features, key=item_end)
     assets = item.get("assets", {})
     data_asset = next(
         (asset for asset in assets.values() if "data" in asset.get("roles", [])),

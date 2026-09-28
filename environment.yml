@@ -2,37 +2,38 @@ name: agwise-integration
 channels:
   - conda-forge
 dependencies:
-  - python=3.11
-  - pip
-  - r-base>=4.3
-  - r-yaml
-  - r-jsonlite
-  - r-ncdf4
-  - r-sf
+  - rasterio
+  - cartopy
   - r-sp
-  - r-tidyverse
   - r-future
-  - r-future.apply
-  - r-furrr
+  - xarray
+  - requests
+  - r-jsonlite
   - r-foreach
-  - r-slider
-  - r-countrycode
-  - r-mgsub
+  - r-base[version='>=4.3']
+  - r-rcolorbrewer
+  - r-sf
+  - r-tidyverse
+  - numpy
+  - r-future.apply
+  - tqdm
+  - h5netcdf
+  - r-ncdf4
+  - r-gridextra
   - r-scales
+  - python=3.11
+  - netcdf4
+  - rioxarray
+  - r-furrr
+  - pip
+  - cdsapi
+  - matplotlib
   - r-rgl
   - r-remotes
-  - r-gridextra
-  - r-rcolorbrewer
-  - cdsapi
-  - xarray
+  - r-yaml
   - pandas
-  - numpy
   - dask
-  - netcdf4
-  - h5netcdf
-  - rioxarray
-  - requests
-  - tqdm
-  - matplotlib
-  - cartopy
-  - rasterio
+  - r-countrycode
+  - r-mgsub
+  - r-slider
+prefix: C:\Users\moham\miniforge3\envs\agwise-integration

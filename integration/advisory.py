@@ -5,6 +5,13 @@ import argparse
 import json
 from datetime import date
 
+LABELS = {
+    "rainfall": "Rainfall anomaly",
+    "et_fraction": "ET fraction",
+    "irrigation": "Irrigation context",
+    "water_stress": "Water-stress index",
+}
+
 
 def format_date(value):
     if not value:
@@ -13,31 +20,43 @@ def format_date(value):
     return f"{parsed.day} {parsed.strftime('%B')} {parsed.year}"
 
 
+def has_value(measure):
+    return (
+        isinstance(measure, dict)
+        and measure.get("status") == "available"
+        and measure.get("value") is not None
+    )
+
+
 def format_measure(name, measure):
-    labels = {
-        "rainfall": "Rainfall anomaly",
-        "et_fraction": "ET fraction",
-        "irrigation": "Irrigation context",
-        "water_stress": "Water-stress index",
-    }
-    if measure.get("status") != "available" or measure.get("value") is None:
-        return f"- {labels[name]}: unavailable"
-    unit = measure.get("unit", "value")
+    label = LABELS[name]
+    if measure.get("status") != "available":
+        return f"- {label}: unavailable"
+
     role = measure.get("temporal_role")
     period = measure.get("period", {})
     period_text = ""
     if period.get("start") and period.get("end"):
-        period_text = f", period {period['start'][:10]} to {period['end'][:10]}"
-    role_text = f", {role.replace('_', ' ')}" if role else ""
-    return f"- {labels[name]}: {measure['value']} ({unit}{period_text}{role_text})"
+        period_text = f"period {period['start'][:10]} to {period['end'][:10]}"
+    role_text = role.replace("_", " ") if role else ""
+    details = ", ".join(part for part in (period_text, role_text) if part)
+
+    if measure.get("value") is None:
+        found = measure.get("item_id") or measure.get("collection") or "product"
+        suffix = f" ({details})" if details else ""
+        return f"- {label}: product located ({found}){suffix}, value not sampled"
+
+    value = measure["value"]
+    value_text = f"{value:.2f}" if isinstance(value, float) else value
+    unit = measure.get("unit", "value")
+    inner = ", ".join(part for part in (unit, details) if part)
+    return f"- {label}: {value_text} ({inner})"
 
 
 def interpret_water_context(iwmi):
     statements = []
     rainfall = iwmi.get("rainfall", {})
-    if rainfall.get("status") == "available" and isinstance(
-        rainfall.get("value"), (int, float)
-    ):
+    if has_value(rainfall) and isinstance(rainfall["value"], (int, float)):
         value = rainfall["value"]
         if value < 0:
             statements.append(
@@ -50,17 +69,17 @@ def interpret_water_context(iwmi):
         else:
             statements.append("The rainfall product is close to its reference average.")
 
-    if iwmi.get("et_fraction", {}).get("status") == "available":
+    if has_value(iwmi.get("et_fraction", {})):
         statements.append(
             "The ET fraction is reported, but its product-specific scale must be "
             "confirmed before calling it low or high."
         )
-    if iwmi.get("irrigation", {}).get("status") == "available":
+    if has_value(iwmi.get("irrigation", {})):
         statements.append(
             "The irrigation layer reports a mapped product value; it should not "
             "be treated as a probability without the IWMI product legend."
         )
-    if iwmi.get("water_stress", {}).get("status") == "available":
+    if has_value(iwmi.get("water_stress", {})):
         statements.append(
             "The water-stress value is shown for context, but no threshold is "
             "applied to change the DSSAT ranking."
@@ -76,7 +95,8 @@ def build_advisory(payload):
     if not recommendation:
         raise ValueError("The payload contains no recommendations.")
 
-    best = min(recommendation, key=lambda item: item["rank"])
+    ranked = sorted(recommendation, key=lambda item: item["rank"])
+    best = ranked[0]
     iwmi = payload.get("iwmi", {})
     iwmi_status = iwmi.get("status", "not_requested")
 
@@ -93,29 +113,60 @@ def build_advisory(payload):
         (
             f"Based on the current AgWise forecast and DSSAT simulation, "
             f"plant {crop} around {format_date(best['planting_date'])} "
-            f"using cultivar {best['cultivar_id']}."
+            f"using the {best['cultivar_id']} cultivar."
         ),
-        f"Highest simulated yield: {best['yield_kg_ha']:,.0f} kg/ha.",
-        "",
+        f"Highest {best.get('yield_metric', 'simulated')} simulated yield: "
+        f"{best['yield_kg_ha']:,.0f} kg/ha.",
     ]
 
-    if iwmi_status == "available":
-        lines.extend(
-            [
-                "Water context",
-                "-------------",
-                (
-                    "IWMI water-context data were retrieved for this location. "
-                    "Use them to distinguish how the result may apply to "
-                    "rainfed and irrigated fields."
-                ),
-            ]
+    p10, p90 = best.get("yield_p10_kg_ha"), best.get("yield_p90_kg_ha")
+    if p10 is not None and p90 is not None:
+        n = best.get("n_simulations")
+        basis = f" across {n} simulations" if n else ""
+        lines.append(
+            f"Simulated yield range (10th to 90th percentile): "
+            f"{p10:,.0f} to {p90:,.0f} kg/ha{basis}."
         )
-        for name in ("rainfall", "et_fraction", "irrigation", "water_stress"):
+    failure = best.get("maturity_failure_rate_pct")
+    if failure:
+        lines.append(
+            f"Warning: the crop failed to reach maturity in {failure:.0f}% "
+            f"of simulations."
+        )
+
+    if len(ranked) > 1:
+        lines.extend(["", "Other simulated options", "-----------------------"])
+        for item in ranked[1:5]:
+            lines.append(
+                f"- {format_date(item['planting_date'])}, {item['cultivar_id']}: "
+                f"{item['yield_kg_ha']:,.0f} kg/ha"
+            )
+    lines.append("")
+
+    if iwmi_status == "available":
+        sampled = any(
+            has_value(measure) for measure in iwmi.values() if isinstance(measure, dict)
+        )
+        lines.extend(["Water context", "-------------"])
+        if sampled:
+            lines.append(
+                "IWMI water-context values were sampled for this location. "
+                "Use them to distinguish how the result may apply to "
+                "rainfed and irrigated fields."
+            )
+        else:
+            lines.append(
+                "IWMI products were located for this site, but their values were "
+                "not sampled, so no water-context numbers are shown. Rerun with "
+                "--sample-raster to add them."
+            )
+        for name in LABELS:
             if name in iwmi:
                 lines.append(format_measure(name, iwmi[name]))
-        lines.extend(["", "Interpretation", "--------------"])
-        lines.extend(f"- {statement}" for statement in interpret_water_context(iwmi))
+        statements = interpret_water_context(iwmi)
+        if statements:
+            lines.extend(["", "Interpretation", "--------------"])
+            lines.extend(f"- {statement}" for statement in statements)
         lines.append("")
     elif iwmi_status == "unavailable":
         lines.extend(

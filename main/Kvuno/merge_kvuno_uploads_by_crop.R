@@ -93,5 +93,5 @@ for (crop in sort(unique(crops))) {
   saveRDS(merged, out_path)
   message(
     nrow(merged), " rows written to ", out_path,
-    " (countries: ", paste(sort(unique(merged$country)), collapse = ", "), ").")
+    " (countries: ", paste(sort(unique(merged$Country)), collapse = ", "), ").")
 }

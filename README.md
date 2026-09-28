@@ -100,6 +100,10 @@ forecast data or running the long processing steps.
 The configured demonstration is maize in Chokwe, Mozambique:
 
 ```bash
+Rscript usecases/run_usecase.R usecases/configs/MOZ/maize_chokwe.yml --season-year 2025 --n-cores 4
+```
+
+```bash
 make workflow \
   LOCATION=Chokwe \
   CROP=Maize \

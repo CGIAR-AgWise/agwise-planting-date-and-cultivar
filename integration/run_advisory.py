@@ -172,8 +172,7 @@ def build_payload(args):
             "limitations": [
                 "DSSAT results are interpreted from the supplied summary CSV",
                 "IWMI context is contextual and does not re-rank DSSAT options",
-                f"Yields are the {args.rank_by} across the simulations for each planting date and cultivar",
-            ],
+                f"Yields are the {args.rank_by} across DSSAT runs at the grid cells in the summary, with one run per cell and planting date; the range shows spatial variation, not year-to-year weather risk",            ],
         },
     }
 

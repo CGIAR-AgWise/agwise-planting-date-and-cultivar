@@ -6,7 +6,7 @@ import json
 from datetime import date
 
 LABELS = {
-    "rainfall": "Rainfall anomaly",
+    "rainfall": "Historical JFM rainfall anomaly composite (Limpopo domain)",
     "et_fraction": "ET fraction",
     "irrigation": "Irrigation context",
     "water_stress": "Water-stress index",
@@ -57,17 +57,12 @@ def interpret_water_context(iwmi):
     statements = []
     rainfall = iwmi.get("rainfall", {})
     if has_value(rainfall) and isinstance(rainfall["value"], (int, float)):
-        value = rainfall["value"]
-        if value < 0:
-            statements.append(
-                f"The rainfall product indicates a below-average anomaly ({value:.1f}%)."
-            )
-        elif value > 0:
-            statements.append(
-                f"The rainfall product indicates an above-average anomaly (+{value:.1f}%)."
-            )
-        else:
-            statements.append("The rainfall product is close to its reference average.")
+        statements.append(
+            f"The rainfall product is a January to March composite for 1950 to 2022 "
+            f"({rainfall['value']:+.1f}%). Its metadata describes a single cell covering "
+            "the whole Limpopo domain, so it is not a local measurement and not a "
+            "forecast or observation for this season."
+        )
 
     if has_value(iwmi.get("et_fraction", {})):
         statements.append(
@@ -122,9 +117,9 @@ def build_advisory(payload):
     p10, p90 = best.get("yield_p10_kg_ha"), best.get("yield_p90_kg_ha")
     if p10 is not None and p90 is not None:
         n = best.get("n_simulations")
-        basis = f" across {n} simulations" if n else ""
+        basis = f" across {n} grid cells" if n else ""
         lines.append(
-            f"Simulated yield range (10th to 90th percentile): "
+            f"Spatial range of simulated yield (10th to 90th percentile): "
             f"{p10:,.0f} to {p90:,.0f} kg/ha{basis}."
         )
     failure = best.get("maturity_failure_rate_pct")

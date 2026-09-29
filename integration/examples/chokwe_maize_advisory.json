@@ -17,45 +17,154 @@
   "agwise": {
     "status": "available",
     "forecast": {
-      "variables": ["PRCP", "TMAX", "TMIN", "SRAD"],
+      "variables": [
+        "PRCP",
+        "TMAX",
+        "TMIN",
+        "SRAD"
+      ],
       "lead_months": 1
     },
     "dssat": {
       "status": "available",
       "metric": "HWAH",
-      "recommendation_count": 8
+      "recommendation_count": 5
     }
   },
   "iwmi": {
-    "status": "not_requested"
+    "status": "available",
+    "rainfall": {
+      "status": "available",
+      "value": null,
+      "collection": "limpopo_jfm_rainfall",
+      "item_id": "1531236e-ea7e-5206-9c05-add999d3f41e",
+      "asset_url": "https://iwmi-dt-odc-products-public.s3.af-south-1.amazonaws.com/ENSO/limpopo/historical/v1.0.0/cog/jfm-rainfall-composite/limpopo_jfm_rainfall_composite.tif",
+      "period": {
+        "start": "1950-01-01T00:00:00Z",
+        "end": "2022-12-31T00:00:00Z"
+      },
+      "temporal_role": "historical_reference",
+      "season_overlap": false,
+      "source": "https://odc-explorer.iwmi.org/stac/search?collections=limpopo_jfm_rainfall&bbox=32.991806000000004%2C-24.510676%2C33.011806%2C-24.490675999999997&limit=100"
+    },
+    "et_fraction": {
+      "status": "available",
+      "value": null,
+      "collection": "et_fraction_africa",
+      "item_id": "8d4b4102-24fc-4435-acea-86c90bcad48e",
+      "asset_url": "/vsicurl/https://iwmi-datasets.s3.af-south-1.amazonaws.com/Water_accounting_plus/Africa/ET_Fraction_M/AFR_DIWASA_ETF_M_2021.12.01.tif",
+      "period": {
+        "start": "2021-12-01T00:00:00Z",
+        "end": "2021-12-31T23:59:59Z"
+      },
+      "temporal_role": "historical_reference",
+      "season_overlap": false,
+      "source": "https://odc-explorer.iwmi.org/stac/search?collections=et_fraction_africa&bbox=32.991806000000004%2C-24.510676%2C33.011806%2C-24.490675999999997&limit=100"
+    },
+    "irrigation": {
+      "status": "available",
+      "value": null,
+      "collection": "irrigated_areas_limpopo",
+      "item_id": "00fd4982-7987-4915-933b-78a2bae9c349",
+      "asset_url": "s3://iwmi-dt-odc-products-public/Natural_Basin_Characteristic/Land_cover_and_Land_use/irrigated_areas_limpopo/2026/06/30_interim/2026-06-map.tif",
+      "period": {
+        "start": "2026-06-01T00:00:00Z",
+        "end": "2026-06-30T23:59:59Z"
+      },
+      "temporal_role": "static_spatial_context",
+      "season_overlap": false,
+      "source": "https://odc-explorer.iwmi.org/stac/search?collections=irrigated_areas_limpopo&bbox=32.991806000000004%2C-24.510676%2C33.011806%2C-24.490675999999997&limit=100"
+    },
+    "water_stress": {
+      "status": "available",
+      "value": null,
+      "collection": "evaporative_stress_index_africa",
+      "item_id": "eb17adce-4838-4d7a-ba8f-4ef3bf22c875",
+      "asset_url": "/vsicurl/https://iwmi-datasets.s3.af-south-1.amazonaws.com/Water_accounting_plus/Africa/Evaporative_Stress_Index_M/AFR_DIWASA_ESI_M_2024.12.01.tif",
+      "period": {
+        "start": "2024-12-01T00:00:00Z",
+        "end": "2024-12-31T23:59:59Z"
+      },
+      "temporal_role": "historical_reference",
+      "season_overlap": false,
+      "source": "https://odc-explorer.iwmi.org/stac/search?collections=evaporative_stress_index_africa&bbox=32.991806000000004%2C-24.510676%2C33.011806%2C-24.490675999999997&limit=100"
+    }
   },
   "recommendations": [
     {
       "rank": 1,
-      "planting_date": "2026-01-24",
-      "cultivar_id": "900111",
-      "yield_kg_ha": 2439,
-      "water_context": "pending IWMI adapter"
+      "planting_date": "2025-11-30",
+      "cultivar_id": "Short",
+      "yield_kg_ha": 2996.0,
+      "yield_metric": "median",
+      "yield_p10_kg_ha": 2919.8,
+      "yield_p90_kg_ha": 3039.0,
+      "yield_cv_pct": 4.28813231739746,
+      "n_simulations": 13,
+      "maturity_failure_rate_pct": 0.0
     },
     {
       "rank": 2,
-      "planting_date": "2025-12-06",
-      "cultivar_id": "900111",
-      "yield_kg_ha": 1657,
-      "water_context": "pending IWMI adapter"
+      "planting_date": "2025-11-23",
+      "cultivar_id": "Short",
+      "yield_kg_ha": 2837.0,
+      "yield_metric": "median",
+      "yield_p10_kg_ha": 2776.0,
+      "yield_p90_kg_ha": 2894.6,
+      "yield_cv_pct": 2.16334946741387,
+      "n_simulations": 13,
+      "maturity_failure_rate_pct": 0.0
+    },
+    {
+      "rank": 3,
+      "planting_date": "2025-11-09",
+      "cultivar_id": "Short",
+      "yield_kg_ha": 2639.0,
+      "yield_metric": "median",
+      "yield_p10_kg_ha": 2535.6,
+      "yield_p90_kg_ha": 2672.0,
+      "yield_cv_pct": 4.32263294170922,
+      "n_simulations": 13,
+      "maturity_failure_rate_pct": 0.0
+    },
+    {
+      "rank": 4,
+      "planting_date": "2025-11-16",
+      "cultivar_id": "Short",
+      "yield_kg_ha": 2599.0,
+      "yield_metric": "median",
+      "yield_p10_kg_ha": 2479.6,
+      "yield_p90_kg_ha": 2683.8,
+      "yield_cv_pct": 4.23856437439968,
+      "n_simulations": 13,
+      "maturity_failure_rate_pct": 0.0
+    },
+    {
+      "rank": 5,
+      "planting_date": "2025-12-07",
+      "cultivar_id": "Short",
+      "yield_kg_ha": 2596.0,
+      "yield_metric": "median",
+      "yield_p10_kg_ha": 2522.4,
+      "yield_p90_kg_ha": 2747.4,
+      "yield_cv_pct": 3.53387934920691,
+      "n_simulations": 13,
+      "maturity_failure_rate_pct": 0.0
     }
   ],
   "provenance": {
-    "run_id": "moz-dssat-minimal-test",
-    "generated_at": "2026-09-15T00:00:00Z",
-    "agwise_commit": "6b3724a",
-    "iwmi_sources": [],
+    "run_id": "chokwe_local_summary_15km_cropmask",
+    "generated_at": "2026-09-29T08:22:17.364222+00:00",
+    "iwmi_sources": [
+      "https://odc-explorer.iwmi.org/stac/collections/limpopo_jfm_rainfall",
+      "https://odc-explorer.iwmi.org/stac/collections/et_fraction_africa",
+      "https://odc-explorer.iwmi.org/stac/collections/irrigated_areas_limpopo",
+      "https://odc-explorer.iwmi.org/stac/collections/evaporative_stress_index_africa"
+    ],
     "limitations": [
-      "One provisional Chokwe point",
-      "Generic soil profile",
-      "Regional placeholder cultivar",
-      "Single forecast season",
-      "IWMI context not yet requested"
+      "DSSAT results are interpreted from the supplied summary CSV",
+      "IWMI context is contextual and does not re-rank DSSAT options",
+      "Yields are the median across DSSAT runs at the grid cells in the summary, with one run per cell and planting date; the range shows spatial variation, not year-to-year weather risk"
     ]
   }
 }

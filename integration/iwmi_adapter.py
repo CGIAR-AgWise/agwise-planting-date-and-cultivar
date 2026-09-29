@@ -73,21 +73,59 @@ def overlaps(start, end, target_start, target_end):
         return False
     return start <= target_end and end >= target_start
 
+def search_stac(
+    catalog, collection, latitude, longitude, timeout, datetime_range=None, max_pages=10
+):
+    params = {
+        "collections": collection,
+        "bbox": f"{longitude - 0.01},{latitude - 0.01},{longitude + 0.01},{latitude + 0.01}",
+        "limit": 100,
+    }
+    if datetime_range:
+        params["datetime"] = datetime_range
+    url = f"{catalog.rstrip('/')}/search?{urlencode(params)}"
+    first_url = url
+    features = []
+    for _ in range(max_pages):
+        payload = fetch_json(url, timeout)
+        features.extend(payload.get("features", []))
+        link = next(
+            (l for l in payload.get("links", []) if l.get("rel") == "next"), None
+        )
+        if not link:
+            break
+        if link.get("method", "GET").upper() != "GET" or not link.get("href"):
+            print(
+                f"Warning: {collection} has more pages that cannot be followed with GET.",
+                file=sys.stderr,
+            )
+            break
+        url = link["href"]
+    else:
+        print(
+            f"Warning: {collection} search stopped after {max_pages} pages.",
+            file=sys.stderr,
+        )
+    return features, first_url
+
+
 def fetch_stac_item(
     catalog, collection, latitude, longitude, timeout, target_start=None, target_end=None
 ):
-    query = urlencode(
-        {
-            "collections": collection,
-            "bbox": f"{longitude - 0.01},{latitude - 0.01},{longitude + 0.01},{latitude + 0.01}",
-            "limit": 100,
-        }
-    )
-    url = f"{catalog.rstrip('/')}/search?{query}"
-    payload = fetch_json(url, timeout)
-    features = payload.get("features", [])
+    features, url = [], catalog
+    if target_start and target_end:
+        window = f"{target_start}T00:00:00Z/{target_end}T23:59:59Z"
+        try:
+            features, url = search_stac(
+                catalog, collection, latitude, longitude, timeout, window
+            )
+        except RuntimeError:
+            features = []  # server may not support the datetime filter
+    if not features:
+        features, url = search_stac(catalog, collection, latitude, longitude, timeout)
     if not features:
         raise RuntimeError(f"IWMI STAC collection returned no item: {collection}")
+
     matching = [
         item
         for item in features
@@ -126,7 +164,6 @@ def fetch_stac_item(
         "season_overlap": bool(matching),
         "source": url,
     }
-
 
 def raster_url(asset_url):
     if asset_url.startswith("/vsicurl/"):

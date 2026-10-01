@@ -38,6 +38,7 @@
       "value": -12.909638053040263,
       "collection": "limpopo_jfm_rainfall",
       "item_id": "1531236e-ea7e-5206-9c05-add999d3f41e",
+      "asset_key": "jfm_rainfall_anomaly",
       "asset_url": "https://iwmi-dt-odc-products-public.s3.af-south-1.amazonaws.com/ENSO/limpopo/historical/v1.0.0/cog/jfm-rainfall-composite/limpopo_jfm_rainfall_composite.tif",
       "period": {
         "start": "1950-01-01T00:00:00Z",
@@ -46,6 +47,9 @@
       "temporal_role": "historical_reference",
       "season_overlap": false,
       "source": "https://odc-explorer.iwmi.org/stac/search?collections=limpopo_jfm_rainfall&bbox=32.991806000000004%2C-24.510676%2C33.011806%2C-24.490675999999997&limit=100",
+      "raw_value": -12.909638053040263,
+      "scale": 1.0,
+      "offset": 0.0,
       "unit": "percent anomaly",
       "sample": {
         "latitude": -24.500676,
@@ -56,9 +60,10 @@
     },
     "et_fraction": {
       "status": "available",
-      "value": 6.0,
+      "value": 0.6000000000000001,
       "collection": "et_fraction_africa",
       "item_id": "8d4b4102-24fc-4435-acea-86c90bcad48e",
+      "asset_key": "etfraction",
       "asset_url": "/vsicurl/https://iwmi-datasets.s3.af-south-1.amazonaws.com/Water_accounting_plus/Africa/ET_Fraction_M/AFR_DIWASA_ETF_M_2021.12.01.tif",
       "period": {
         "start": "2021-12-01T00:00:00Z",
@@ -67,7 +72,10 @@
       "temporal_role": "historical_reference",
       "season_overlap": false,
       "source": "https://odc-explorer.iwmi.org/stac/search?collections=et_fraction_africa&bbox=32.991806000000004%2C-24.510676%2C33.011806%2C-24.490675999999997&limit=100",
-      "unit": "fraction",
+      "raw_value": 6.0,
+      "scale": 0.1,
+      "offset": 0.0,
+      "unit": "decoded value; ODC percentage versus COG Green ET mm/month unresolved",
       "sample": {
         "latitude": -24.500676,
         "longitude": 33.001806,
@@ -77,10 +85,11 @@
     },
     "irrigation": {
       "status": "available",
-      "value": 0.0,
+      "value": 0.03579594939947128,
       "collection": "irrigated_areas_limpopo",
       "item_id": "00fd4982-7987-4915-933b-78a2bae9c349",
-      "asset_url": "s3://iwmi-dt-odc-products-public/Natural_Basin_Characteristic/Land_cover_and_Land_use/irrigated_areas_limpopo/2026/06/30_interim/2026-06-map.tif",
+      "asset_key": "prob",
+      "asset_url": "s3://iwmi-dt-odc-products-public/Natural_Basin_Characteristic/Land_cover_and_Land_use/irrigated_areas_limpopo/2026/06/30_interim/2026-06-prob.tif",
       "period": {
         "start": "2026-06-01T00:00:00Z",
         "end": "2026-06-30T23:59:59Z"
@@ -88,7 +97,10 @@
       "temporal_role": "static_spatial_context",
       "season_overlap": false,
       "source": "https://odc-explorer.iwmi.org/stac/search?collections=irrigated_areas_limpopo&bbox=32.991806000000004%2C-24.510676%2C33.011806%2C-24.490675999999997&limit=100",
-      "unit": "product-specific class or probability",
+      "raw_value": 0.03579594939947128,
+      "scale": 1.0,
+      "offset": 0.0,
+      "unit": "probability [0, 1]",
       "sample": {
         "latitude": -24.500676,
         "longitude": 33.001806,
@@ -98,9 +110,10 @@
     },
     "water_stress": {
       "status": "available",
-      "value": 5.0,
+      "value": 0.5,
       "collection": "evaporative_stress_index_africa",
       "item_id": "eb17adce-4838-4d7a-ba8f-4ef3bf22c875",
+      "asset_key": "evaporative_stress_index",
       "asset_url": "/vsicurl/https://iwmi-datasets.s3.af-south-1.amazonaws.com/Water_accounting_plus/Africa/Evaporative_Stress_Index_M/AFR_DIWASA_ESI_M_2024.12.01.tif",
       "period": {
         "start": "2024-12-01T00:00:00Z",
@@ -109,7 +122,10 @@
       "temporal_role": "historical_reference",
       "season_overlap": false,
       "source": "https://odc-explorer.iwmi.org/stac/search?collections=evaporative_stress_index_africa&bbox=32.991806000000004%2C-24.510676%2C33.011806%2C-24.490675999999997&limit=100",
-      "unit": "index",
+      "raw_value": 5.0,
+      "scale": 0.1,
+      "offset": 0.0,
+      "unit": "unitless index",
       "sample": {
         "latitude": -24.500676,
         "longitude": 33.001806,
@@ -182,7 +198,7 @@
   ],
   "provenance": {
     "run_id": "Maize_2025_treatment_summary",
-    "generated_at": "2026-10-01T07:17:13.550994+00:00",
+    "generated_at": "2026-10-01T07:43:48.797325+00:00",
     "iwmi_sources": [
       "https://odc-explorer.iwmi.org/stac/collections/limpopo_jfm_rainfall",
       "https://odc-explorer.iwmi.org/stac/collections/et_fraction_africa",

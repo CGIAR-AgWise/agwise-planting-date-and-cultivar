@@ -135,6 +135,9 @@
           "enum": ["available", "unavailable", "not_requested"]
         },
         "value": {},
+        "raw_value": { "type": "number" },
+        "scale": { "type": "number" },
+        "offset": { "type": "number" },
         "unit": { "type": "string" },
         "period": {
           "type": "object",
@@ -147,6 +150,7 @@
         "source": { "type": "string" },
         "collection": { "type": "string" },
         "item_id": { "type": "string" },
+        "asset_key": { "type": "string" },
         "asset_url": { "type": "string", "format": "uri-reference" },
         "temporal_role": {
           "type": "string",

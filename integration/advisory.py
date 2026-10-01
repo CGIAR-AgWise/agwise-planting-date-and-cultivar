@@ -50,7 +50,14 @@ def format_measure(name, measure):
     value_text = f"{value:.2f}" if isinstance(value, float) else value
     unit = measure.get("unit", "value")
     inner = ", ".join(part for part in (unit, details) if part)
-    return f"- {label}: {value_text} ({inner})"
+    raw = measure.get("raw_value")
+    scale = measure.get("scale")
+    encoding = (
+        f"; raw raster value {raw:g}, scale {scale:g}"
+        if raw is not None and scale is not None and scale != 1
+        else ""
+    )
+    return f"- {label}: {value_text} ({inner}{encoding})"
 
 
 def interpret_water_context(iwmi):
@@ -66,18 +73,22 @@ def interpret_water_context(iwmi):
 
     if has_value(iwmi.get("et_fraction", {})):
         statements.append(
-            "The ET fraction is reported, but its product-specific scale must be "
-            "confirmed before calling it low or high."
+            "The ET value is scale-decoded, but the selected asset has conflicting "
+            "public metadata: the ODC product says percentage ET fraction while "
+            "the linked COG identifies Green ET in mm/month. It is therefore "
+            "reported without an agronomic interpretation."
         )
     if has_value(iwmi.get("irrigation", {})):
         statements.append(
-            "The irrigation layer reports a mapped product value; it should not "
-            "be treated as a probability without the IWMI product legend."
+            "The irrigation layer uses the probability asset where available. "
+            "Its value remains a contextual probability, not a binary "
+            "irrigated/not-irrigated classification."
         )
     if has_value(iwmi.get("water_stress", {})):
         statements.append(
-            "The water-stress value is shown for context, but no threshold is "
-            "applied to change the DSSAT ranking."
+            "The water-stress index is scale-decoded. The IWMI product metadata "
+            "does not publish validated thresholds or a directional legend, so "
+            "no stress category is assigned and the DSSAT ranking is unchanged."
         )
     return statements
 

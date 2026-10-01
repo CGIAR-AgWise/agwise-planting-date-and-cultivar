@@ -22,11 +22,12 @@ VALUE_KEYS = (
 )
 UNITS = {
     "rainfall": "percent anomaly",
-    "et_fraction": "fraction",
-    "irrigation": "product-specific class or probability",
-    "water_stress": "index",
+    "et_fraction": "decoded value; ODC percentage versus COG Green ET mm/month unresolved",
+    "irrigation": "probability [0, 1]",
+    "water_stress": "unitless decoded index; thresholds unresolved",
 }
 STATIC_COLLECTIONS = {"irrigated_areas_limpopo"}
+PREFERRED_ASSETS = {"irrigation": ("prob",), "water_stress": ("evaporative_stress_index",)}
 
 
 def parse_endpoint(value):
@@ -138,10 +139,17 @@ def fetch_stac_item(
     ]
     item = max(matching or features, key=item_end)
     assets = item.get("assets", {})
-    data_asset = next(
-        (asset for asset in assets.values() if "data" in asset.get("roles", [])),
-        next(iter(assets.values()), {}),
+    preferred_keys = PREFERRED_ASSETS.get(
+        "irrigation" if collection == "irrigated_areas_limpopo" else collection
     )
+    asset_key = next(
+        (key for key in preferred_keys or () if key in assets),
+        next(
+            (key for key, asset in assets.items() if "data" in asset.get("roles", [])),
+            next(iter(assets), None),
+        ),
+    )
+    data_asset = assets.get(asset_key, {})
     period = {
         "start": item.get("properties", {}).get("start_datetime"),
         "end": item.get("properties", {}).get("end_datetime"),
@@ -158,6 +166,7 @@ def fetch_stac_item(
         "value": None,
         "collection": collection,
         "item_id": item.get("id"),
+        "asset_key": asset_key,
         "asset_url": data_asset.get("href"),
         "period": period,
         "temporal_role": temporal_role,
@@ -186,11 +195,19 @@ def sample_raster(asset_url, latitude, longitude):
     try:
         with rasterio.open(url) as dataset:
             sample = next(dataset.sample([(longitude, latitude)]))
-            value = float(sample[0])
+            raw_value = float(sample[0])
             nodata = dataset.nodata
-            if value != value or (nodata is not None and value == nodata):
+            if raw_value != raw_value or (nodata is not None and raw_value == nodata):
                 raise RuntimeError("sampled raster cell contains no data")
-            return value, dataset.crs.to_string() if dataset.crs else None
+            scale = dataset.scales[0] if dataset.scales else 1.0
+            offset = dataset.offsets[0] if dataset.offsets else 0.0
+            return (
+                raw_value,
+                raw_value * scale + offset,
+                scale,
+                offset,
+                dataset.crs.to_string() if dataset.crs else None,
+            )
     except Exception as error:
         if isinstance(error, RuntimeError):
             raise
@@ -198,8 +215,13 @@ def sample_raster(asset_url, latitude, longitude):
 
 
 def add_raster_value(measure, name, latitude, longitude):
-    value, crs = sample_raster(measure["asset_url"], latitude, longitude)
+    raw_value, value, scale, offset, crs = sample_raster(
+        measure["asset_url"], latitude, longitude
+    )
+    measure["raw_value"] = raw_value
     measure["value"] = value
+    measure["scale"] = scale
+    measure["offset"] = offset
     measure["unit"] = UNITS.get(name, "product-specific")
     measure["sample"] = {
         "latitude": latitude,

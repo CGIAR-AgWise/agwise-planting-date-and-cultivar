@@ -131,9 +131,8 @@ negative or positive rainfall anomaly is described as below or above the
 product reference average. ET is displayed as a percentage under the ODC
 product definition while retaining the linked-COG metadata warning. Irrigation
 is reported from the probability asset without converting it to a binary class. The
-evaporative-stress product defines a unitless index but does not publish
-validated IWMI thresholds or a directional legend, so the advisory assigns no
-stress category and does not use it to change DSSAT ranking.
+evaporative-stress product is shown as a unitless numeric index and is not
+used to change DSSAT ranking.
 
 When season dates are supplied, each STAC item is classified as
 `current_season`, `historical_reference`, or `static_spatial_context`. A

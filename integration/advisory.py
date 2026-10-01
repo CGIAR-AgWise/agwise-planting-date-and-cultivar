@@ -48,6 +48,8 @@ def format_measure(name, measure):
 
     value = measure["value"]
     value_text = f"{value:.2f}" if isinstance(value, float) else value
+    if name == "et_fraction":
+        value_text = f"{value_text}%"
     unit = measure.get("unit", "value")
     inner = ", ".join(part for part in (unit, details) if part)
     raw = measure.get("raw_value")
@@ -86,9 +88,8 @@ def interpret_water_context(iwmi):
         )
     if has_value(iwmi.get("water_stress", {})):
         statements.append(
-            "The water-stress index is scale-decoded. The IWMI product metadata "
-            "does not publish validated thresholds or a directional legend, so "
-            "no stress category is assigned and the DSSAT ranking is unchanged."
+            "The water-stress index is shown as numeric context and does not "
+            "change the DSSAT ranking."
         )
     return statements
 

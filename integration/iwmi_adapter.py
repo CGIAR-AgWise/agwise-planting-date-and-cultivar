@@ -22,9 +22,9 @@ VALUE_KEYS = (
 )
 UNITS = {
     "rainfall": "percent anomaly",
-    "et_fraction": "percentage (%) per ODC product; linked COG Green ET metadata conflict",
+    "et_fraction": "ODC product definition; linked COG Green ET metadata conflict",
     "irrigation": "probability [0, 1]",
-    "water_stress": "unitless decoded index; thresholds unresolved",
+    "water_stress": "unitless IWMI index",
 }
 STATIC_COLLECTIONS = {"irrigated_areas_limpopo"}
 PREFERRED_ASSETS = {"irrigation": ("prob",), "water_stress": ("evaporative_stress_index",)}

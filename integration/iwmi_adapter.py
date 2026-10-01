@@ -43,7 +43,7 @@ def fetch_json(url, timeout):
     headers = {"Accept": "application/json"}
     bearer_token = os.getenv("IWMI_BEARER_TOKEN")
     if bearer_token:
-        headers["Authorization"] = f"Bearer {bearer_token}"
+        headers["Authorization"] = "Bearer " + bearer_token
     headers["User-Agent"] = "AgWise-IWMI-adapter/1.0"
     request = Request(url, headers=headers)
     try:

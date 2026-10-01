@@ -31,6 +31,9 @@ usecase_repo_root <- function() {
 
 agwise_tmp_dir <- function() {
   tmp_dir <- Sys.getenv("AGWISE_TMPDIR", unset = tempdir())
+  if (!nzchar(trimws(tmp_dir))) {
+    tmp_dir <- tempdir()
+  }
   dir.create(tmp_dir, recursive = TRUE, showWarnings = FALSE)
   normalizePath(tmp_dir, mustWork = FALSE)
 }

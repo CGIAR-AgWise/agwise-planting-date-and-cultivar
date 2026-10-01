@@ -347,7 +347,7 @@ The registered Chokwe coordinates are resolved automatically:
 
 ```bash
 python integration/run_advisory.py \
-  --dssat-summary data/usecases/useCase_Mozambique_chokwe/Maize/result/DSSAT/AOI/Maize_2025_treatment_summary.csv \
+  --dssat-summary data/usecases/useCase_Mozambique_chókwè/Maize/result/DSSAT/AOI/Maize_2025_treatment_summary.csv \
   --country-code MOZ \
   --location Chokwe \
   --crop Maize \

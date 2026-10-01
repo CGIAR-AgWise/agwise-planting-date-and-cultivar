@@ -35,7 +35,7 @@
     "status": "available",
     "rainfall": {
       "status": "available",
-      "value": null,
+      "value": -12.909638053040263,
       "collection": "limpopo_jfm_rainfall",
       "item_id": "1531236e-ea7e-5206-9c05-add999d3f41e",
       "asset_url": "https://iwmi-dt-odc-products-public.s3.af-south-1.amazonaws.com/ENSO/limpopo/historical/v1.0.0/cog/jfm-rainfall-composite/limpopo_jfm_rainfall_composite.tif",
@@ -45,11 +45,18 @@
       },
       "temporal_role": "historical_reference",
       "season_overlap": false,
-      "source": "https://odc-explorer.iwmi.org/stac/search?collections=limpopo_jfm_rainfall&bbox=32.991806000000004%2C-24.510676%2C33.011806%2C-24.490675999999997&limit=100"
+      "source": "https://odc-explorer.iwmi.org/stac/search?collections=limpopo_jfm_rainfall&bbox=32.991806000000004%2C-24.510676%2C33.011806%2C-24.490675999999997&limit=100",
+      "unit": "percent anomaly",
+      "sample": {
+        "latitude": -24.500676,
+        "longitude": 33.001806,
+        "crs": "EPSG:4326",
+        "method": "nearest raster cell"
+      }
     },
     "et_fraction": {
       "status": "available",
-      "value": null,
+      "value": 6.0,
       "collection": "et_fraction_africa",
       "item_id": "8d4b4102-24fc-4435-acea-86c90bcad48e",
       "asset_url": "/vsicurl/https://iwmi-datasets.s3.af-south-1.amazonaws.com/Water_accounting_plus/Africa/ET_Fraction_M/AFR_DIWASA_ETF_M_2021.12.01.tif",
@@ -59,11 +66,18 @@
       },
       "temporal_role": "historical_reference",
       "season_overlap": false,
-      "source": "https://odc-explorer.iwmi.org/stac/search?collections=et_fraction_africa&bbox=32.991806000000004%2C-24.510676%2C33.011806%2C-24.490675999999997&limit=100"
+      "source": "https://odc-explorer.iwmi.org/stac/search?collections=et_fraction_africa&bbox=32.991806000000004%2C-24.510676%2C33.011806%2C-24.490675999999997&limit=100",
+      "unit": "fraction",
+      "sample": {
+        "latitude": -24.500676,
+        "longitude": 33.001806,
+        "crs": "EPSG:4326",
+        "method": "nearest raster cell"
+      }
     },
     "irrigation": {
       "status": "available",
-      "value": null,
+      "value": 0.0,
       "collection": "irrigated_areas_limpopo",
       "item_id": "00fd4982-7987-4915-933b-78a2bae9c349",
       "asset_url": "s3://iwmi-dt-odc-products-public/Natural_Basin_Characteristic/Land_cover_and_Land_use/irrigated_areas_limpopo/2026/06/30_interim/2026-06-map.tif",
@@ -73,11 +87,18 @@
       },
       "temporal_role": "static_spatial_context",
       "season_overlap": false,
-      "source": "https://odc-explorer.iwmi.org/stac/search?collections=irrigated_areas_limpopo&bbox=32.991806000000004%2C-24.510676%2C33.011806%2C-24.490675999999997&limit=100"
+      "source": "https://odc-explorer.iwmi.org/stac/search?collections=irrigated_areas_limpopo&bbox=32.991806000000004%2C-24.510676%2C33.011806%2C-24.490675999999997&limit=100",
+      "unit": "product-specific class or probability",
+      "sample": {
+        "latitude": -24.500676,
+        "longitude": 33.001806,
+        "crs": "EPSG:4326",
+        "method": "nearest raster cell"
+      }
     },
     "water_stress": {
       "status": "available",
-      "value": null,
+      "value": 5.0,
       "collection": "evaporative_stress_index_africa",
       "item_id": "eb17adce-4838-4d7a-ba8f-4ef3bf22c875",
       "asset_url": "/vsicurl/https://iwmi-datasets.s3.af-south-1.amazonaws.com/Water_accounting_plus/Africa/Evaporative_Stress_Index_M/AFR_DIWASA_ESI_M_2024.12.01.tif",
@@ -87,7 +108,14 @@
       },
       "temporal_role": "historical_reference",
       "season_overlap": false,
-      "source": "https://odc-explorer.iwmi.org/stac/search?collections=evaporative_stress_index_africa&bbox=32.991806000000004%2C-24.510676%2C33.011806%2C-24.490675999999997&limit=100"
+      "source": "https://odc-explorer.iwmi.org/stac/search?collections=evaporative_stress_index_africa&bbox=32.991806000000004%2C-24.510676%2C33.011806%2C-24.490675999999997&limit=100",
+      "unit": "index",
+      "sample": {
+        "latitude": -24.500676,
+        "longitude": 33.001806,
+        "crs": "EPSG:4326",
+        "method": "nearest raster cell"
+      }
     }
   },
   "recommendations": [
@@ -95,66 +123,66 @@
       "rank": 1,
       "planting_date": "2025-11-30",
       "cultivar_id": "Short",
-      "yield_kg_ha": 2996.0,
+      "yield_kg_ha": 2975.5,
       "yield_metric": "median",
-      "yield_p10_kg_ha": 2919.8,
-      "yield_p90_kg_ha": 3039.0,
-      "yield_cv_pct": 4.28813231739746,
-      "n_simulations": 13,
+      "yield_p10_kg_ha": 2025.1999999999998,
+      "yield_p90_kg_ha": 3132.1000000000004,
+      "yield_cv_pct": 15.130274687408654,
+      "n_simulations": 62,
       "maturity_failure_rate_pct": 0.0
     },
     {
       "rank": 2,
       "planting_date": "2025-11-23",
       "cultivar_id": "Short",
-      "yield_kg_ha": 2837.0,
+      "yield_kg_ha": 2822.0,
       "yield_metric": "median",
-      "yield_p10_kg_ha": 2776.0,
-      "yield_p90_kg_ha": 2894.6,
-      "yield_cv_pct": 2.16334946741387,
-      "n_simulations": 13,
+      "yield_p10_kg_ha": 2505.1,
+      "yield_p90_kg_ha": 3032.3999999999996,
+      "yield_cv_pct": 7.917753456659768,
+      "n_simulations": 62,
       "maturity_failure_rate_pct": 0.0
     },
     {
       "rank": 3,
-      "planting_date": "2025-11-09",
+      "planting_date": "2025-12-01",
       "cultivar_id": "Short",
-      "yield_kg_ha": 2639.0,
+      "yield_kg_ha": 2777.0,
       "yield_metric": "median",
-      "yield_p10_kg_ha": 2535.6,
-      "yield_p90_kg_ha": 2672.0,
-      "yield_cv_pct": 4.32263294170922,
-      "n_simulations": 13,
+      "yield_p10_kg_ha": 2693.7,
+      "yield_p90_kg_ha": 2928.7,
+      "yield_cv_pct": 3.4240836289983543,
+      "n_simulations": 20,
       "maturity_failure_rate_pct": 0.0
     },
     {
       "rank": 4,
-      "planting_date": "2025-11-16",
+      "planting_date": "2025-11-24",
       "cultivar_id": "Short",
-      "yield_kg_ha": 2599.0,
+      "yield_kg_ha": 2660.5,
       "yield_metric": "median",
-      "yield_p10_kg_ha": 2479.6,
-      "yield_p90_kg_ha": 2683.8,
-      "yield_cv_pct": 4.23856437439968,
-      "n_simulations": 13,
+      "yield_p10_kg_ha": 2599.7,
+      "yield_p90_kg_ha": 2786.3999999999996,
+      "yield_cv_pct": 3.0593766661557464,
+      "n_simulations": 20,
       "maturity_failure_rate_pct": 0.0
     },
     {
       "rank": 5,
       "planting_date": "2025-12-07",
       "cultivar_id": "Short",
-      "yield_kg_ha": 2596.0,
+      "yield_kg_ha": 2627.0,
       "yield_metric": "median",
-      "yield_p10_kg_ha": 2522.4,
-      "yield_p90_kg_ha": 2747.4,
-      "yield_cv_pct": 3.53387934920691,
-      "n_simulations": 13,
+      "yield_p10_kg_ha": 2052.6,
+      "yield_p90_kg_ha": 2780.5,
+      "yield_cv_pct": 11.667797465990187,
+      "n_simulations": 62,
       "maturity_failure_rate_pct": 0.0
     }
   ],
   "provenance": {
-    "run_id": "chokwe_local_summary_15km_cropmask",
-    "generated_at": "2026-09-29T08:22:17.364222+00:00",
+    "run_id": "Maize_2025_treatment_summary",
+    "generated_at": "2026-10-01T07:17:13.550994+00:00",
     "iwmi_sources": [
       "https://odc-explorer.iwmi.org/stac/collections/limpopo_jfm_rainfall",
       "https://odc-explorer.iwmi.org/stac/collections/et_fraction_africa",

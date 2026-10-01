@@ -75,7 +75,7 @@
       "raw_value": 6.0,
       "scale": 0.1,
       "offset": 0.0,
-      "unit": "decoded value; ODC percentage versus COG Green ET mm/month unresolved",
+      "unit": "percentage (%) per ODC product; linked COG Green ET metadata conflict",
       "sample": {
         "latitude": -24.500676,
         "longitude": 33.001806,
@@ -125,7 +125,7 @@
       "raw_value": 5.0,
       "scale": 0.1,
       "offset": 0.0,
-      "unit": "unitless index",
+      "unit": "unitless decoded index; thresholds unresolved",
       "sample": {
         "latitude": -24.500676,
         "longitude": 33.001806,
@@ -198,7 +198,7 @@
   ],
   "provenance": {
     "run_id": "Maize_2025_treatment_summary",
-    "generated_at": "2026-10-01T07:43:48.797325+00:00",
+    "generated_at": "2026-10-01T08:01:52.715332+00:00",
     "iwmi_sources": [
       "https://odc-explorer.iwmi.org/stac/collections/limpopo_jfm_rainfall",
       "https://odc-explorer.iwmi.org/stac/collections/et_fraction_africa",

@@ -116,11 +116,11 @@ and the sampling coordinates. Raster scale and offset metadata are applied
 before `value` is published. The raw value remains available for audit.
 
 Product meanings remain qualified because the public metadata is inconsistent
-for some products. In particular, `et_fraction_africa` is described as a
-percentage ET fraction in its ODC product definition, while its linked Green ET
-GeoTIFF uses a `0.1` scale and `mm/month` metadata. The adapter therefore
-preserves the decoded value but does not convert it to a percentage or assign
-an agronomic interpretation. The irrigation adapter selects the `prob` asset
+for some products. The `et_fraction_africa` value is reported as a percentage
+under its ODC product definition after applying the raster scale. Its linked
+GeoTIFF also contains Green ET metadata with `mm/month`, so that catalogue
+conflict is retained as a provenance warning. The adapter does not assign an
+additional agronomic interpretation. The irrigation adapter selects the `prob` asset
 when available; `map` and `filtered` are categorical assets with `0` declared
 as nodata. The evaporative-stress value is a unitless, scale-decoded index.
 These values must be confirmed against the product legend before changing
@@ -128,9 +128,9 @@ DSSAT ranking.
 
 The terminal advisory currently makes only a conservative interpretation:
 negative or positive rainfall anomaly is described as below or above the
-product reference average. The ET value remains unresolved because the public
-ODC definition and linked COG metadata disagree. Irrigation is reported from
-the probability asset without converting it to a binary class. The
+product reference average. ET is displayed as a percentage under the ODC
+product definition while retaining the linked-COG metadata warning. Irrigation
+is reported from the probability asset without converting it to a binary class. The
 evaporative-stress product defines a unitless index but does not publish
 validated IWMI thresholds or a directional legend, so the advisory assigns no
 stress category and does not use it to change DSSAT ranking.

@@ -22,7 +22,7 @@ VALUE_KEYS = (
 )
 UNITS = {
     "rainfall": "percent anomaly",
-    "et_fraction": "decoded value; ODC percentage versus COG Green ET mm/month unresolved",
+    "et_fraction": "percentage (%) per ODC product; linked COG Green ET metadata conflict",
     "irrigation": "probability [0, 1]",
     "water_stress": "unitless decoded index; thresholds unresolved",
 }

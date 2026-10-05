@@ -62,6 +62,39 @@ def format_measure(name, measure):
     return f"- {label}: {value_text} ({inner}{encoding})"
 
 
+def format_temporal_context(iwmi):
+    grouped = {
+        "current_season": [],
+        "historical_reference": [],
+        "static_spatial_context": [],
+    }
+    for name, measure in iwmi.items():
+        if not isinstance(measure, dict):
+            continue
+        role = measure.get("temporal_role")
+        period = measure.get("period", {})
+        if role not in grouped or not period.get("start") or not period.get("end"):
+            continue
+        start = period["start"][:10]
+        end = period["end"][:10]
+        grouped[role].append(f"{LABELS.get(name, name)}: {start} to {end}")
+
+    headings = (
+        ("current_season", "Current-season layers"),
+        ("historical_reference", "Historical reference layers"),
+        ("static_spatial_context", "Static spatial-context layers"),
+    )
+    lines = []
+    for role, heading in headings:
+        if not grouped[role]:
+            if role == "current_season":
+                lines.append("No current-season IWMI layers were available.")
+            continue
+        lines.append(f"{heading}:")
+        lines.extend(f"- {entry}" for entry in grouped[role])
+    return lines
+
+
 def interpret_water_context(iwmi):
     statements = []
     rainfall = iwmi.get("rainfall", {})
@@ -170,6 +203,10 @@ def build_advisory(payload):
         for name in LABELS:
             if name in iwmi:
                 lines.append(format_measure(name, iwmi[name]))
+        temporal_context = format_temporal_context(iwmi)
+        if temporal_context:
+            lines.extend(["", "Temporal coverage", "-----------------"])
+            lines.extend(temporal_context)
         statements = interpret_water_context(iwmi)
         if statements:
             lines.extend(["", "Interpretation", "--------------"])

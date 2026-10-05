@@ -1,6 +1,7 @@
 # integration/test_integration.py
 from datetime import date
 
+from advisory import build_advisory
 from iwmi_adapter import overlaps
 from run_advisory import load_recommendations, parse_date
 
@@ -34,3 +35,49 @@ def test_load_recommendations_aggregated(tmp_path):
     assert best["yield_kg_ha"] == 2598.5
     assert best["yield_p10_kg_ha"] == 2062.1
     assert best["n_simulations"] == 62
+
+
+def test_advisory_separates_iwmi_temporal_roles():
+    payload = {
+        "request": {
+            "country_code": "MOZ",
+            "location": {"name": "Chokwe"},
+            "crop": "Maize",
+            "season": {"year": 2025},
+        },
+        "recommendations": [
+            {
+                "rank": 1,
+                "planting_date": "2025-11-30",
+                "cultivar_id": "Short",
+                "yield_kg_ha": 2975.5,
+            }
+        ],
+        "iwmi": {
+            "status": "available",
+            "rainfall": {
+                "status": "available",
+                "period": {
+                    "start": "1950-01-01T00:00:00Z",
+                    "end": "2022-12-31T00:00:00Z",
+                },
+                "temporal_role": "historical_reference",
+            },
+            "irrigation": {
+                "status": "available",
+                "period": {
+                    "start": "2026-06-01T00:00:00Z",
+                    "end": "2026-06-30T23:59:59Z",
+                },
+                "temporal_role": "static_spatial_context",
+            },
+        },
+    }
+
+    advisory = build_advisory(payload)
+
+    assert "No current-season IWMI layers were available." in advisory
+    assert "Historical reference layers:" in advisory
+    assert "- Historical JFM rainfall anomaly composite: 1950-01-01 to 2022-12-31" in advisory
+    assert "Static spatial-context layers:" in advisory
+    assert "- Irrigation context: 2026-06-01 to 2026-06-30" in advisory

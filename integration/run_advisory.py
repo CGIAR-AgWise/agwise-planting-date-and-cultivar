@@ -9,7 +9,7 @@ from pathlib import Path
 
 from advisory import build_advisory
 from advisory import classify_water_stress
-from iwmi_adapter import add_raster_value, fetch_stac_item
+from iwmi_adapter import add_raster_value, fetch_stac_item, overlaps
 
 
 COLLECTIONS = {
@@ -21,6 +21,10 @@ COLLECTIONS = {
 DEFAULT_LOCATIONS = Path(__file__).with_name("locations.json")
 
 RANK_COLUMNS = {"median": "HWAH_median", "mean": "HWAH_mean", "p10": "HWAH_p10"}
+IWMI_RANKING_UNAVAILABLE = (
+    "IWMI re-ranking is not implemented: a validated current-season IWMI "
+    "ranking policy is required before it can affect DSSAT recommendations."
+)
 EXTRA_FIELDS = {
     "yield_p10_kg_ha": "HWAH_p10",
     "yield_p90_kg_ha": "HWAH_p90",
@@ -133,7 +137,32 @@ def resolve_location(name, country_code, latitude, longitude, locations_path):
     return record
 
 
+def validate_iwmi_ranking_enabled(enabled):
+    if enabled:
+        raise ValueError(IWMI_RANKING_UNAVAILABLE)
+
+
+def validate_iwmi_ranking_inputs(iwmi, season_start, season_end):
+    measure = iwmi.get("water_stress", {})
+    if measure.get("status") != "available":
+        raise ValueError("IWMI ranking requires an available water-stress measure.")
+    if measure.get("temporal_role") != "current_season":
+        raise ValueError(
+            "IWMI ranking requires a current-season water-stress measure."
+        )
+    period = measure.get("period", {})
+    if not overlaps(period.get("start"), period.get("end"), season_start, season_end):
+        raise ValueError(
+            "IWMI ranking requires a water-stress period overlapping the advisory season."
+        )
+    if measure.get("stress_category_policy", "").endswith("not an IWMI product legend"):
+        raise ValueError(
+            "IWMI ranking cannot use provisional stress categories as a policy."
+        )
+
+
 def build_payload(args):
+    validate_iwmi_ranking_enabled(args.enable_iwmi_ranking)
     season_start = date.fromisoformat(args.season_start)
     season_end = date.fromisoformat(args.season_end)
     recommendations = load_recommendations(args.dssat_summary, args.top, args.rank_by)
@@ -268,6 +297,20 @@ def main():
     parser.add_argument("--lead-months", type=int, default=1)
     parser.add_argument("--top", type=int, default=5)
     parser.add_argument("--rank-by", choices=sorted(RANK_COLUMNS), default="median")
+    ranking_group = parser.add_mutually_exclusive_group()
+    ranking_group.add_argument(
+        "--enable-iwmi-ranking",
+        dest="enable_iwmi_ranking",
+        action="store_true",
+        help="Enable validated IWMI ranking adjustments (not implemented).",
+    )
+    ranking_group.add_argument(
+        "--disable-iwmi-ranking",
+        dest="enable_iwmi_ranking",
+        action="store_false",
+        help="Keep DSSAT-only ranking (default).",
+    )
+    parser.set_defaults(enable_iwmi_ranking=False)
     parser.add_argument("--stac-catalog", default="https://odc-explorer.iwmi.org/stac")
     parser.add_argument("--timeout", type=float, default=30)
     parser.add_argument("--sample-raster", action="store_true")

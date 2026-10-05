@@ -129,8 +129,15 @@ penalty or a zero value.
 
 ### How it would be implemented in code
 
-The safest design is to keep the existing DSSAT ranking unchanged and add an
-explicit, opt-in adjustment stage in `run_advisory.py`:
+The current command-line interface exposes mutually exclusive
+`--enable-iwmi-ranking` and `--disable-iwmi-ranking` switches. The default is
+DSSAT-only ranking, and `--enable-iwmi-ranking` currently fails explicitly
+because no validated ranking policy has been approved. This prevents a
+presentation-only stress category from changing recommendations.
+
+After the prerequisites above are satisfied, the safest implementation is to
+keep the existing DSSAT ranking unchanged and add an explicit, opt-in
+adjustment stage in `run_advisory.py`:
 
 ```python
 recommendations = load_recommendations(
@@ -152,8 +159,10 @@ required IWMI measure is available, marked `current_season`, overlaps the
 requested season, and carries verified metadata. It should also reject
 provisional categories and unresolved product direction.
 
-The policy should be a versioned configuration, not a hidden constant. For
-example:
+The policy should be a versioned configuration, not a hidden constant. The
+repository includes a disabled draft at
+[`integration/policies/maize_water_stress_v1.json`](./integration/policies/maize_water_stress_v1.json)
+to define the expected shape without enabling a scientific rule. For example:
 
 ```json
 {
@@ -188,6 +197,12 @@ The advisory should display both the original DSSAT rank and the adjusted
 rank, along with the policy version and reason. If the validation fails, the
 command should either stop with an explicit error when ranking was requested,
 or continue with the normal DSSAT-only ranking when the feature is not enabled.
+
+Synthetic tests in `integration/test_integration.py` cover the safety boundary:
+missing and historical IWMI measures are rejected, a current-season
+non-provisional measure is structurally accepted, and the draft policy remains
+disabled. These tests do not claim that the example policy is scientifically
+validated.
 
 ### IWMI parameters
 

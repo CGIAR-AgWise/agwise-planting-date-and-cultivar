@@ -1,9 +1,17 @@
 # integration/test_integration.py
 from datetime import date
+import json
+from pathlib import Path
 
 from advisory import build_advisory, classify_water_stress
 from iwmi_adapter import overlaps
-from run_advisory import load_recommendations, parse_date
+from run_advisory import (
+    IWMI_RANKING_UNAVAILABLE,
+    load_recommendations,
+    parse_date,
+    validate_iwmi_ranking_enabled,
+    validate_iwmi_ranking_inputs,
+)
 
 
 def test_parse_date_iso_datetime():
@@ -123,3 +131,64 @@ def test_water_stress_uses_provisional_project_bands():
     assert classify_water_stress(0.33) == "moderate"
     assert classify_water_stress(0.65) == "moderate"
     assert classify_water_stress(0.66) == "high"
+
+
+def test_iwmi_ranking_is_disabled_until_validated():
+    validate_iwmi_ranking_enabled(False)
+    try:
+        validate_iwmi_ranking_enabled(True)
+    except ValueError as error:
+        assert str(error) == IWMI_RANKING_UNAVAILABLE
+    else:
+        raise AssertionError("IWMI ranking should be rejected until validated")
+
+
+def test_iwmi_ranking_policy_is_draft_and_disabled():
+    policy_path = (
+        Path(__file__).parent / "policies" / "maize_water_stress_v1.json"
+    )
+    with open(policy_path, encoding="utf-8") as handle:
+        policy = json.load(handle)
+    assert policy["status"] == "draft"
+    assert policy["approved"] is False
+    assert policy["direction"] == "unset"
+
+
+def test_iwmi_ranking_rejects_missing_and_historical_inputs():
+    for measure in (
+        {"status": "unavailable"},
+        {
+            "status": "available",
+            "temporal_role": "historical_reference",
+            "period": {
+                "start": "2024-12-01T00:00:00Z",
+                "end": "2024-12-31T23:59:59Z",
+            },
+        },
+    ):
+        try:
+            validate_iwmi_ranking_inputs(
+                {"water_stress": measure}, "2025-11-01", "2026-02-28"
+            )
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("Invalid IWMI ranking input was accepted")
+
+
+def test_iwmi_ranking_accepts_only_current_nonprovisional_input():
+    validate_iwmi_ranking_inputs(
+        {
+            "water_stress": {
+                "status": "available",
+                "temporal_role": "current_season",
+                "period": {
+                    "start": "2025-12-01T00:00:00Z",
+                    "end": "2026-01-31T23:59:59Z",
+                },
+                "stress_category_policy": "approved policy v1",
+            }
+        },
+        "2025-11-01",
+        "2026-02-28",
+    )

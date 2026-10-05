@@ -1,0 +1,13 @@
+{
+  "policy_id": "maize-water-stress-v1",
+  "status": "draft",
+  "approved": false,
+  "measure": "water_stress",
+  "direction": "unset",
+  "penalty": {
+    "moderate": null,
+    "high": null
+  },
+  "validated_for": [],
+  "notes": "Placeholder policy format only. Do not use for ranking until product direction, thresholds, penalties, and validation are approved."
+}

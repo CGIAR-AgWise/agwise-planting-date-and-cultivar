@@ -135,6 +135,20 @@
           "cultivar_id": { "type": "string", "minLength": 1 },
           "yield_kg_ha": { "type": "number", "minimum": 0 },
           "water_context": { "type": "string" },
+          "dssat_yield_kg_ha": { "type": "number", "minimum": 0 },
+          "iwmi_adjusted_yield_kg_ha": { "type": "number", "minimum": 0 },
+          "iwmi_ranking_effect": {
+            "type": "object",
+            "required": ["policy_id", "measure", "penalty_fraction", "applied", "category"],
+            "properties": {
+              "policy_id": { "type": "string", "minLength": 1 },
+              "measure": { "type": "string", "const": "water_stress" },
+              "penalty_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+              "applied": { "type": "boolean" },
+              "category": { "type": ["string", "null"] }
+            },
+            "additionalProperties": false
+          },
           "yield_uncertainty": {
             "type": "object",
             "required": ["range_basis", "temporal_uncertainty", "interpretation"],
@@ -157,6 +171,15 @@
         "generated_at": { "type": "string", "format": "date-time" },
         "agwise_commit": { "type": "string" },
         "iwmi_sources": { "type": "array", "items": { "type": "string", "format": "uri" } },
+        "iwmi_ranking": {
+          "type": "object",
+          "required": ["enabled"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "policy_id": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
         "limitations": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },

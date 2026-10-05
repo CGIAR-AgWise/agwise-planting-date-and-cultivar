@@ -8,6 +8,7 @@
     "moderate": null,
     "high": null
   },
+  "penalty_by_planting_date": {},
   "validated_for": [],
   "notes": "Placeholder policy format only. Do not use for ranking until product direction, thresholds, penalties, and validation are approved."
 }

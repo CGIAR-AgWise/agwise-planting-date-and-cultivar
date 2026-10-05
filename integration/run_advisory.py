@@ -85,6 +85,7 @@ def load_recommendations(path, limit, rank_by="median"):
             ),
             "yield_metric": rank_by,
         }
+        entry["dssat_yield_kg_ha"] = entry["yield_kg_ha"]
         for field, column in EXTRA_FIELDS.items():
             value = optional_float(row, column)
             if value is not None:
@@ -138,8 +139,36 @@ def resolve_location(name, country_code, latitude, longitude, locations_path):
 
 
 def validate_iwmi_ranking_enabled(enabled):
-    if enabled:
-        raise ValueError(IWMI_RANKING_UNAVAILABLE)
+    return enabled
+
+
+def load_iwmi_ranking_policy(path):
+    with open(path, encoding="utf-8") as handle:
+        policy = json.load(handle)
+    required = ("policy_id", "status", "approved", "measure", "direction", "penalty")
+    missing = [field for field in required if field not in policy]
+    if missing:
+        raise ValueError(f"IWMI ranking policy is missing: {', '.join(missing)}")
+    if policy["status"] != "approved" or policy["approved"] is not True:
+        raise ValueError("IWMI ranking policy must have status 'approved' and approved=true.")
+    if policy["measure"] != "water_stress":
+        raise ValueError("IWMI ranking currently supports only water_stress.")
+    if policy["direction"] != "higher_values_mean_more_stress":
+        raise ValueError("IWMI ranking policy must define the approved stress direction.")
+    for category in ("moderate", "high"):
+        penalty = policy["penalty"].get(category)
+        if not isinstance(penalty, (int, float)) or not 0 <= penalty < 1:
+            raise ValueError(f"IWMI ranking policy has an invalid {category} penalty.")
+    date_penalties = policy.get("penalty_by_planting_date", {})
+    for category, penalties in date_penalties.items():
+        if category not in ("moderate", "high") or not isinstance(penalties, dict):
+            raise ValueError("IWMI ranking policy has invalid date penalties.")
+        for planting_date, penalty in penalties.items():
+            if not isinstance(planting_date, str) or not isinstance(penalty, (int, float)):
+                raise ValueError("IWMI ranking policy has invalid date penalty values.")
+            if not 0 <= penalty < 1:
+                raise ValueError("IWMI ranking policy date penalties must be in [0, 1).")
+    return policy
 
 
 def validate_iwmi_ranking_inputs(iwmi, season_start, season_end):
@@ -161,11 +190,36 @@ def validate_iwmi_ranking_inputs(iwmi, season_start, season_end):
         )
 
 
+def apply_iwmi_ranking_rule(recommendations, iwmi, policy):
+    measure = iwmi["water_stress"]
+    category = measure.get("stress_category")
+    adjusted = []
+    for recommendation in recommendations:
+        item = dict(recommendation)
+        penalty = policy.get("penalty_by_planting_date", {}).get(category, {}).get(
+            recommendation["planting_date"],
+            policy["penalty"].get(category, 0),
+        )
+        item["dssat_yield_kg_ha"] = item["yield_kg_ha"]
+        item["iwmi_adjusted_yield_kg_ha"] = item["yield_kg_ha"] * (1 - penalty)
+        item["yield_kg_ha"] = item["iwmi_adjusted_yield_kg_ha"]
+        item["iwmi_ranking_effect"] = {
+            "policy_id": policy["policy_id"],
+            "measure": policy["measure"],
+            "penalty_fraction": penalty,
+            "applied": penalty > 0,
+            "category": category,
+        }
+        adjusted.append(item)
+    adjusted.sort(key=lambda item: item["yield_kg_ha"], reverse=True)
+    return [{"rank": rank, **item} for rank, item in enumerate(adjusted, 1)]
+
+
 def build_payload(args):
     validate_iwmi_ranking_enabled(args.enable_iwmi_ranking)
     season_start = date.fromisoformat(args.season_start)
     season_end = date.fromisoformat(args.season_end)
-    recommendations = load_recommendations(args.dssat_summary, args.top, args.rank_by)
+    recommendations = load_recommendations(args.dssat_summary, None, args.rank_by)
     location = resolve_location(
         args.location,
         args.country_code,
@@ -254,6 +308,28 @@ def build_payload(args):
             errors.append(f"{name}: {error}")
             payload["iwmi"][name] = {"status": "unavailable", "source": collection}
 
+    if args.enable_iwmi_ranking:
+        if not args.iwmi_ranking_policy:
+            raise ValueError(
+                f"{IWMI_RANKING_UNAVAILABLE} Supply --iwmi-ranking-policy."
+            )
+        policy = load_iwmi_ranking_policy(args.iwmi_ranking_policy)
+        validate_iwmi_ranking_inputs(
+            payload["iwmi"], season_start.isoformat(), season_end.isoformat()
+        )
+        payload["recommendations"] = apply_iwmi_ranking_rule(
+            recommendations, payload["iwmi"], policy
+        )[: args.top]
+        for rank, recommendation in enumerate(payload["recommendations"], 1):
+            recommendation["rank"] = rank
+        payload["provenance"]["iwmi_ranking"] = {
+            "enabled": True,
+            "policy_id": policy["policy_id"],
+        }
+    else:
+        payload["recommendations"] = recommendations[: args.top]
+        payload["provenance"]["iwmi_ranking"] = {"enabled": False}
+
     if errors:
         payload["iwmi"]["errors"] = errors
         payload["iwmi"]["fallback"] = {
@@ -316,6 +392,7 @@ def main():
     parser.add_argument("--sample-raster", action="store_true")
     parser.add_argument("--allow-missing", action="store_true")
     parser.add_argument("--output")
+    parser.add_argument("--iwmi-ranking-policy")
     args = parser.parse_args()
 
     payload = build_payload(args)

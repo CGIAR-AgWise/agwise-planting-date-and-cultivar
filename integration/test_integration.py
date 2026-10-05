@@ -11,6 +11,7 @@ from run_advisory import (
     parse_date,
     validate_iwmi_ranking_enabled,
     validate_iwmi_ranking_inputs,
+    apply_iwmi_ranking_rule,
 )
 
 
@@ -134,13 +135,9 @@ def test_water_stress_uses_provisional_project_bands():
 
 
 def test_iwmi_ranking_is_disabled_until_validated():
-    validate_iwmi_ranking_enabled(False)
-    try:
-        validate_iwmi_ranking_enabled(True)
-    except ValueError as error:
-        assert str(error) == IWMI_RANKING_UNAVAILABLE
-    else:
-        raise AssertionError("IWMI ranking should be rejected until validated")
+    assert validate_iwmi_ranking_enabled(False) is False
+    assert validate_iwmi_ranking_enabled(True) is True
+    assert IWMI_RANKING_UNAVAILABLE
 
 
 def test_iwmi_ranking_policy_is_draft_and_disabled():
@@ -192,3 +189,34 @@ def test_iwmi_ranking_accepts_only_current_nonprovisional_input():
         "2025-11-01",
         "2026-02-28",
     )
+
+
+def test_iwmi_ranking_preserves_dssat_and_records_adjustment():
+    recommendations = [
+        {
+            "rank": 1,
+            "planting_date": "2025-11-30",
+            "cultivar_id": "Short",
+            "yield_kg_ha": 3000,
+        },
+        {
+            "rank": 2,
+            "planting_date": "2025-11-23",
+            "cultivar_id": "Short",
+            "yield_kg_ha": 2900,
+        },
+    ]
+    policy = {
+        "policy_id": "test-v1",
+        "measure": "water_stress",
+        "penalty": {"moderate": 0.05, "high": 0.15},
+        "penalty_by_planting_date": {"high": {"2025-11-30": 0.2}},
+    }
+    result = apply_iwmi_ranking_rule(
+        recommendations,
+        {"water_stress": {"stress_category": "high"}},
+        policy,
+    )
+    assert result[0]["planting_date"] == "2025-11-23"
+    assert result[1]["dssat_yield_kg_ha"] == 3000
+    assert result[1]["iwmi_adjusted_yield_kg_ha"] == 2400

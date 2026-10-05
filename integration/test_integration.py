@@ -78,6 +78,9 @@ def test_advisory_separates_iwmi_temporal_roles():
 
     assert "No current-season IWMI layers were available." in advisory
     assert "Historical reference layers:" in advisory
-    assert "- Historical JFM rainfall anomaly composite: 1950-01-01 to 2022-12-31" in advisory
+    assert (
+        "- Historical JFM rainfall anomaly composite (Limpopo domain): "
+        "1950-01-01 to 2022-12-31"
+    ) in advisory
     assert "Static spatial-context layers:" in advisory
     assert "- Irrigation context: 2026-06-01 to 2026-06-30" in advisory

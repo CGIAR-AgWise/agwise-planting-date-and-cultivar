@@ -104,7 +104,13 @@ def format_temporal_context(iwmi):
     for role, heading in headings:
         if not grouped[role]:
             if role == "current_season":
-                lines.append("No current-season IWMI layers were available.")
+                lines.extend(
+                    [
+                        "IWMI does not provide a current-season layer for this advisory period.",
+                        "Historical and static IWMI context is shown where available.",
+                        "The target-season precipitation source is the AgWise forecast used by DSSAT.",
+                    ]
+                )
             continue
         lines.append(f"{heading}:")
         lines.extend(f"- {entry}" for entry in grouped[role])
@@ -199,6 +205,12 @@ def build_advisory(payload):
             f"Spatial range of simulated yield (10th to 90th percentile): "
             f"{p10:,.0f} to {p90:,.0f} kg/ha{basis}."
         )
+        uncertainty = best.get("yield_uncertainty", {})
+        if uncertainty.get("temporal_uncertainty", "not_estimated") == "not_estimated":
+            lines.append(
+                "Temporal yield uncertainty: not estimated; this range does not "
+                "represent year-to-year weather risk."
+            )
     failure = best.get("maturity_failure_rate_pct")
     if failure:
         lines.append(

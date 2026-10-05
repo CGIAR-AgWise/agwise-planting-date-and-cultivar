@@ -82,6 +82,113 @@ The Chokwe example currently recommends:
 - Spatial P10-P90 range: approximately `2,025.2-3,132.1 kg/ha`.
 - Simulation coverage: 62 grid cells.
 
+## DSSAT ranking effect of IWMI context
+
+### Current state
+
+IWMI does **not** currently change the DSSAT ranking. The ranking is produced
+from the DSSAT treatment-summary CSV using the configured yield statistic
+(`HWAH_median` by default), grouped by planting date and cultivar. IWMI values
+are added after that ranking as contextual measures.
+
+The current data is not sufficient for a ranking effect:
+
+- The rainfall layer is a 1950-2022 historical composite.
+- The ET and water-stress layers are historical monthly products.
+- The irrigation layer is static spatial context.
+- The water-stress bands are provisional project presentation bands, not an
+  IWMI-approved crop-impact legend.
+- The current DSSAT summary does not contain a validated relationship between
+  an IWMI measure and treatment yield.
+
+Applying a penalty with these inputs could change the recommended planting date
+without demonstrating that the change improves agronomic decisions. The
+integration therefore uses the safety boundary:
+
+```text
+DSSAT and AgWise target-season weather -> rank treatments
+IWMI historical/static context        -> qualify and explain the result
+```
+
+### When an IWMI ranking effect can be implemented
+
+An IWMI effect should be enabled only after all of the following are true:
+
+1. The selected IWMI item overlaps the DSSAT advisory season.
+2. The item covers the advisory location.
+3. Units, scale/offset, direction, and product meaning are verified.
+4. The stress thresholds or transformation are approved for the product and
+   crop, rather than being presentation-only defaults.
+5. A documented agronomic rule defines how the measure affects a treatment.
+6. The rule is validated against multi-season DSSAT runs or observed yields.
+7. The rule is versioned, tested, and recorded in the advisory provenance.
+
+The ranking effect should remain disabled when any of these checks fails. A
+missing or historical IWMI layer must never be silently converted into a
+penalty or a zero value.
+
+### How it would be implemented in code
+
+The safest design is to keep the existing DSSAT ranking unchanged and add an
+explicit, opt-in adjustment stage in `run_advisory.py`:
+
+```python
+recommendations = load_recommendations(
+    args.dssat_summary, args.top, args.rank_by
+)
+
+if args.enable_iwmi_ranking:
+    validate_iwmi_ranking_inputs(payload["iwmi"], payload["request"]["season"])
+    recommendations = apply_iwmi_ranking_rule(
+        recommendations,
+        payload["iwmi"],
+        policy=load_iwmi_ranking_policy(args.iwmi_ranking_policy),
+    )
+    recommendations = rerank_recommendations(recommendations)
+```
+
+`validate_iwmi_ranking_inputs` should reject the adjustment unless the
+required IWMI measure is available, marked `current_season`, overlaps the
+requested season, and carries verified metadata. It should also reject
+provisional categories and unresolved product direction.
+
+The policy should be a versioned configuration, not a hidden constant. For
+example:
+
+```json
+{
+  "policy_id": "maize-water-stress-v1",
+  "measure": "water_stress",
+  "direction": "higher_values_mean_more_stress",
+  "penalty": {
+    "moderate": 0.05,
+    "high": 0.15
+  },
+  "validated_for": ["MOZ-Chokwe", "Maize"]
+}
+```
+
+The adjustment must preserve the original DSSAT result and record the effect:
+
+```json
+{
+  "yield_kg_ha": 2975.5,
+  "dssat_yield_kg_ha": 2975.5,
+  "iwmi_adjusted_yield_kg_ha": 2829.7,
+  "iwmi_ranking_effect": {
+    "policy_id": "maize-water-stress-v1",
+    "measure": "water_stress",
+    "penalty_fraction": 0.05,
+    "applied": true
+  }
+}
+```
+
+The advisory should display both the original DSSAT rank and the adjusted
+rank, along with the policy version and reason. If the validation fails, the
+command should either stop with an explicit error when ranking was requested,
+or continue with the normal DSSAT-only ranking when the feature is not enabled.
+
 ### IWMI parameters
 
 The IWMI adapter uses the public STAC catalog to discover a product item near
@@ -347,18 +454,26 @@ The schema is deliberately explicit about availability. A layer may be:
 - `unavailable`: retrieval or sampling failed.
 - `not_requested`: the consumer did not request that context.
 
+Transient IWMI HTTP and network failures are retried twice. With
+`--allow-missing`, failed layers remain visible with per-layer error messages
+and the payload declares an `agwise_dssat_only` fallback. This preserves the
+AgWise/DSSAT recommendation without silently treating missing IWMI context as
+zero or as a current-season observation.
+
+DSSAT yield ranges are also explicit in the contract: `yield_uncertainty`
+records `spatial_grid_cells` as the range basis and `not_estimated` for
+temporal uncertainty. The advisory therefore cannot present the spatial
+P10-P90 range as year-to-year weather risk. Multi-season DSSAT runs remain a
+separate future dataset requirement if temporal uncertainty is needed.
+
 ## Limitations and solutions
 
 | Limitation | Current solution | Remaining action |
 | --- | --- | --- |
-| IWMI layers use different periods | Every measure records `period` and `temporal_role`. The advisory now groups periods under current-season, historical-reference, and static-spatial sections rather than presenting them as one time series. | Keep the grouping rule in sync with any dashboard or API consumer. |
-| Rainfall is a historical composite | The advisory keeps the IWMI composite as historical context and identifies AgWise forecast `PRCP` used by DSSAT as the target-season precipitation source. No separate IWMI current-season value is inferred. | Use a current-season IWMI product only if an approved collection with matching dates, units, and forecast/observation semantics becomes available. |
+| IWMI provider coverage does not match every advisory season | The current Chokwe payload records the available product periods explicitly: rainfall composite `1950-01-01` to `2022-12-31`, ET fraction `2021-12-01` to `2021-12-31`, water stress `2024-12-01` to `2024-12-31`, and irrigation probability `2026-06-01` to `2026-06-30`. These are labelled historical or static context rather than current-season observations. | Use a newer IWMI item only when its `start_datetime` and `end_datetime` overlap the advisory season and its product meaning and metadata are verified. |
 | ET catalogue metadata conflicts | The integration follows the `et_fraction_africa` ODC definition, applies scale/offset, and records the conflict in the unit and interpretation text. | Confirm the asset metadata upstream or switch to a product whose collection and GeoTIFF metadata agree. |
-| Water-stress thresholds are undocumented | The value is decoded and labelled with provisional project bands (`<0.33`, `0.33-<0.66`, `>=0.66`). The category is clearly marked as provisional and does not change DSSAT ranking. | Replace the project bands with IWMI-approved thresholds when a product legend or documented calibration study becomes available. |
 | IWMI context does not re-rank DSSAT | This is an intentional safety boundary: DSSAT ranks treatments and IWMI qualifies them. | If re-ranking is required, define and validate an agronomic decision rule separately, then version and test it. |
-| Yield range is spatial, not temporal uncertainty | The advisory labels P10-P90 as spatial variation and reports `n_simulations`. | Add multi-season DSSAT runs and a separate temporal uncertainty field. |
 | Technical result is not a farm instruction | The output includes limitations and recommends local agronomic review. | Validate soils, cultivars, management assumptions, and recommendations across seasons and locations. |
-| External layers may be unavailable | The schema supports `available`, `unavailable`, and `not_requested`; `--allow-missing` preserves the DSSAT result. | Add monitoring and alerting for repeated source failures in the consuming service. |
 
 ## Focused validation checklist
 

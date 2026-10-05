@@ -35,6 +35,8 @@ def test_load_recommendations_aggregated(tmp_path):
     assert best["yield_kg_ha"] == 2598.5
     assert best["yield_p10_kg_ha"] == 2062.1
     assert best["n_simulations"] == 62
+    assert best["yield_uncertainty"]["range_basis"] == "spatial_grid_cells"
+    assert best["yield_uncertainty"]["temporal_uncertainty"] == "not_estimated"
 
 
 def test_advisory_separates_iwmi_temporal_roles():
@@ -51,6 +53,14 @@ def test_advisory_separates_iwmi_temporal_roles():
                 "planting_date": "2025-11-30",
                 "cultivar_id": "Short",
                 "yield_kg_ha": 2975.5,
+                "yield_p10_kg_ha": 2025.2,
+                "yield_p90_kg_ha": 3132.1,
+                "n_simulations": 62,
+                "yield_uncertainty": {
+                    "range_basis": "spatial_grid_cells",
+                    "temporal_uncertainty": "not_estimated",
+                    "interpretation": "Spatial variation only.",
+                },
             }
         ],
         "agwise": {
@@ -84,7 +94,15 @@ def test_advisory_separates_iwmi_temporal_roles():
 
     advisory = build_advisory(payload)
 
-    assert "No current-season IWMI layers were available." in advisory
+    assert (
+        "IWMI does not provide a current-season layer for this advisory period."
+        in advisory
+    )
+    assert "Historical and static IWMI context is shown where available." in advisory
+    assert (
+        "The target-season precipitation source is the AgWise forecast used by DSSAT."
+        in advisory
+    )
     assert "Target-season rainfall:" in advisory
     assert (
         "- AgWise forecast PRCP used by DSSAT: 2025-11-01 to 2026-02-28"
@@ -97,6 +115,7 @@ def test_advisory_separates_iwmi_temporal_roles():
     ) in advisory
     assert "Static spatial-context layers:" in advisory
     assert "- Irrigation context: 2026-06-01 to 2026-06-30" in advisory
+    assert "Temporal yield uncertainty: not estimated" in advisory
 
 
 def test_water_stress_uses_provisional_project_bands():

@@ -111,7 +111,16 @@
         "et_fraction": { "$ref": "#/$defs/contextMeasure" },
         "irrigation": { "$ref": "#/$defs/contextMeasure" },
         "water_stress": { "$ref": "#/$defs/contextMeasure" },
-        "errors": { "type": "array", "items": { "type": "string" } }
+        "errors": { "type": "array", "items": { "type": "string" } },
+        "fallback": {
+          "type": "object",
+          "required": ["status", "message"],
+          "properties": {
+            "status": { "type": "string", "const": "agwise_dssat_only" },
+            "message": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        }
       },
       "additionalProperties": false
     },
@@ -125,7 +134,17 @@
           "planting_date": { "type": "string", "format": "date" },
           "cultivar_id": { "type": "string", "minLength": 1 },
           "yield_kg_ha": { "type": "number", "minimum": 0 },
-          "water_context": { "type": "string" }
+          "water_context": { "type": "string" },
+          "yield_uncertainty": {
+            "type": "object",
+            "required": ["range_basis", "temporal_uncertainty", "interpretation"],
+            "properties": {
+              "range_basis": { "type": "string", "const": "spatial_grid_cells" },
+              "temporal_uncertainty": { "type": "string", "const": "not_estimated" },
+              "interpretation": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          }
         },
         "additionalProperties": false
       }

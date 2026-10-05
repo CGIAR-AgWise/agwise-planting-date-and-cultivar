@@ -135,14 +135,14 @@
       "scale": 0.1,
       "offset": 0.0,
       "unit": "unitless IWMI index",
-      "stress_category": "moderate",
-      "stress_category_policy": "Provisional project bands: low < 0.33, moderate 0.33 to < 0.66, high >= 0.66; not an IWMI product legend",
       "sample": {
         "latitude": -24.500676,
         "longitude": 33.001806,
         "crs": "EPSG:4326",
         "method": "nearest raster cell"
-      }
+      },
+      "stress_category": "moderate",
+      "stress_category_policy": "Provisional project bands: low < 0.33, moderate 0.33 to < 0.66, high >= 0.66; not an IWMI product legend"
     }
   },
   "recommendations": [
@@ -156,7 +156,12 @@
       "yield_p90_kg_ha": 3132.1000000000004,
       "yield_cv_pct": 15.130274687408654,
       "n_simulations": 62,
-      "maturity_failure_rate_pct": 0.0
+      "maturity_failure_rate_pct": 0.0,
+      "yield_uncertainty": {
+        "range_basis": "spatial_grid_cells",
+        "temporal_uncertainty": "not_estimated",
+        "interpretation": "P10-P90 describes variation across DSSAT grid-cell simulations for this planting date and cultivar, not year-to-year weather risk."
+      }
     },
     {
       "rank": 2,
@@ -168,7 +173,12 @@
       "yield_p90_kg_ha": 3032.3999999999996,
       "yield_cv_pct": 7.917753456659768,
       "n_simulations": 62,
-      "maturity_failure_rate_pct": 0.0
+      "maturity_failure_rate_pct": 0.0,
+      "yield_uncertainty": {
+        "range_basis": "spatial_grid_cells",
+        "temporal_uncertainty": "not_estimated",
+        "interpretation": "P10-P90 describes variation across DSSAT grid-cell simulations for this planting date and cultivar, not year-to-year weather risk."
+      }
     },
     {
       "rank": 3,
@@ -180,7 +190,12 @@
       "yield_p90_kg_ha": 2928.7,
       "yield_cv_pct": 3.4240836289983543,
       "n_simulations": 20,
-      "maturity_failure_rate_pct": 0.0
+      "maturity_failure_rate_pct": 0.0,
+      "yield_uncertainty": {
+        "range_basis": "spatial_grid_cells",
+        "temporal_uncertainty": "not_estimated",
+        "interpretation": "P10-P90 describes variation across DSSAT grid-cell simulations for this planting date and cultivar, not year-to-year weather risk."
+      }
     },
     {
       "rank": 4,
@@ -192,7 +207,12 @@
       "yield_p90_kg_ha": 2786.3999999999996,
       "yield_cv_pct": 3.0593766661557464,
       "n_simulations": 20,
-      "maturity_failure_rate_pct": 0.0
+      "maturity_failure_rate_pct": 0.0,
+      "yield_uncertainty": {
+        "range_basis": "spatial_grid_cells",
+        "temporal_uncertainty": "not_estimated",
+        "interpretation": "P10-P90 describes variation across DSSAT grid-cell simulations for this planting date and cultivar, not year-to-year weather risk."
+      }
     },
     {
       "rank": 5,
@@ -204,12 +224,17 @@
       "yield_p90_kg_ha": 2780.5,
       "yield_cv_pct": 11.667797465990187,
       "n_simulations": 62,
-      "maturity_failure_rate_pct": 0.0
+      "maturity_failure_rate_pct": 0.0,
+      "yield_uncertainty": {
+        "range_basis": "spatial_grid_cells",
+        "temporal_uncertainty": "not_estimated",
+        "interpretation": "P10-P90 describes variation across DSSAT grid-cell simulations for this planting date and cultivar, not year-to-year weather risk."
+      }
     }
   ],
   "provenance": {
     "run_id": "Maize_2025_treatment_summary",
-    "generated_at": "2026-10-01T12:09:08.815944+00:00",
+    "generated_at": "2026-10-05T09:08:29.193134+00:00",
     "iwmi_sources": [
       "https://odc-explorer.iwmi.org/stac/collections/limpopo_jfm_rainfall",
       "https://odc-explorer.iwmi.org/stac/collections/et_fraction_africa",
@@ -218,6 +243,7 @@
     ],
     "limitations": [
       "DSSAT results are interpreted from the supplied summary CSV",
+      "Target-season precipitation is identified as AgWise forecast PRCP used by DSSAT; no separate IWMI current-season rainfall value is inferred",
       "IWMI context is contextual and does not re-rank DSSAT options",
       "Yields are the median across DSSAT runs at the grid cells in the summary, with one run per cell and planting date; the range shows spatial variation, not year-to-year weather risk"
     ]

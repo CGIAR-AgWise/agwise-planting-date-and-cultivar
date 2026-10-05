@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from datetime import datetime, timezone
 from urllib.parse import urlencode
 from urllib.error import HTTPError, URLError
@@ -40,23 +41,32 @@ def parse_endpoint(value):
     return name, url
 
 
-def fetch_json(url, timeout):
+def fetch_json(url, timeout, retries=2):
     headers = {"Accept": "application/json"}
     bearer_token = os.getenv("IWMI_BEARER_TOKEN")
     if bearer_token:
         headers["Authorization"] = "Bearer " + bearer_token
     headers["User-Agent"] = "AgWise-IWMI-adapter/1.0"
     request = Request(url, headers=headers)
-    try:
-        with urlopen(request, timeout=timeout) as response:
-            body = response.read().decode("utf-8")
-            return json.loads(body)
-    except HTTPError as error:
-        raise RuntimeError(f"IWMI request failed with HTTP {error.code}: {url}") from error
-    except URLError as error:
-        raise RuntimeError(f"IWMI request failed: {url}: {error.reason}") from error
-    except json.JSONDecodeError as error:
-        raise RuntimeError(f"IWMI response was not valid JSON: {url}") from error
+    for attempt in range(retries + 1):
+        try:
+            with urlopen(request, timeout=timeout) as response:
+                body = response.read().decode("utf-8")
+                return json.loads(body)
+        except HTTPError as error:
+            if error.code not in (429, 500, 502, 503, 504) or attempt == retries:
+                raise RuntimeError(
+                    f"IWMI request failed with HTTP {error.code}: {url}"
+                ) from error
+        except URLError as error:
+            if attempt == retries:
+                raise RuntimeError(
+                    f"IWMI request failed after {retries + 1} attempts: "
+                    f"{url}: {error.reason}"
+                ) from error
+        except json.JSONDecodeError as error:
+            raise RuntimeError(f"IWMI response was not valid JSON: {url}") from error
+        time.sleep(0.5 * (attempt + 1))
 
 
 def to_date(value):

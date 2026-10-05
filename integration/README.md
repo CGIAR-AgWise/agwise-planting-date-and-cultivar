@@ -143,6 +143,12 @@ rainfall observation. The advisory therefore identifies the AgWise forecast
 IWMI composite as historical context. It does not download or infer a second
 current-season IWMI rainfall value.
 
+IWMI requests retry transient HTTP and network failures twice. If
+`--allow-missing` is enabled, failed layers are recorded individually with
+their errors and the payload includes an explicit `agwise_dssat_only` fallback.
+The recommendation remains available from AgWise and DSSAT instead of failing
+because optional IWMI context is unavailable.
+
 When season dates are supplied, each STAC item is classified as
 `current_season`, `historical_reference`, or `static_spatial_context`. A
 historical or static match is retained for context but is never described as

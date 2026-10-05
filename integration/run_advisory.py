@@ -85,6 +85,14 @@ def load_recommendations(path, limit, rank_by="median"):
             value = optional_float(row, column)
             if value is not None:
                 entry[field] = int(value) if field == "n_simulations" else value
+        entry["yield_uncertainty"] = {
+            "range_basis": "spatial_grid_cells",
+            "temporal_uncertainty": "not_estimated",
+            "interpretation": (
+                "P10-P90 describes variation across DSSAT grid-cell simulations "
+                "for this planting date and cultivar, not year-to-year weather risk."
+            ),
+        }
         parsed.append(entry)
 
     parsed.sort(key=lambda item: item["yield_kg_ha"], reverse=True)
@@ -219,6 +227,13 @@ def build_payload(args):
 
     if errors:
         payload["iwmi"]["errors"] = errors
+        payload["iwmi"]["fallback"] = {
+            "status": "agwise_dssat_only",
+            "message": (
+                "Unavailable IWMI layers were omitted; recommendations remain "
+                "based on AgWise forecast and DSSAT results."
+            ),
+        }
         payload["provenance"]["limitations"].append(
             "One or more IWMI layers could not be retrieved for this run"
         )

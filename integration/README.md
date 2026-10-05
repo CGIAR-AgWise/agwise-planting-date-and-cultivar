@@ -131,8 +131,17 @@ negative or positive rainfall anomaly is described as below or above the
 product reference average. ET is displayed as a percentage under the ODC
 product definition while retaining the linked-COG metadata warning. Irrigation
 is reported from the probability asset without converting it to a binary class. The
-evaporative-stress product is shown as a unitless numeric index and is not
+evaporative-stress product is shown as a unitless numeric index with a
+provisional project category: low stress below `0.33`, moderate stress from
+`0.33` to below `0.66`, and high stress at or above `0.66`. These bands are
+not an IWMI product legend, so the category is labelled provisional and is not
 used to change DSSAT ranking.
+
+The IWMI rainfall collection is a historical JFM composite, not a target-season
+rainfall observation. The advisory therefore identifies the AgWise forecast
+`PRCP` used by DSSAT as the target-season precipitation source and keeps the
+IWMI composite as historical context. It does not download or infer a second
+current-season IWMI rainfall value.
 
 When season dates are supplied, each STAC item is classified as
 `current_season`, `historical_reference`, or `static_spatial_context`. A

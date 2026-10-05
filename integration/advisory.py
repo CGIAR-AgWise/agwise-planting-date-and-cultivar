@@ -11,6 +11,10 @@ LABELS = {
     "irrigation": "Irrigation context",
     "water_stress": "Water-stress index",
 }
+WATER_STRESS_THRESHOLDS = {
+    "low": 0.33,
+    "moderate": 0.66,
+}
 
 
 def format_date(value):
@@ -26,6 +30,14 @@ def has_value(measure):
         and measure.get("status") == "available"
         and measure.get("value") is not None
     )
+
+
+def classify_water_stress(value):
+    if value < WATER_STRESS_THRESHOLDS["low"]:
+        return "low"
+    if value < WATER_STRESS_THRESHOLDS["moderate"]:
+        return "moderate"
+    return "high"
 
 
 def format_measure(name, measure):
@@ -59,7 +71,11 @@ def format_measure(name, measure):
         if raw is not None and scale is not None and scale != 1
         else ""
     )
-    return f"- {label}: {value_text} ({inner}{encoding})"
+    line = f"- {label}: {value_text} ({inner}{encoding})"
+    if name == "water_stress" and isinstance(value, (int, float)):
+        category = classify_water_stress(value)
+        line += f"; provisional category: {category} stress"
+    return line
 
 
 def format_temporal_context(iwmi):
@@ -95,6 +111,20 @@ def format_temporal_context(iwmi):
     return lines
 
 
+def format_target_season_precipitation(agwise):
+    precipitation = agwise.get("forecast", {}).get("precipitation", {})
+    period = precipitation.get("period", {})
+    if not precipitation or not period.get("start") or not period.get("end"):
+        return []
+    return [
+        "Target-season rainfall:",
+        (
+            f"- {precipitation.get('source', 'AgWise forecast PRCP')}: "
+            f"{period['start']} to {period['end']}"
+        ),
+    ]
+
+
 def interpret_water_context(iwmi):
     statements = []
     rainfall = iwmi.get("rainfall", {})
@@ -121,8 +151,9 @@ def interpret_water_context(iwmi):
         )
     if has_value(iwmi.get("water_stress", {})):
         statements.append(
-            "The water-stress index is shown as numeric context and does not "
-            "change the DSSAT ranking."
+            "The water-stress index is shown with a provisional project category "
+            "(low < 0.33, moderate 0.33 to < 0.66, high >= 0.66). These cutoffs "
+            "are not an IWMI product legend and do not change the DSSAT ranking."
         )
     return statements
 
@@ -138,6 +169,7 @@ def build_advisory(payload):
     ranked = sorted(recommendation, key=lambda item: item["rank"])
     best = ranked[0]
     iwmi = payload.get("iwmi", {})
+    agwise = payload.get("agwise", {})
     iwmi_status = iwmi.get("status", "not_requested")
 
     lines = [
@@ -203,6 +235,9 @@ def build_advisory(payload):
         for name in LABELS:
             if name in iwmi:
                 lines.append(format_measure(name, iwmi[name]))
+        target_precipitation = format_target_season_precipitation(agwise)
+        if target_precipitation:
+            lines.extend(["", *target_precipitation])
         temporal_context = format_temporal_context(iwmi)
         if temporal_context:
             lines.extend(["", "Temporal coverage", "-----------------"])

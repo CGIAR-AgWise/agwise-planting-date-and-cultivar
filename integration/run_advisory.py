@@ -8,6 +8,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 from advisory import build_advisory
+from advisory import classify_water_stress
 from iwmi_adapter import add_raster_value, fetch_stac_item
 
 
@@ -156,6 +157,15 @@ def build_payload(args):
             "forecast": {
                 "variables": ["PRCP", "TMAX", "TMIN", "SRAD"],
                 "lead_months": args.lead_months,
+                "precipitation": {
+                    "source": "AgWise forecast PRCP used by DSSAT",
+                    "variable": "PRCP",
+                    "period": {
+                        "start": season_start.isoformat(),
+                        "end": season_end.isoformat(),
+                    },
+                    "temporal_role": "current_season",
+                },
             },
             "dssat": {
                 "status": "available",
@@ -171,6 +181,7 @@ def build_payload(args):
             "iwmi_sources": [],
             "limitations": [
                 "DSSAT results are interpreted from the supplied summary CSV",
+                "Target-season precipitation is identified as AgWise forecast PRCP used by DSSAT; no separate IWMI current-season rainfall value is inferred",
                 "IWMI context is contextual and does not re-rank DSSAT options",
                 f"Yields are the {args.rank_by} across DSSAT runs at the grid cells in the summary, with one run per cell and planting date; the range shows spatial variation, not year-to-year weather risk",            ],
         },
@@ -193,6 +204,12 @@ def build_payload(args):
                 measure = add_raster_value(
                     measure, name, location["latitude"], location["longitude"]
                 )
+                if name == "water_stress" and isinstance(measure.get("value"), (int, float)):
+                    measure["stress_category"] = classify_water_stress(measure["value"])
+                    measure["stress_category_policy"] = (
+                        "Provisional project bands: low < 0.33, moderate 0.33 to < 0.66, "
+                        "high >= 0.66; not an IWMI product legend"
+                    )
             payload["iwmi"][name] = measure
         except RuntimeError as error:
             if not args.allow_missing:

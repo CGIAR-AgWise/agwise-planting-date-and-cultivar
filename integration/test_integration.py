@@ -1,7 +1,7 @@
 # integration/test_integration.py
 from datetime import date
 
-from advisory import build_advisory
+from advisory import build_advisory, classify_water_stress
 from iwmi_adapter import overlaps
 from run_advisory import load_recommendations, parse_date
 
@@ -53,6 +53,14 @@ def test_advisory_separates_iwmi_temporal_roles():
                 "yield_kg_ha": 2975.5,
             }
         ],
+        "agwise": {
+            "forecast": {
+                "precipitation": {
+                    "source": "AgWise forecast PRCP used by DSSAT",
+                    "period": {"start": "2025-11-01", "end": "2026-02-28"},
+                }
+            }
+        },
         "iwmi": {
             "status": "available",
             "rainfall": {
@@ -77,6 +85,11 @@ def test_advisory_separates_iwmi_temporal_roles():
     advisory = build_advisory(payload)
 
     assert "No current-season IWMI layers were available." in advisory
+    assert "Target-season rainfall:" in advisory
+    assert (
+        "- AgWise forecast PRCP used by DSSAT: 2025-11-01 to 2026-02-28"
+        in advisory
+    )
     assert "Historical reference layers:" in advisory
     assert (
         "- Historical JFM rainfall anomaly composite (Limpopo domain): "
@@ -84,3 +97,10 @@ def test_advisory_separates_iwmi_temporal_roles():
     ) in advisory
     assert "Static spatial-context layers:" in advisory
     assert "- Irrigation context: 2026-06-01 to 2026-06-30" in advisory
+
+
+def test_water_stress_uses_provisional_project_bands():
+    assert classify_water_stress(0.32) == "low"
+    assert classify_water_stress(0.33) == "moderate"
+    assert classify_water_stress(0.65) == "moderate"
+    assert classify_water_stress(0.66) == "high"

@@ -11,6 +11,10 @@ responsible for the seasonal recommendation. IWMI contributes additional
 historical and spatial water context. IWMI values are currently displayed for
 context and do not re-rank DSSAT treatments.
 
+Target-season precipitation remains the AgWise forecast `PRCP` used by DSSAT.
+The IWMI rainfall composite is retained as historical context and is never
+presented as a target-season observation.
+
 ## High-level architecture
 
 ```text
@@ -137,9 +141,11 @@ Green ET wording and `mm/month` terminology. The integration follows the ODC
 collection and measurement definition, while retaining the conflict as a
 provenance warning.
 
-The water-stress product is shown numerically. The public IWMI product metadata
-does not provide a product-specific category legend, so the integration does
-not assign stress categories or use the index to change DSSAT ranking.
+The water-stress product is shown numerically with a provisional project
+category: low below `0.33`, moderate from `0.33` to below `0.66`, and high at
+or above `0.66`. The public IWMI product metadata does not provide a
+product-specific category legend, so this category is explicitly provisional
+and does not change DSSAT ranking.
 
 ## How the integration is done
 
@@ -346,9 +352,9 @@ The schema is deliberately explicit about availability. A layer may be:
 | Limitation | Current solution | Remaining action |
 | --- | --- | --- |
 | IWMI layers use different periods | Every measure records `period` and `temporal_role`. The advisory now groups periods under current-season, historical-reference, and static-spatial sections rather than presenting them as one time series. | Keep the grouping rule in sync with any dashboard or API consumer. |
-| Rainfall is a historical composite | The advisory calls it an anomaly composite and does not use it as the target-season forecast. | Add a current-season rainfall product when an approved one is available. |
+| Rainfall is a historical composite | The advisory keeps the IWMI composite as historical context and identifies AgWise forecast `PRCP` used by DSSAT as the target-season precipitation source. No separate IWMI current-season value is inferred. | Use a current-season IWMI product only if an approved collection with matching dates, units, and forecast/observation semantics becomes available. |
 | ET catalogue metadata conflicts | The integration follows the `et_fraction_africa` ODC definition, applies scale/offset, and records the conflict in the unit and interpretation text. | Confirm the asset metadata upstream or switch to a product whose collection and GeoTIFF metadata agree. |
-| Water-stress thresholds are undocumented | The value is decoded and displayed numerically; no unsupported stress category changes the DSSAT result. | Obtain a product legend or derive thresholds from a documented calibration study before categorizing. |
+| Water-stress thresholds are undocumented | The value is decoded and labelled with provisional project bands (`<0.33`, `0.33-<0.66`, `>=0.66`). The category is clearly marked as provisional and does not change DSSAT ranking. | Replace the project bands with IWMI-approved thresholds when a product legend or documented calibration study becomes available. |
 | IWMI context does not re-rank DSSAT | This is an intentional safety boundary: DSSAT ranks treatments and IWMI qualifies them. | If re-ranking is required, define and validate an agronomic decision rule separately, then version and test it. |
 | Yield range is spatial, not temporal uncertainty | The advisory labels P10-P90 as spatial variation and reports `n_simulations`. | Add multi-season DSSAT runs and a separate temporal uncertainty field. |
 | Technical result is not a farm instruction | The output includes limitations and recommends local agronomic review. | Validate soils, cultivars, management assumptions, and recommendations across seasons and locations. |

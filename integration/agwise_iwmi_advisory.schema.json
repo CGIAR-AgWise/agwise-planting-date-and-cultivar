@@ -60,7 +60,29 @@
               "minItems": 1,
               "uniqueItems": true
             },
-            "lead_months": { "type": "integer", "minimum": 0 }
+            "lead_months": { "type": "integer", "minimum": 0 },
+            "precipitation": {
+              "type": "object",
+              "required": ["source", "variable", "period", "temporal_role"],
+              "properties": {
+                "source": { "type": "string", "minLength": 1 },
+                "variable": { "type": "string", "const": "PRCP" },
+                "period": {
+                  "type": "object",
+                  "required": ["start", "end"],
+                  "properties": {
+                    "start": { "type": "string", "format": "date" },
+                    "end": { "type": "string", "format": "date" }
+                  },
+                  "additionalProperties": false
+                },
+                "temporal_role": {
+                  "type": "string",
+                  "const": "current_season"
+                }
+              },
+              "additionalProperties": false
+            }
           },
           "additionalProperties": false
         },
@@ -139,6 +161,11 @@
         "scale": { "type": "number" },
         "offset": { "type": "number" },
         "unit": { "type": "string" },
+        "stress_category": {
+          "type": "string",
+          "enum": ["low", "moderate", "high"]
+        },
+        "stress_category_policy": { "type": "string", "minLength": 1 },
         "period": {
           "type": "object",
           "properties": {

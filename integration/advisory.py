@@ -159,7 +159,7 @@ def interpret_water_context(iwmi):
         statements.append(
             "The water-stress index is shown with a provisional project category "
             "(low < 0.33, moderate 0.33 to < 0.66, high >= 0.66). These cutoffs "
-            "are not an IWMI product legend and do not change the DSSAT ranking."
+            "are not an IWMI product legend."
         )
     return statements
 
@@ -196,6 +196,15 @@ def build_advisory(payload):
         f"Highest {best.get('yield_metric', 'simulated')} simulated yield: "
         f"{best['yield_kg_ha']:,.0f} kg/ha.",
     ]
+    ranking = payload.get("provenance", {}).get("iwmi_ranking", {})
+    if ranking.get("mode") == "experimental":
+        lines.extend(
+            [
+                "EXPERIMENTAL: Limpopo DT adjustment applied to the ranking.",
+                "This result is for A/B software testing only and is not "
+                "validated operational advice.",
+            ]
+        )
 
     p10, p90 = best.get("yield_p10_kg_ha"), best.get("yield_p90_kg_ha")
     if p10 is not None and p90 is not None:
@@ -255,6 +264,12 @@ def build_advisory(payload):
             lines.extend(["", "Temporal coverage", "-----------------"])
             lines.extend(temporal_context)
         statements = interpret_water_context(iwmi)
+        if ranking.get("mode") == "experimental":
+            statements.append(
+                "The experimental Limpopo DT adjustment changed the displayed "
+                "ranking using a placeholder policy; compare this run with the "
+                "DSSAT-only baseline and do not use it operationally."
+            )
         if statements:
             lines.extend(["", "Interpretation", "--------------"])
             lines.extend(f"- {statement}" for statement in statements)

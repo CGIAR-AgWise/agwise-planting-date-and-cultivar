@@ -8,6 +8,7 @@ from iwmi_adapter import overlaps
 from run_advisory import (
     IWMI_RANKING_UNAVAILABLE,
     load_recommendations,
+    load_iwmi_ranking_policy,
     parse_date,
     validate_iwmi_ranking_enabled,
     validate_iwmi_ranking_inputs,
@@ -151,6 +152,21 @@ def test_iwmi_ranking_policy_is_draft_and_disabled():
     assert policy["direction"] == "unset"
 
 
+def test_experimental_policy_is_explicitly_non_operational():
+    policy_path = (
+        Path(__file__).parent / "policies" / "maize_water_stress_experimental_v1.json"
+    )
+    policy = load_iwmi_ranking_policy(policy_path, allow_experimental=True)
+    assert policy["status"] == "experimental"
+    assert policy["approved"] is False
+    try:
+        load_iwmi_ranking_policy(policy_path, allow_experimental=False)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Experimental policy was accepted as approved")
+
+
 def test_iwmi_ranking_rejects_missing_and_historical_inputs():
     for measure in (
         {"status": "unavailable"},
@@ -220,3 +236,26 @@ def test_iwmi_ranking_preserves_dssat_and_records_adjustment():
     assert result[0]["planting_date"] == "2025-11-23"
     assert result[1]["dssat_yield_kg_ha"] == 3000
     assert result[1]["iwmi_adjusted_yield_kg_ha"] == 2400
+
+
+def test_iwmi_ranking_supports_a_bounded_bonus():
+    recommendations = [
+        {
+            "rank": 1,
+            "planting_date": "2025-11-30",
+            "cultivar_id": "Short",
+            "yield_kg_ha": 3000,
+        }
+    ]
+    policy = {
+        "policy_id": "test-bonus-v1",
+        "measure": "water_stress",
+        "adjustment_fraction": {"moderate": 0.05, "high": -0.15},
+    }
+    result = apply_iwmi_ranking_rule(
+        recommendations,
+        {"water_stress": {"stress_category": "moderate"}},
+        policy,
+    )
+    assert result[0]["iwmi_adjusted_yield_kg_ha"] == 3150
+    assert result[0]["iwmi_ranking_effect"]["effect"] == "bonus"

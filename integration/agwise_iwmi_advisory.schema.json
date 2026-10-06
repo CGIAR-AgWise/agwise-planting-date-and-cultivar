@@ -139,13 +139,16 @@
           "iwmi_adjusted_yield_kg_ha": { "type": "number", "minimum": 0 },
           "iwmi_ranking_effect": {
             "type": "object",
-            "required": ["policy_id", "measure", "penalty_fraction", "applied", "category"],
+            "required": ["policy_id", "measure", "adjustment_fraction", "effect", "applied", "category"],
             "properties": {
               "policy_id": { "type": "string", "minLength": 1 },
               "measure": { "type": "string", "const": "water_stress" },
-              "penalty_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+              "adjustment_fraction": { "type": "number", "exclusiveMinimum": -1, "exclusiveMaximum": 1 },
+              "effect": { "type": "string", "enum": ["bonus", "penalty", "none"] },
               "applied": { "type": "boolean" },
-              "category": { "type": ["string", "null"] }
+              "category": { "type": ["string", "null"] },
+              "mode": { "type": "string", "enum": ["approved", "experimental"] },
+              "policy_status": { "type": "string", "enum": ["approved", "experimental"] }
             },
             "additionalProperties": false
           },
@@ -176,7 +179,10 @@
           "required": ["enabled"],
           "properties": {
             "enabled": { "type": "boolean" },
-            "policy_id": { "type": "string" }
+            "policy_id": { "type": "string" },
+            "mode": { "type": "string", "enum": ["approved", "experimental"] },
+            "policy_status": { "type": "string", "enum": ["approved", "experimental"] },
+            "not_for_operational_advice": { "type": "boolean" }
           },
           "additionalProperties": false
         },

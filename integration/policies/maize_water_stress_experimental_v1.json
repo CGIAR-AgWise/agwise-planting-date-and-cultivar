@@ -1,0 +1,28 @@
+{
+  "policy_id": "maize-water-stress-experimental-v1",
+  "status": "experimental",
+  "approved": false,
+  "measure": "water_stress",
+  "direction": "higher_values_mean_more_stress",
+  "penalty": {
+    "moderate": 0.05,
+    "high": 0.15
+  },
+  "penalty_by_planting_date": {
+    "moderate": {
+      "2025-11-30": 0.15,
+      "2025-11-23": 0.02
+    },
+    "high": {
+      "2025-11-30": 0.25,
+      "2025-11-23": 0.05
+    }
+  },
+  "validated_for": [
+    "software comparison only",
+    "MOZ-Chokwe",
+    "Maize",
+    "2025-11-01/2026-02-28"
+  ],
+  "notes": "Synthetic sensitivity policy for A/B testing only. Not scientifically approved and not for operational advice. Date-specific penalties are placeholders to demonstrate whether ranking changes."
+}

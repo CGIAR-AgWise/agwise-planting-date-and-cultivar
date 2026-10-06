@@ -22,8 +22,8 @@ DEFAULT_LOCATIONS = Path(__file__).with_name("locations.json")
 
 RANK_COLUMNS = {"median": "HWAH_median", "mean": "HWAH_mean", "p10": "HWAH_p10"}
 IWMI_RANKING_UNAVAILABLE = (
-    "IWMI re-ranking is not implemented: a validated current-season IWMI "
-    "ranking policy is required before it can affect DSSAT recommendations."
+    "IWMI re-ranking cannot be enabled safely: an approved current-season "
+    "IWMI ranking policy is required before it can affect DSSAT recommendations."
 )
 EXTRA_FIELDS = {
     "yield_p10_kg_ha": "HWAH_p10",
@@ -142,32 +142,57 @@ def validate_iwmi_ranking_enabled(enabled):
     return enabled
 
 
-def load_iwmi_ranking_policy(path):
+def load_iwmi_ranking_policy(path, allow_experimental=False):
     with open(path, encoding="utf-8") as handle:
         policy = json.load(handle)
-    required = ("policy_id", "status", "approved", "measure", "direction", "penalty")
+    required = ("policy_id", "status", "approved", "measure", "direction")
     missing = [field for field in required if field not in policy]
     if missing:
         raise ValueError(f"IWMI ranking policy is missing: {', '.join(missing)}")
-    if policy["status"] != "approved" or policy["approved"] is not True:
+    if "penalty" not in policy and "adjustment_fraction" not in policy:
+        raise ValueError(
+            "IWMI ranking policy must define penalty or adjustment_fraction."
+        )
+    approved = policy["status"] == "approved" and policy["approved"] is True
+    experimental = (
+        allow_experimental
+        and policy["status"] == "experimental"
+        and policy["approved"] is False
+    )
+    if not approved and not experimental:
         raise ValueError("IWMI ranking policy must have status 'approved' and approved=true.")
     if policy["measure"] != "water_stress":
         raise ValueError("IWMI ranking currently supports only water_stress.")
     if policy["direction"] != "higher_values_mean_more_stress":
         raise ValueError("IWMI ranking policy must define the approved stress direction.")
+    values = policy.get("adjustment_fraction", policy.get("penalty"))
+    signed = "adjustment_fraction" in policy
     for category in ("moderate", "high"):
-        penalty = policy["penalty"].get(category)
-        if not isinstance(penalty, (int, float)) or not 0 <= penalty < 1:
-            raise ValueError(f"IWMI ranking policy has an invalid {category} penalty.")
-    date_penalties = policy.get("penalty_by_planting_date", {})
+        value = values.get(category)
+        valid = isinstance(value, (int, float)) and (
+            -1 < value < 1 if signed else 0 <= value < 1
+        )
+        if not valid:
+            label = "adjustment" if signed else "penalty"
+            raise ValueError(f"IWMI ranking policy has an invalid {category} {label}.")
+    date_key = (
+        "adjustment_by_planting_date"
+        if "adjustment_by_planting_date" in policy
+        else "penalty_by_planting_date"
+    )
+    date_penalties = policy.get(date_key, {})
     for category, penalties in date_penalties.items():
         if category not in ("moderate", "high") or not isinstance(penalties, dict):
             raise ValueError("IWMI ranking policy has invalid date penalties.")
         for planting_date, penalty in penalties.items():
             if not isinstance(planting_date, str) or not isinstance(penalty, (int, float)):
                 raise ValueError("IWMI ranking policy has invalid date penalty values.")
-            if not 0 <= penalty < 1:
-                raise ValueError("IWMI ranking policy date penalties must be in [0, 1).")
+            if signed:
+                valid = -1 < penalty < 1
+            else:
+                valid = 0 <= penalty < 1
+            if not valid:
+                raise ValueError("IWMI ranking policy date adjustments must be in (-1, 1).")
     return policy
 
 
@@ -196,18 +221,27 @@ def apply_iwmi_ranking_rule(recommendations, iwmi, policy):
     adjusted = []
     for recommendation in recommendations:
         item = dict(recommendation)
-        penalty = policy.get("penalty_by_planting_date", {}).get(category, {}).get(
-            recommendation["planting_date"],
-            policy["penalty"].get(category, 0),
+        values = policy.get("adjustment_fraction", policy.get("penalty"))
+        date_key = (
+            "adjustment_by_planting_date"
+            if "adjustment_by_planting_date" in policy
+            else "penalty_by_planting_date"
         )
+        adjustment = policy.get(date_key, {}).get(category, {}).get(
+            recommendation["planting_date"],
+            values.get(category, 0),
+        )
+        if "penalty" in policy and "adjustment_fraction" not in policy:
+            adjustment = -adjustment
         item["dssat_yield_kg_ha"] = item["yield_kg_ha"]
-        item["iwmi_adjusted_yield_kg_ha"] = item["yield_kg_ha"] * (1 - penalty)
+        item["iwmi_adjusted_yield_kg_ha"] = item["yield_kg_ha"] * (1 + adjustment)
         item["yield_kg_ha"] = item["iwmi_adjusted_yield_kg_ha"]
         item["iwmi_ranking_effect"] = {
             "policy_id": policy["policy_id"],
             "measure": policy["measure"],
-            "penalty_fraction": penalty,
-            "applied": penalty > 0,
+            "adjustment_fraction": adjustment,
+            "effect": "bonus" if adjustment > 0 else "penalty" if adjustment < 0 else "none",
+            "applied": adjustment != 0,
             "category": category,
         }
         adjusted.append(item)
@@ -273,7 +307,11 @@ def build_payload(args):
             "limitations": [
                 "DSSAT results are interpreted from the supplied summary CSV",
                 "Target-season precipitation is identified as AgWise forecast PRCP used by DSSAT; no separate IWMI current-season rainfall value is inferred",
-                "IWMI context is contextual and does not re-rank DSSAT options",
+                (
+                    "IWMI context is contextual and does not re-rank DSSAT options"
+                    if not args.experimental_iwmi_ranking
+                    else "Experimental Limpopo DT adjustment is not validated for operational advice"
+                ),
                 f"Yields are the {args.rank_by} across DSSAT runs at the grid cells in the summary, with one run per cell and planting date; the range shows spatial variation, not year-to-year weather risk",            ],
         },
     }
@@ -308,23 +346,37 @@ def build_payload(args):
             errors.append(f"{name}: {error}")
             payload["iwmi"][name] = {"status": "unavailable", "source": collection}
 
-    if args.enable_iwmi_ranking:
+    if args.enable_iwmi_ranking or args.experimental_iwmi_ranking:
         if not args.iwmi_ranking_policy:
             raise ValueError(
                 f"{IWMI_RANKING_UNAVAILABLE} Supply --iwmi-ranking-policy."
             )
-        policy = load_iwmi_ranking_policy(args.iwmi_ranking_policy)
-        validate_iwmi_ranking_inputs(
-            payload["iwmi"], season_start.isoformat(), season_end.isoformat()
+        experimental = args.experimental_iwmi_ranking
+        policy = load_iwmi_ranking_policy(
+            args.iwmi_ranking_policy, allow_experimental=experimental
         )
+        if not experimental:
+            validate_iwmi_ranking_inputs(
+                payload["iwmi"], season_start.isoformat(), season_end.isoformat()
+            )
         payload["recommendations"] = apply_iwmi_ranking_rule(
             recommendations, payload["iwmi"], policy
         )[: args.top]
+        for recommendation in payload["recommendations"]:
+            recommendation["iwmi_ranking_effect"].update(
+                {
+                    "mode": "experimental" if experimental else "approved",
+                    "policy_status": policy["status"],
+                }
+            )
         for rank, recommendation in enumerate(payload["recommendations"], 1):
             recommendation["rank"] = rank
         payload["provenance"]["iwmi_ranking"] = {
             "enabled": True,
             "policy_id": policy["policy_id"],
+            "mode": "experimental" if experimental else "approved",
+            "policy_status": policy["status"],
+            "not_for_operational_advice": experimental,
         }
     else:
         payload["recommendations"] = recommendations[: args.top]
@@ -378,7 +430,13 @@ def main():
         "--enable-iwmi-ranking",
         dest="enable_iwmi_ranking",
         action="store_true",
-        help="Enable validated IWMI ranking adjustments (not implemented).",
+        help="Enable validated IWMI ranking adjustments.",
+    )
+    ranking_group.add_argument(
+        "--experimental-iwmi-ranking",
+        dest="experimental_iwmi_ranking",
+        action="store_true",
+        help="Run a non-operational experimental IWMI ranking comparison.",
     )
     ranking_group.add_argument(
         "--disable-iwmi-ranking",
@@ -386,7 +444,7 @@ def main():
         action="store_false",
         help="Keep DSSAT-only ranking (default).",
     )
-    parser.set_defaults(enable_iwmi_ranking=False)
+    parser.set_defaults(enable_iwmi_ranking=False, experimental_iwmi_ranking=False)
     parser.add_argument("--stac-catalog", default="https://odc-explorer.iwmi.org/stac")
     parser.add_argument("--timeout", type=float, default=30)
     parser.add_argument("--sample-raster", action="store_true")

@@ -84,6 +84,55 @@ The Chokwe example currently recommends:
 
 ## DSSAT ranking effect of IWMI context
 
+### Experimental A/B comparison
+
+The integration supports a separate, explicitly non-operational experiment
+mode for measuring whether a Limpopo Digital Twin signal can change the
+recommendation. It must not be confused with an approved agronomic policy.
+
+Run the DSSAT-only baseline with the normal command, then run the comparison
+using the experimental policy:
+
+```bash
+python integration/run_advisory.py \
+  --dssat-summary data/usecases/useCase_Mozambique_chókwè/Maize/result/DSSAT/AOI/Maize_2025_treatment_summary.csv \
+  --country-code MOZ \
+  --location Chokwe \
+  --crop Maize \
+  --season-start 2025-11-01 \
+  --season-end 2026-02-28 \
+  --sample-raster \
+  --allow-missing \
+  --experimental-iwmi-ranking \
+  --iwmi-ranking-policy integration/policies/maize_water_stress_experimental_v1.json \
+  --output integration/examples/chokwe_experimental_iwmi.json
+```
+
+The experimental policy intentionally permits the historical/provisional
+water-stress value to demonstrate software behavior. Its date-specific
+penalties are synthetic placeholders. The output is marked
+`not_for_operational_advice` and must be compared with the DSSAT-only baseline.
+Any changed recommendation demonstrates integration sensitivity, not agronomic
+improvement.
+
+Policies can also use the signed `adjustment_fraction` form:
+
+```json
+{
+  "adjustment_fraction": {
+    "moderate": 0.05,
+    "high": -0.15
+  }
+}
+```
+
+Positive values are bonuses, negative values are penalties, and zero means no
+adjustment. The supported range is greater than `-1` and less than `1`; this
+prevents a negative score while allowing a bounded bonus. The legacy
+`penalty` form remains supported and is converted to a negative adjustment.
+Bonuses require the same scientific validation as penalties and should not be
+used merely to force a preferred ranking.
+
 ### Current state
 
 IWMI does **not** currently change the DSSAT ranking. The ranking is produced

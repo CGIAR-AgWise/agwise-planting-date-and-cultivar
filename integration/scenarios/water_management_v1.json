@@ -1,0 +1,11 @@
+{
+  "policy_id": "limpopo-water-management-scenarios-v1",
+  "status": "experimental",
+  "approved": false,
+  "irrigation_probability_thresholds": {
+    "supplemental_min": 0.2,
+    "reliable_min": 0.6
+  },
+  "material_benefit_kg_ha": 150,
+  "notes": "Scenario thresholds are placeholders for software and sensitivity testing. They do not convert irrigation probability into a field-level irrigation decision without current-season evidence and local water-access validation."
+}

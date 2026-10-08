@@ -22,6 +22,12 @@ stress context. The IWMI context qualifies the recommendation; it does not
 change the DSSAT ranking unless product meanings and agronomic thresholds have
 been formally validated.
 
+The separate pre-DSSAT scenario experiment is documented in
+[`integration/SCENARIO_GUIDE.md`](integration/SCENARIO_GUIDE.md). It uses IWMI
+data to identify feasible rainfed, supplemental-irrigation, and irrigated
+scenarios before DSSAT is run. It does not overwrite DSSAT yields or choose an
+irrigation scenario from yield alone.
+
 ## What the workflow does
 
 For a configured country, location, crop, and season, the workflow:
@@ -339,6 +345,9 @@ The `integration/` folder contains the AgWISE-IWMI boundary:
 | `integration/advisory.py` | Formats the normalized payload as plain-language terminal text |
 | `integration/locations.json` | Registry of reviewed locations and coordinates |
 | `integration/agwise_iwmi_advisory.schema.json` | JSON Schema for the normalized payload |
+| `integration/iwmi_dssat_scenarios.py` | Converts validated IWMI context into DSSAT water-management scenarios |
+| `integration/plan_dssat_scenarios.py` | CLI for creating an auditable pre-DSSAT scenario plan |
+| `integration/SCENARIO_GUIDE.md` | Scenario design, decision rule, and next DSSAT handoff steps |
 | `integration/examples/` | Technical example advisory payloads |
 
 ### Direct advisory command

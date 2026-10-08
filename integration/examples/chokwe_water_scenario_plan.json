@@ -1,0 +1,48 @@
+{
+  "selection_method": "feasibility_then_expected_value",
+  "primary_scenario": "rainfed",
+  "scenarios_to_simulate": [
+    "rainfed"
+  ],
+  "scenarios": [
+    {
+      "name": "rainfed",
+      "dssat_management": "rainfed",
+      "status": "feasible",
+      "requires": "rainfall and soil water only; no scheduled irrigation",
+      "selected": true
+    },
+    {
+      "name": "supplemental_irrigation",
+      "dssat_management": "conditional",
+      "requires": "confirmed access to limited irrigation water",
+      "status": "conditional",
+      "selected": false
+    },
+    {
+      "name": "irrigated",
+      "dssat_management": "irrigated",
+      "status": "conditional",
+      "requires": "reliable irrigation access and a validated schedule",
+      "selected": false
+    }
+  ],
+  "iwmi_evidence": {
+    "measure": "irrigation",
+    "value": 0.03579594939947128,
+    "period": {
+      "start": "2026-06-01T00:00:00Z",
+      "end": "2026-06-30T23:59:59Z"
+    },
+    "temporal_role": "static_spatial_context",
+    "usable_for_scenario_selection": false
+  },
+  "selection_reasons": [
+    "current-season irrigation probability is unavailable or does not overlap the season",
+    "rainfed is the conservative feasible baseline"
+  ],
+  "yield_selection_deferred": true,
+  "yield_selection_note": "Run DSSAT for each feasible scenario first. Choose among simulated results only after applying water feasibility, cost, and material benefit rules; do not select irrigation solely because it has the highest simulated yield.",
+  "operational_status": "experimental",
+  "not_for_operational_advice": true
+}

@@ -135,7 +135,7 @@ For the current Chokwe example, the 30 November `Short` treatment has 62
 simulations, a median of approximately `2,975.5 kg/ha`, and a spatial P10-P90
 range of approximately `2,025.2-3,132.1 kg/ha`.
 
-## What IWMI changes—and what it does not
+## What IWMI changes and what it does not
 
 In the normal DSSAT-only path, IWMI values are added after DSSAT ranking as
 historical, static, or current-season context. They do not change:

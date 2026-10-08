@@ -37,7 +37,7 @@
     "dssat": {
       "status": "available",
       "metric": "HWAH",
-      "recommendation_count": 5
+      "recommendation_count": 16
     }
   },
   "iwmi": {
@@ -84,7 +84,7 @@
       "raw_value": 6.0,
       "scale": 0.1,
       "offset": 0.0,
-      "unit": "ODC product definition; linked COG Green ET metadata conflict",
+      "unit": "ODC ET-fraction percentage; linked COG Green ET mm/month conflict specific to et_fraction_africa",
       "sample": {
         "latitude": -24.500676,
         "longitude": 33.001806,
@@ -152,6 +152,7 @@
       "cultivar_id": "Short",
       "yield_kg_ha": 2975.5,
       "yield_metric": "median",
+      "dssat_yield_kg_ha": 2975.5,
       "yield_p10_kg_ha": 2025.1999999999998,
       "yield_p90_kg_ha": 3132.1000000000004,
       "yield_cv_pct": 15.130274687408654,
@@ -169,6 +170,7 @@
       "cultivar_id": "Short",
       "yield_kg_ha": 2822.0,
       "yield_metric": "median",
+      "dssat_yield_kg_ha": 2822.0,
       "yield_p10_kg_ha": 2505.1,
       "yield_p90_kg_ha": 3032.3999999999996,
       "yield_cv_pct": 7.917753456659768,
@@ -186,6 +188,7 @@
       "cultivar_id": "Short",
       "yield_kg_ha": 2777.0,
       "yield_metric": "median",
+      "dssat_yield_kg_ha": 2777.0,
       "yield_p10_kg_ha": 2693.7,
       "yield_p90_kg_ha": 2928.7,
       "yield_cv_pct": 3.4240836289983543,
@@ -203,6 +206,7 @@
       "cultivar_id": "Short",
       "yield_kg_ha": 2660.5,
       "yield_metric": "median",
+      "dssat_yield_kg_ha": 2660.5,
       "yield_p10_kg_ha": 2599.7,
       "yield_p90_kg_ha": 2786.3999999999996,
       "yield_cv_pct": 3.0593766661557464,
@@ -220,6 +224,7 @@
       "cultivar_id": "Short",
       "yield_kg_ha": 2627.0,
       "yield_metric": "median",
+      "dssat_yield_kg_ha": 2627.0,
       "yield_p10_kg_ha": 2052.6,
       "yield_p90_kg_ha": 2780.5,
       "yield_cv_pct": 11.667797465990187,
@@ -234,7 +239,7 @@
   ],
   "provenance": {
     "run_id": "Maize_2025_treatment_summary",
-    "generated_at": "2026-10-05T09:08:29.193134+00:00",
+    "generated_at": "2026-10-08T09:32:18.760999+00:00",
     "iwmi_sources": [
       "https://odc-explorer.iwmi.org/stac/collections/limpopo_jfm_rainfall",
       "https://odc-explorer.iwmi.org/stac/collections/et_fraction_africa",
@@ -246,6 +251,9 @@
       "Target-season precipitation is identified as AgWise forecast PRCP used by DSSAT; no separate IWMI current-season rainfall value is inferred",
       "IWMI context is contextual and does not re-rank DSSAT options",
       "Yields are the median across DSSAT runs at the grid cells in the summary, with one run per cell and planting date; the range shows spatial variation, not year-to-year weather risk"
-    ]
+    ],
+    "iwmi_ranking": {
+      "enabled": false
+    }
   }
 }

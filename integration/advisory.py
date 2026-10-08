@@ -144,10 +144,12 @@ def interpret_water_context(iwmi):
 
     if has_value(iwmi.get("et_fraction", {})):
         statements.append(
-            "The ET value is scale-decoded and reported as a percentage under the "
-            "ODC product definition. The linked COG also contains Green ET "
-            "metadata, so that catalogue conflict is retained as a provenance "
-            "warning rather than given an agronomic interpretation."
+            "The et_fraction_africa value is scale-decoded and reported as a "
+            "percentage under that collection's ODC product definition. Its "
+            "linked COG contains conflicting Green ET metadata, so the warning "
+            "is retained for this collection only. This does not apply to the "
+            "separate transpiration_africa product, whose inspected GeoTIFF "
+            "declares Green ET/transpiration in mm/month."
         )
     if has_value(iwmi.get("irrigation", {})):
         statements.append(

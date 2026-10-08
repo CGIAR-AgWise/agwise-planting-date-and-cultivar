@@ -409,11 +409,15 @@ The Chokwe example contains:
 | Irrigation probability | `0.0358` | `1.0` | `0.0358` | Approximately 3.6% probability. |
 | Water stress | `5` | `0.1` | `0.50` | Unitless decoded IWMI index. |
 
-The ET asset has conflicting public metadata: the ODC product definition
-describes an ET fraction percentage, while linked GeoTIFF metadata contains
-Green ET wording and `mm/month` terminology. The integration follows the ODC
-collection and measurement definition, while retaining the conflict as a
-provenance warning.
+The `et_fraction_africa` asset has conflicting public metadata: the ODC
+product definition describes an ET-fraction percentage, while linked GeoTIFF
+metadata contains Green ET wording and `mm/month` terminology. The integration
+follows that collection's ODC definition while retaining the conflict as a
+provenance warning. This is a product-specific conflict, not a conflict for
+every IWMI ET-related product. The separately inspected `transpiration_africa`
+GeoTIFF declares `standard_name=transpiration`, `long_name=Green ET`,
+`units=mm/month`, and a `0.1` scale factor; decoded values for that product
+are therefore Green ET/transpiration in `mm/month`.
 
 The water-stress product is shown numerically with a provisional project
 category: low below `0.33`, moderate from `0.33` to below `0.66`, and high at
@@ -638,7 +642,7 @@ separate future dataset requirement if temporal uncertainty is needed.
 | Limitation | Current solution | Remaining action |
 | --- | --- | --- |
 | IWMI provider coverage does not match every advisory season | The current Chokwe payload records the available product periods explicitly: rainfall composite `1950-01-01` to `2022-12-31`, ET fraction `2021-12-01` to `2021-12-31`, water stress `2024-12-01` to `2024-12-31`, and irrigation probability `2026-06-01` to `2026-06-30`. These are labelled historical or static context rather than current-season observations. | Use a newer IWMI item only when its `start_datetime` and `end_datetime` overlap the advisory season and its product meaning and metadata are verified. |
-| ET catalogue metadata conflicts | The integration follows the `et_fraction_africa` ODC definition, applies scale/offset, and records the conflict in the unit and interpretation text. | Confirm the asset metadata upstream or switch to a product whose collection and GeoTIFF metadata agree. |
+| `et_fraction_africa` catalogue metadata conflicts | The integration follows that collection's ODC definition, applies scale/offset, and records the conflict in the unit and interpretation text. This is specific to `et_fraction_africa`; the inspected `transpiration_africa` GeoTIFF declares `mm/month`. | Confirm the `et_fraction_africa` asset metadata upstream or use a product whose collection and GeoTIFF metadata agree. |
 | IWMI context does not re-rank DSSAT | This is an intentional safety boundary: DSSAT ranks treatments and IWMI qualifies them. | If re-ranking is required, define and validate an agronomic decision rule separately, then version and test it. |
 | Technical result is not a farm instruction | The output includes limitations and recommends local agronomic review. | Validate soils, cultivars, management assumptions, and recommendations across seasons and locations. |
 

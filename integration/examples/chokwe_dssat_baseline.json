@@ -84,7 +84,7 @@
       "raw_value": 6.0,
       "scale": 0.1,
       "offset": 0.0,
-      "unit": "ODC product definition; linked COG Green ET metadata conflict",
+      "unit": "ODC ET-fraction percentage; linked COG Green ET mm/month conflict specific to et_fraction_africa",
       "sample": {
         "latitude": -24.500676,
         "longitude": 33.001806,

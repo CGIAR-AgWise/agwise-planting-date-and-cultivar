@@ -23,7 +23,10 @@ VALUE_KEYS = (
 )
 UNITS = {
     "rainfall": "percent anomaly",
-    "et_fraction": "ODC product definition; linked COG Green ET metadata conflict",
+    "et_fraction": (
+        "ODC ET-fraction percentage; linked COG Green ET mm/month conflict "
+        "specific to et_fraction_africa"
+    ),
     "irrigation": "probability [0, 1]",
     "water_stress": "unitless IWMI index",
 }

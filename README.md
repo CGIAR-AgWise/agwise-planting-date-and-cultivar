@@ -397,6 +397,9 @@ Interpretation is deliberately conservative:
   average.
 - ET fraction, irrigation, and water-stress values are displayed but are not
   labeled high or low until official legends and thresholds are confirmed.
+- The separate `transpiration_africa` product has confirmed `mm/month` units
+  from its GeoTIFF metadata after applying its scale factor; this does not
+  resolve the distinct `et_fraction_africa` metadata conflict.
 - IWMI context does not re-rank DSSAT planting dates or cultivars.
 
 ## Location registry

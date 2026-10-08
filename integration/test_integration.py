@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from advisory import build_advisory, classify_water_stress
+from compare_advisories import compare_payloads
 from iwmi_adapter import overlaps
 from run_advisory import (
     IWMI_RANKING_UNAVAILABLE,
@@ -259,3 +260,61 @@ def test_iwmi_ranking_supports_a_bounded_bonus():
     )
     assert result[0]["iwmi_adjusted_yield_kg_ha"] == 3150
     assert result[0]["iwmi_ranking_effect"]["effect"] == "bonus"
+
+
+def test_compare_advisories_reports_changed_recommendation():
+    baseline = {
+        "request": {
+            "location": {"name": "Chokwe"},
+            "crop": "Maize",
+            "season": {"year": 2025},
+        },
+        "recommendations": [
+            {
+                "rank": 1,
+                "planting_date": "2025-11-30",
+                "cultivar_id": "Short",
+                "yield_kg_ha": 2975.5,
+            },
+            {
+                "rank": 2,
+                "planting_date": "2025-11-23",
+                "cultivar_id": "Short",
+                "yield_kg_ha": 2822,
+            },
+        ],
+    }
+    experimental = {
+        **baseline,
+        "provenance": {
+            "iwmi_ranking": {
+                "mode": "experimental",
+                "policy_id": "test-v1",
+            }
+        },
+        "recommendations": [
+            {
+                "rank": 1,
+                "planting_date": "2025-11-23",
+                "cultivar_id": "Short",
+                "yield_kg_ha": 2765.56,
+                "dssat_yield_kg_ha": 2822,
+                "iwmi_ranking_effect": {"adjustment_fraction": -0.02},
+            },
+            {
+                "rank": 2,
+                "planting_date": "2025-11-30",
+                "cultivar_id": "Short",
+                "yield_kg_ha": 2529.175,
+                "dssat_yield_kg_ha": 2975.5,
+                "iwmi_ranking_effect": {"adjustment_fraction": -0.15},
+            },
+        ],
+    }
+    result = compare_payloads(baseline, experimental)
+    assert result["best_recommendation_changed"] is True
+    assert result["experimental"]["best"]["planting_date"] == "2025-11-23"
+    first = next(
+        item for item in result["treatments"] if item["planting_date"] == "2025-11-30"
+    )
+    assert first["rank_change"] == -1

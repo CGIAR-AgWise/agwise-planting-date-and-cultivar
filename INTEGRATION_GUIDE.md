@@ -82,6 +82,93 @@ The Chokwe example currently recommends:
 - Spatial P10-P90 range: approximately `2,025.2-3,132.1 kg/ha`.
 - Simulation coverage: 62 grid cells.
 
+## How the yield estimate is produced
+
+The base yield is produced by a DSSAT crop-growth simulation. It is not
+calculated by the integration from a simple yield formula. For each grid cell
+and treatment, DSSAT combines:
+
+- AgWise daily weather forcing: `PRCP`, `TMAX`, `TMIN`, and `SRAD`.
+- Soil properties and initial water conditions.
+- Crop, cultivar, and phenology parameters.
+- Planting date and other management settings.
+- Water, temperature, and crop-growth processes through the season.
+
+DSSAT simulates crop development, biomass accumulation, grain filling,
+maturity, and harvest. Its harvested-yield output is `HWAH`, reported in
+`kg/ha`. In this workflow, a treatment means a planting-date and cultivar
+combination.
+
+The data flow is:
+
+```text
+AgWise forecast + soil/crop/management inputs
+    -> DSSAT simulation for each grid cell and treatment
+    -> HWAH yield for each simulation
+    -> treatment-level statistics
+    -> DSSAT ranking
+    -> optional experimental IWMI adjustment
+```
+
+The integration reads the DSSAT treatment-summary CSV; it does not rerun the
+crop model or create the base yield. It groups the grid-cell results by
+cultivar and planting-date treatment and reports:
+
+| Statistic | Meaning |
+| --- | --- |
+| `n_simulations` | Number of grid-cell DSSAT results in the treatment group. |
+| `HWAH_mean` | Arithmetic mean of valid grid-cell yields. |
+| `HWAH_median` | Middle grid-cell yield after sorting; the default ranking metric. |
+| `HWAH_sd` | Standard deviation of grid-cell yields. |
+| `HWAH_cv_pct` | `HWAH_sd / HWAH_mean * 100`; relative spatial variability. |
+| `HWAH_p10` | 10th percentile of grid-cell yields. |
+| `HWAH_p90` | 90th percentile of grid-cell yields. |
+| `maturity_failure_rate_pct` | Percentage of simulations without a maturity date. |
+
+The P10-P90 interval describes spatial variation across the simulated grid
+cells. It is not a confidence interval and does not estimate year-to-year
+weather uncertainty. With the default `--rank-by median`, the treatment with
+the highest `HWAH_median` is ranked first. `--rank-by mean` and `--rank-by p10`
+select the corresponding summary statistic instead.
+
+For the current Chokwe example, the 30 November `Short` treatment has 62
+simulations, a median of approximately `2,975.5 kg/ha`, and a spatial P10-P90
+range of approximately `2,025.2-3,132.1 kg/ha`.
+
+## What IWMI changes—and what it does not
+
+In the normal DSSAT-only path, IWMI values are added after DSSAT ranking as
+historical, static, or current-season context. They do not change:
+
+- AgWise weather inputs.
+- DSSAT soil, crop, or management inputs.
+- DSSAT crop-growth processes.
+- The original `HWAH` simulation results.
+- The treatment statistics in the DSSAT summary CSV.
+
+The separate experimental mode applies an adjustment only after DSSAT has
+produced and summarized the yields:
+
+```text
+DSSAT HWAH statistic -> optional IWMI adjustment -> experimental decision score
+```
+
+Its calculation is:
+
+```text
+adjusted score = DSSAT yield * (1 + adjustment_fraction)
+```
+
+For example, a `-0.15` adjustment changes `2,975.5 kg/ha` to approximately
+`2,529.2 kg/ha` for ranking purposes. The original DSSAT value remains
+available as `dssat_yield_kg_ha`; the adjusted value is not a new DSSAT
+simulation and must not be described as the model's predicted yield.
+
+Positive adjustments are bonuses, negative adjustments are penalties, and zero
+means no adjustment. These adjustments are policy assumptions and require
+validation; the experimental policy uses synthetic date-specific values only
+to test whether the integration can change a recommendation.
+
 ## DSSAT ranking effect of IWMI context
 
 ### Experimental A/B comparison
@@ -115,6 +202,19 @@ penalties are synthetic placeholders. The output is marked
 Any changed recommendation demonstrates integration sensitivity, not agronomic
 improvement.
 
+Generate a machine-readable A/B comparison:
+
+```bash
+python integration/compare_advisories.py \
+  --baseline integration/examples/chokwe_dssat_baseline.json \
+  --experimental integration/examples/chokwe_experimental_iwmi.json \
+  --output integration/examples/chokwe_iwmi_comparison.json
+```
+
+The comparison reports the selected treatment before and after the adjustment,
+rank changes for each shared treatment, the original DSSAT score, the
+experimental score, and the applied signed adjustment.
+
 Policies can also use the signed `adjustment_fraction` form:
 
 ```json
@@ -133,7 +233,7 @@ prevents a negative score while allowing a bounded bonus. The legacy
 Bonuses require the same scientific validation as penalties and should not be
 used merely to force a preferred ranking.
 
-### Current state
+### Current production state
 
 IWMI does **not** currently change the DSSAT ranking. The ranking is produced
 from the DSSAT treatment-summary CSV using the configured yield statistic
@@ -179,10 +279,12 @@ penalty or a zero value.
 ### How it would be implemented in code
 
 The current command-line interface exposes mutually exclusive
-`--enable-iwmi-ranking` and `--disable-iwmi-ranking` switches. The default is
-DSSAT-only ranking, and `--enable-iwmi-ranking` currently fails explicitly
-because no validated ranking policy has been approved. This prevents a
-presentation-only stress category from changing recommendations.
+`--enable-iwmi-ranking`, `--experimental-iwmi-ranking`, and
+`--disable-iwmi-ranking` switches. The default is DSSAT-only ranking.
+`--enable-iwmi-ranking` requires an approved policy and current-season IWMI
+inputs. `--experimental-iwmi-ranking` accepts only a policy explicitly marked
+`experimental`, permits controlled sensitivity testing, and marks the output
+as not for operational advice.
 
 After the prerequisites above are satisfied, the safest implementation is to
 keep the existing DSSAT ranking unchanged and add an explicit, opt-in
@@ -236,7 +338,8 @@ The adjustment must preserve the original DSSAT result and record the effect:
   "iwmi_ranking_effect": {
     "policy_id": "maize-water-stress-v1",
     "measure": "water_stress",
-    "penalty_fraction": 0.05,
+    "adjustment_fraction": -0.05,
+    "effect": "penalty",
     "applied": true
   }
 }

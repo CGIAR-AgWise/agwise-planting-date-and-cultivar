@@ -1,0 +1,38 @@
+﻿name: agwise-integration
+channels:
+  - conda-forge
+dependencies:
+  - rasterio
+  - cartopy
+  - r-sp
+  - r-future
+  - xarray
+  - requests
+  - r-jsonlite
+  - r-foreach
+  - r-base[version='>=4.3']
+  - r-rcolorbrewer
+  - r-sf
+  - r-tidyverse
+  - numpy
+  - r-future.apply
+  - tqdm
+  - h5netcdf
+  - r-ncdf4
+  - r-gridextra
+  - r-scales
+  - python=3.11
+  - netcdf4
+  - rioxarray
+  - r-furrr
+  - pip
+  - cdsapi
+  - matplotlib
+  - r-rgl
+  - r-remotes
+  - r-yaml
+  - pandas
+  - dask
+  - r-countrycode
+  - r-mgsub
+  - r-slider

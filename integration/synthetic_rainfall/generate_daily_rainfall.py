@@ -61,21 +61,23 @@ def main() -> None:
     }
     rng = random.Random(args.seed)
     rows = []
+    synthetic_months: dict[tuple[int, int], dict[int, float]] = {}
     for day in daterange(args.season_start, args.season_end):
-        month_total = climatology[day.month]
-        days_in_month = calendar.monthrange(day.year, day.month)[1]
-        wet_days = max(1, round(days_in_month * args.wet_day_fraction))
+        month_key = (day.year, day.month)
+        if month_key not in synthetic_months:
+            month_total = climatology[day.month]
+            days_in_month = calendar.monthrange(day.year, day.month)[1]
+            wet_days = max(1, round(days_in_month * args.wet_day_fraction))
+            event_days = sorted(rng.sample(range(days_in_month), wet_days))
+            weights = [rng.gammavariate(1.5, 1.0) for _ in event_days]
+            total_weight = sum(weights)
+            synthetic_months[month_key] = {
+                day_index: month_total * weight / total_weight
+                for day_index, weight in zip(event_days, weights)
+            }
+
         day_index = day.day - 1
-        # Use a deterministic monthly event pattern and scale it to the IWMI
-        # climatological total. This preserves the monthly constraint.
-        event_days = sorted(rng.sample(range(days_in_month), wet_days))
-        weights = [rng.gammavariate(1.5, 1.0) for _ in event_days]
-        total_weight = sum(weights)
-        rainfall = (
-            month_total * weights[event_days.index(day_index)] / total_weight
-            if day_index in event_days
-            else 0.0
-        )
+        rainfall = synthetic_months[month_key].get(day_index, 0.0)
         rows.append({"date": day.isoformat(), "rain_mm": round(rainfall, 6)})
 
     args.output.parent.mkdir(parents=True, exist_ok=True)

@@ -18,6 +18,7 @@ DSSAT_SUMMARY ?= $(firstword $(wildcard data/usecases/useCase_Mozambique_*/Maize
 ADVISORY_OUTPUT ?= integration/examples/$(shell echo "$(LOCATION)" | tr '[:upper:]' '[:lower:]')_$(shell echo "$(CROP)" | tr '[:upper:]' '[:lower:]')_advisory.json
 AGWISE_N_CORES ?= 2
 IWMI_PRCP_CSV ?=
+SKIP_DOWNLOAD ?= 0
 STATE_DIR ?= .agwise/state
 FORCE ?= 0
 CHECKPOINT ?= $(STATE_DIR)/forecast.json
@@ -70,6 +71,7 @@ forecast:
 		if $(RSCRIPT) usecases/run_usecase.R "$(USECASE_CONFIG)" \
 			--season-year "$(SEASON_YEAR)" --n-cores "$(AGWISE_N_CORES)" \
 			--py-path "$(PY_PATH)" \
+			$(if $(filter 1,$(SKIP_DOWNLOAD)),--skip-download,) \
 			$(if $(IWMI_PRCP_CSV),--rainfall-override-csv "$(IWMI_PRCP_CSV)",); then \
 			$(PYTHON) integration/workflow_state.py write \
 				--state "$(CHECKPOINT)" \

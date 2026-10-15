@@ -47,7 +47,7 @@ parse_usecase_args <- function(args = commandArgs(trailingOnly = TRUE)) {
     }
     name <- sub("^--", "", key)
     if (name %in% c(
-      "dry-run", "force-download", "skip-dssat", "format-zones",
+      "dry-run", "force-download", "skip-download", "skip-dssat", "format-zones",
       "overwrite", "no-wrapper", "no-folders", "create-dssat-weather-files"
     )) {
       out[[name]] <- TRUE
@@ -239,6 +239,9 @@ usecase_runner_args <- function(usecase, cli, repo_root) {
   }
   if (isTRUE(usecase$force_download) || isTRUE(cli[["force-download"]])) {
     args <- c(args, "--force-download")
+  }
+  if (isTRUE(usecase$skip_download) || isTRUE(cli[["skip-download"]])) {
+    args <- c(args, "--skip-download")
   }
   rainfall_override <- cli[["rainfall-override-csv"]] %||% usecase$rainfall_override_csv
   if (!is.null(rainfall_override) && nzchar(rainfall_override)) {

@@ -24,7 +24,7 @@ parse_args <- function(args) {
     key <- args[[i]]
     if (!startsWith(key, "--")) stop("Unexpected argument: ", key)
     name <- sub("^--", "", key)
-    if (name %in% c("force-download", "skip-dssat", "manual-extent")) {
+    if (name %in% c("force-download", "skip-download", "skip-dssat", "manual-extent")) {
       out[[name]] <- TRUE
       i <- i + 1L
     } else {
@@ -77,6 +77,7 @@ if (!file.exists(py_path) && file.exists(paste0(py_path, ".exe"))) {
   py_path <- paste0(py_path, ".exe")
 }
 force_download <- isTRUE(args[["force-download"]])
+skip_download <- isTRUE(args[["skip-download"]])
 export_dssat <- !isTRUE(args[["skip-dssat"]])
 use_manual_extent <- isTRUE(args[["manual-extent"]])
 extent_manual <- as.numeric(strsplit(arg(args, "extent", "16,34,8,40"), ",", fixed = TRUE)[[1]])
@@ -114,6 +115,7 @@ run_agwise_seasonal_forecast_BC(
   py_path = py_path,
   variables_to_bc = variables,
   force_download = force_download,
+  run_downloader = !skip_download,
   export_dssat = export_dssat,
   n_cores = n_cores
 )

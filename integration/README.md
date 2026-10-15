@@ -260,6 +260,16 @@ make workflow FORCE=1 \
   SEASON_YEAR=2025 AGWISE_N_CORES=2
 ```
 
+When copied AgWise forecast, hindcast, and observation inputs already exist,
+pass `SKIP_DOWNLOAD=1` to reuse them and prevent CDS requests:
+
+```bash
+make forecast \
+  SKIP_DOWNLOAD=1 \
+  PY_PATH="$CONDA_PREFIX/python.exe" \
+  IWMI_PRCP_CSV=integration/synthetic_rainfall/output/chokwe_2025_26_synthetic_rainfall.csv
+```
+
 The override is applied while preparing the DSSAT handoff RDS files and is
 replicated across the forecast points. It is an experimental single-series
 rainfall substitution, not observed daily IWMI data.

@@ -296,7 +296,12 @@ run_agwise_seasonal_forecast_BC <- function(
     }
 
     if (parallel_backend == "auto") {
-      parallel_backend <- if (isTRUE(run_downloader) && n_cores > 1L && length(variables_to_bc) > 1L) "process" else "none"
+      parallel_backend <- if (
+        .Platform$OS.type != "windows" &&
+        isTRUE(run_downloader) &&
+        n_cores > 1L &&
+        length(variables_to_bc) > 1L
+      ) "process" else "none"
     }
 
     run_variable_worker <- function(var_code) {

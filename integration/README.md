@@ -37,8 +37,7 @@ IWMI context  ───┘
   only the single best option.
 
 The current example is **not an agronomic recommendation**. It uses one point,
-one provisional regional cultivar, a generic soil profile, and one forecast
-season. It exists to establish the interface before the IWMI adapter is built.
+one regional cultivar, a generic soil profile, and one forecast season.
 
 ## Synthetic rainfall experiment
 

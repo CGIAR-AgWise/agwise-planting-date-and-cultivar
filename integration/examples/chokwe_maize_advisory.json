@@ -239,7 +239,7 @@
   ],
   "provenance": {
     "run_id": "Maize_2025_treatment_summary",
-    "generated_at": "2026-10-15T11:46:47.535277+00:00",
+    "generated_at": "2026-10-15T12:16:46.558919+00:00",
     "iwmi_sources": [
       "https://odc-explorer.iwmi.org/stac/collections/limpopo_jfm_rainfall",
       "https://odc-explorer.iwmi.org/stac/collections/et_fraction_africa",

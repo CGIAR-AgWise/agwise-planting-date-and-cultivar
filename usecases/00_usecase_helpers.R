@@ -265,7 +265,27 @@ run_forecast_usecase <- function(usecase, cli = parse_usecase_args(), repo_root 
   if (isTRUE(cli[["dry-run"]])) return(invisible(args))
 
   tmp_dir <- agwise_tmp_dir()
-  status <- system2("Rscript", args = args, env = paste0("TMPDIR=", tmp_dir))
+  rscript_bin <- file.path(R.home("bin"), if (identical(.Platform$OS.type, "windows")) "Rscript.exe" else "Rscript")
+  if (!file.exists(rscript_bin)) {
+    stop("Could not find the Rscript executable for the active R installation: ", rscript_bin)
+  }
+  if (identical(.Platform$OS.type, "windows")) {
+    quote_cmd_arg <- function(value) {
+      paste0('"', gsub('"', '\\"', as.character(value), fixed = TRUE), '"')
+    }
+    command <- paste(
+      c(quote_cmd_arg(rscript_bin), vapply(args, quote_cmd_arg, character(1))),
+      collapse = " "
+    )
+    previous_tmpdir <- Sys.getenv("TMPDIR", unset = NA_character_)
+    Sys.setenv(TMPDIR = tmp_dir)
+    on.exit({
+      if (is.na(previous_tmpdir)) Sys.unsetenv("TMPDIR") else Sys.setenv(TMPDIR = previous_tmpdir)
+    }, add = TRUE)
+    status <- system(command)
+  } else {
+    status <- system2(rscript_bin, args = args, env = paste0("TMPDIR=", tmp_dir))
+  }
   if (!identical(as.integer(status), 0L)) {
     stop("Forecast use case failed with exit status ", status, ": ", usecase$name %||% usecase$country_code)
   }

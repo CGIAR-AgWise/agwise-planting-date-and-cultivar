@@ -1,11 +1,6 @@
-﻿if (!requireNamespace("remotes", quietly = TRUE)) install.packages("remotes")
-
-install.packages(c(
-  "yaml", "jsonlite", "ncdf4", "terra", "sf", "sp", "tidyverse",
-  "future", "future.apply", "furrr", "foreach", "slider", "countrycode",
-  "mgsub", "scales", "rgl", "geodata", "gridExtra", "RColorBrewer",
-  "DSSAT"
-))
+if (!requireNamespace("remotes", quietly = TRUE)) {
+  stop("The Conda environment must provide the 'remotes' R package.")
+}
 
 remotes::install_github(c(
   "SantanderMetGroup/loadeR.java",

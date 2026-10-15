@@ -15,10 +15,13 @@ SEASON_LENGTH_MONTHS ?= 4
 LEAD_MONTHS ?= 1
 USECASE_CONFIG ?= usecases/configs/MOZ/maize_chokwe.yml
 DSSAT_SUMMARY ?= $(firstword $(wildcard data/usecases/useCase_Mozambique_*/Maize/result/DSSAT/AOI/Maize_2025_treatment_summary.csv))
-ADVISORY_OUTPUT ?= integration/examples/$(shell echo "$(LOCATION)" | tr '[:upper:]' '[:lower:]')_$(shell echo "$(CROP)" | tr '[:upper:]' '[:lower:]')_advisory.json
+LOCATION_SLUG = $(shell "$(PYTHON)" -c "import sys; print(sys.argv[1].lower())" "$(LOCATION)")
+CROP_SLUG = $(shell "$(PYTHON)" -c "import sys; print(sys.argv[1].lower())" "$(CROP)")
+ADVISORY_OUTPUT ?= integration/examples/$(LOCATION_SLUG)_$(CROP_SLUG)_advisory.json
 ADVISORY_RAINFALL_SOURCE ?= $(if $(IWMI_PRCP_CSV),Synthetic IWMI rainfall override used by DSSAT,AgWise forecast PRCP used by DSSAT)
 AGWISE_N_CORES ?= 2
 IWMI_PRCP_CSV ?=
+IWMI_RAINFALL_OUTPUT ?= integration/synthetic_rainfall/output/chokwe_2025_26_synthetic_rainfall.csv
 SKIP_DOWNLOAD ?= 0
 STATE_DIR ?= .agwise/state
 FORCE ?= 0
@@ -47,21 +50,25 @@ help:
 	@echo "  USECASE_CONFIG=usecases/configs/MOZ/maize_chokwe.yml"
 	@echo "  DSSAT_SUMMARY=path/to/treatment_summary.csv"
 	@echo "  IWMI_PRCP_CSV=path/to/daily_rainfall.csv  # opt-in PRCP replacement"
+	@echo "  IWMI_RAINFALL_OUTPUT=path/to/generated_daily_rainfall.csv"
 
 setup:
 	@echo "Create the Conda environment with: conda env create -f environment.yml"
-	@echo "Then activate it and configure CDS credentials and DSSAT_CSM."
-	@echo "Install R GitHub packages with: $(RSCRIPT) install_pkgs.R"
+	@echo "Activate it with: conda activate agwise-integration"
+	@echo "Install climate4R packages with: $(RSCRIPT) install_pkgs.R"
+	@echo "Then configure CDS credentials and DSSAT_CSM."
 
 dry-run:
-	$(RSCRIPT) usecases/run_usecase.R $(USECASE_CONFIG) --dry-run
+	$(RSCRIPT) usecases/run_usecase.R "$(USECASE_CONFIG)" \
+		--dry-run --season-year "$(SEASON_YEAR)" \
+		--n-cores "$(AGWISE_N_CORES)" --py-path "$(PY_PATH)"
 
 iwmi-rainfall:
 	$(PYTHON) integration/synthetic_rainfall/generate_daily_rainfall.py \
 		--monthly-csv integration/raw_data/iwmi_chokwe_monthly_rainfall_2001_2016.csv \
 		--season-start "$(SEASON_START)" \
 		--season-end "$(SEASON_END)" \
-		--output "$(IWMI_PRCP_CSV)"
+		--output "$(IWMI_RAINFALL_OUTPUT)"
 
 forecast:
 	@if [ "$(FORCE)" = "1" ] || ! $(PYTHON) integration/workflow_state.py check \
@@ -130,14 +137,14 @@ status:
 	@$(PYTHON) integration/workflow_state.py check \
 		--state "$(CHECKPOINT)" \
 		--inputs "$(USECASE_CONFIG)" "season-year=$(SEASON_YEAR)" "n-cores=$(AGWISE_N_CORES)" \
-		--outputs "$(DSSAT_SUMMARY)" || true
+		--outputs "$(DSSAT_SUMMARY)" || exit 0
 	@$(PYTHON) integration/workflow_state.py check \
 		--state "$(ADVISORY_CHECKPOINT)" \
 		--inputs "$(DSSAT_SUMMARY)" "location=$(LOCATION)" "crop=$(CROP)" \
 			"season-start=$(SEASON_START)" "season-end=$(SEASON_END)" \
 			"season-length=$(SEASON_LENGTH_MONTHS)" "lead-months=$(LEAD_MONTHS)" \
 			"rainfall-source=$(ADVISORY_RAINFALL_SOURCE)" \
-		--outputs "$(ADVISORY_OUTPUT)" || true
+		--outputs "$(ADVISORY_OUTPUT)" || exit 0
 
 invalidate:
 	@echo "Use FORCE=1 with make forecast, make advisory, or make workflow to refresh outputs."

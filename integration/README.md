@@ -247,7 +247,9 @@ configuration, summary content, and relevant command inputs are unchanged.
 
 To run the opt-in synthetic IWMI rainfall experiment, first generate the
 daily replacement and then pass it as `IWMI_PRCP_CSV`. This changes only
-`PRCP`/DSSAT `RAIN`; `TMAX`, `TMIN`, and `SRAD` still come from AgWise:
+`PRCP`/DSSAT `RAIN` on the dates covered by the CSV; `TMAX`, `TMIN`, and
+`SRAD` still come from AgWise. AgWise PRCP is retained outside the override
+date range so the DSSAT handoff can include the full forecast window:
 
 ```bash
 make iwmi-rainfall \

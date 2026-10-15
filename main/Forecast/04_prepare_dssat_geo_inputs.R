@@ -133,7 +133,7 @@ sample_variable <- function(r, dates, points, variable_prefix, common_dates) {
   values
 }
 
-load_rainfall_override <- function(path, common_dates, n_points) {
+load_rainfall_override <- function(path) {
   if (is.null(path) || !nzchar(path)) return(NULL)
   if (!file.exists(path)) stop("Rainfall override CSV does not exist: ", path)
   rainfall <- read.csv(path, stringsAsFactors = FALSE, check.names = FALSE)
@@ -147,17 +147,7 @@ load_rainfall_override <- function(path, common_dates, n_points) {
     stop("Rainfall override CSV contains invalid dates or non-negative finite rain_mm values")
   }
   if (anyDuplicated(dates)) stop("Rainfall override CSV contains duplicate dates")
-  matched <- match(common_dates, dates)
-  if (anyNA(matched)) {
-    missing <- common_dates[is.na(matched)]
-    stop(
-      "Rainfall override CSV does not cover all DSSAT dates. Missing: ",
-      paste(format(missing), collapse = ", ")
-    )
-  }
-  out <- matrix(rep(values[matched], times = n_points), nrow = n_points, byrow = TRUE)
-  colnames(out) <- paste0("Rainfall_", format(common_dates, "%Y-%m-%d"))
-  out
+  setNames(values, format(dates, "%Y-%m-%d"))
 }
 
 write_variable_rds <- function(path, meta, values, overwrite) {
@@ -237,6 +227,7 @@ main <- function() {
     "rainfall-override-csv",
     Sys.getenv("AGWISE_IWMI_PRCP_CSV", unset = "")
   )
+  rainfall_override <- load_rainfall_override(rainfall_override_csv)
 
   soil_dir <- get_arg(
     args, "soil-dir",
@@ -328,10 +319,36 @@ main <- function() {
     zone_values <- list()
     for (var_code in names(specs)) {
       if (var_code == "PRCP" && nzchar(rainfall_override_csv)) {
-        zone_values[[var_code]] <- load_rainfall_override(
-          rainfall_override_csv, common_dates, nrow(points)
+        base_values <- sample_variable(
+          forecasts[[var_code]]$raster,
+          forecasts[[var_code]]$dates,
+          points,
+          specs[[var_code]]$prefix,
+          common_dates
         )
-        message("  -> Zone ", zone, ": using rainfall override ", rainfall_override_csv)
+        override_keys <- intersect(
+          colnames(base_values),
+          paste0("Rainfall_", names(rainfall_override))
+        )
+        if (length(override_keys) < 1) {
+          stop(
+            "Rainfall override dates do not overlap the DSSAT dates. Override range: ",
+            min(names(rainfall_override)), " to ", max(names(rainfall_override)),
+            "; DSSAT range: ", min(format(common_dates)), " to ", max(format(common_dates))
+          )
+        }
+        override_dates <- sub("^Rainfall_", "", override_keys)
+        base_values[, override_keys] <- matrix(
+          rep(unname(rainfall_override[override_dates]), times = nrow(points)),
+          nrow = nrow(points),
+          byrow = TRUE
+        )
+        zone_values[[var_code]] <- base_values
+        message(
+          "  -> Zone ", zone, ": applied rainfall override ",
+          rainfall_override_csv, " for ", min(override_dates), " to ", max(override_dates),
+          "; retained AgWise PRCP outside override dates"
+        )
       } else {
         zone_values[[var_code]] <- sample_variable(
           forecasts[[var_code]]$raster,

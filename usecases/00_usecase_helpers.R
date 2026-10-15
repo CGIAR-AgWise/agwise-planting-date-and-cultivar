@@ -233,6 +233,10 @@ usecase_runner_args <- function(usecase, cli, repo_root) {
   if (isTRUE(usecase$force_download) || isTRUE(cli[["force-download"]])) {
     args <- c(args, "--force-download")
   }
+  rainfall_override <- cli[["rainfall-override-csv"]] %||% usecase$rainfall_override_csv
+  if (!is.null(rainfall_override) && nzchar(rainfall_override)) {
+    args <- c(args, "--rainfall-override-csv", normalizePath(rainfall_override, mustWork = TRUE))
+  }
   args
 }
 

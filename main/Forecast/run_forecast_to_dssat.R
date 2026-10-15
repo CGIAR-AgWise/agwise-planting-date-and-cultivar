@@ -77,8 +77,13 @@ force_download <- isTRUE(args[["force-download"]])
 export_dssat <- !isTRUE(args[["skip-dssat"]])
 use_manual_extent <- isTRUE(args[["manual-extent"]])
 extent_manual <- as.numeric(strsplit(arg(args, "extent", "16,34,8,40"), ",", fixed = TRUE)[[1]])
+rainfall_override_csv <- arg(args, "rainfall-override-csv", "")
 if (use_manual_extent && length(extent_manual) != 4L) {
   stop("--extent must be four comma-separated values: north,west,south,east")
+}
+if (nzchar(rainfall_override_csv)) {
+  rainfall_override_csv <- normalizePath(rainfall_override_csv, mustWork = TRUE)
+  Sys.setenv(AGWISE_IWMI_PRCP_CSV = rainfall_override_csv)
 }
 
 setwd(script_dir)

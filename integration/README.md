@@ -244,6 +244,25 @@ GitHub climate4R packages.
 The Makefile uses content-keyed checkpoints in `.agwise/state/`. A repeated
 run reuses a non-empty DSSAT summary and advisory JSON only when the
 configuration, summary content, and relevant command inputs are unchanged.
+
+To run the opt-in synthetic IWMI rainfall experiment, first generate the
+daily replacement and then pass it as `IWMI_PRCP_CSV`. This changes only
+`PRCP`/DSSAT `RAIN`; `TMAX`, `TMIN`, and `SRAD` still come from AgWise:
+
+```bash
+make iwmi-rainfall \
+  IWMI_PRCP_CSV=integration/synthetic_rainfall/output/chokwe_2025_26_synthetic_rainfall.csv
+
+make workflow FORCE=1 \
+  IWMI_PRCP_CSV=integration/synthetic_rainfall/output/chokwe_2025_26_synthetic_rainfall.csv \
+  LOCATION=Chokwe CROP=Maize \
+  SEASON_START=2025-11-01 SEASON_END=2026-02-28 \
+  SEASON_YEAR=2025 AGWISE_N_CORES=2
+```
+
+The override is applied while preparing the DSSAT handoff RDS files and is
+replicated across the forecast points. It is an experimental single-series
+rainfall substitution, not observed daily IWMI data.
 This makes development reruns and recovery after an advisory failure faster
 without silently reusing stale outputs:
 

@@ -133,6 +133,33 @@ sample_variable <- function(r, dates, points, variable_prefix, common_dates) {
   values
 }
 
+load_rainfall_override <- function(path, common_dates, n_points) {
+  if (is.null(path) || !nzchar(path)) return(NULL)
+  if (!file.exists(path)) stop("Rainfall override CSV does not exist: ", path)
+  rainfall <- read.csv(path, stringsAsFactors = FALSE, check.names = FALSE)
+  required <- c("date", "rain_mm")
+  if (!all(required %in% names(rainfall))) {
+    stop("Rainfall override CSV must contain columns: date, rain_mm")
+  }
+  dates <- as.Date(rainfall$date)
+  values <- suppressWarnings(as.numeric(rainfall$rain_mm))
+  if (anyNA(dates) || any(!is.finite(values)) || any(values < 0)) {
+    stop("Rainfall override CSV contains invalid dates or non-negative finite rain_mm values")
+  }
+  if (anyDuplicated(dates)) stop("Rainfall override CSV contains duplicate dates")
+  matched <- match(common_dates, dates)
+  if (anyNA(matched)) {
+    missing <- common_dates[is.na(matched)]
+    stop(
+      "Rainfall override CSV does not cover all DSSAT dates. Missing: ",
+      paste(format(missing), collapse = ", ")
+    )
+  }
+  out <- matrix(rep(values[matched], times = n_points), nrow = n_points, byrow = TRUE)
+  colnames(out) <- paste0("Rainfall_", format(common_dates, "%Y-%m-%d"))
+  out
+}
+
 write_variable_rds <- function(path, meta, values, overwrite) {
   if (file.exists(path) && !isTRUE(overwrite)) {
     stop("Output exists; use --overwrite to replace: ", path)
@@ -205,6 +232,11 @@ main <- function() {
   forecast_year <- as.integer(get_arg(args, "forecast-year", cfg$forecast_year))
   allow_invalid <- isTRUE(args[["allow-invalid"]])
   overwrite <- isTRUE(args[["overwrite"]])
+  rainfall_override_csv <- get_arg(
+    args,
+    "rainfall-override-csv",
+    Sys.getenv("AGWISE_IWMI_PRCP_CSV", unset = "")
+  )
 
   soil_dir <- get_arg(
     args, "soil-dir",
@@ -295,13 +327,20 @@ main <- function() {
 
     zone_values <- list()
     for (var_code in names(specs)) {
-      zone_values[[var_code]] <- sample_variable(
-        forecasts[[var_code]]$raster,
-        forecasts[[var_code]]$dates,
-        points,
-        specs[[var_code]]$prefix,
-        common_dates
-      )
+      if (var_code == "PRCP" && nzchar(rainfall_override_csv)) {
+        zone_values[[var_code]] <- load_rainfall_override(
+          rainfall_override_csv, common_dates, nrow(points)
+        )
+        message("  -> Zone ", zone, ": using rainfall override ", rainfall_override_csv)
+      } else {
+        zone_values[[var_code]] <- sample_variable(
+          forecasts[[var_code]]$raster,
+          forecasts[[var_code]]$dates,
+          points,
+          specs[[var_code]]$prefix,
+          common_dates
+        )
+      }
     }
     zone_values <- fix_temperature_order(zone_values, zone)
 

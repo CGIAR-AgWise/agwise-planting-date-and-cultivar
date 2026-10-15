@@ -255,6 +255,27 @@ build_crop_dashboard <- function(crop, result_dir, base_filename, crop_mask_dir,
 }
 
 
+### Estimate the simulation grid's cell size, for sizing map tiles
+#
+# geom_tile() with no width/height infers the tile size from the SMALLEST gap
+# between distinct x (and y) values. Multi-zone usecases build one point grid
+# per admin zone, each offset slightly from its neighbours, so a handful of
+# near-coincident coordinates (~0.001 deg apart, vs. a ~0.045 deg grid) shrink
+# every tile to an invisible sliver. Use the typical nearest-neighbour distance
+# instead - within a zone that is exactly the grid spacing. Measured from at
+# most 500 evenly spaced sites against all sites, so it stays cheap (and
+# deterministic) for large countries.
+grid_cell_size <- function(lon, lat, max_probe = 500) {
+  xy <- unique(cbind(lon, lat)[stats::complete.cases(lon, lat), , drop = FALSE])
+  if (nrow(xy) < 2) return(0.05)
+  probe <- unique(round(seq(1, nrow(xy), length.out = min(nrow(xy), max_probe))))
+  nn <- vapply(probe, function(i) {
+    min(sqrt((xy[-i, 1] - xy[i, 1])^2 + (xy[-i, 2] - xy[i, 2])^2))
+  }, numeric(1))
+  stats::median(nn)
+}
+
+
 ### Plot maps of preferred planting dates for top 3 highest yields by cultivar
 plot_planting_date_gradients <- function(
     df, country_name = "Rwanda", output_dir = ".", file_prefix = "",
@@ -341,9 +362,12 @@ plot_planting_date_gradients <- function(
   map_xlim <- range(plot_df$LONG, na.rm = TRUE) + c(-1, 1) * max(diff(range(plot_df$LONG, na.rm = TRUE)) * 0.1, 0.05)
   map_ylim <- range(plot_df$XLAT, na.rm = TRUE) + c(-1, 1) * max(diff(range(plot_df$XLAT, na.rm = TRUE)) * 0.1, 0.05)
 
+  cell <- grid_cell_size(plot_df$LONG, plot_df$XLAT)
+
   # Generate the map
   rec <- ggplot() +
-    geom_tile(data = plot_df, aes(x = LONG, y = XLAT, fill = as.numeric(PDAT_clean))) +
+    geom_tile(data = plot_df, aes(x = LONG, y = XLAT, fill = as.numeric(PDAT_clean)),
+              width = cell, height = cell) +
     geom_path(data = country_outline, aes(x = long, y = lat, group = group), 
               color = "black", linewidth = 0.4, inherit.aes = FALSE) +
     
@@ -477,9 +501,12 @@ plot_yield_gradients <- function(
   map_xlim <- range(plot_df$LONG, na.rm = TRUE) + c(-1, 1) * max(diff(range(plot_df$LONG, na.rm = TRUE)) * 0.1, 0.05)
   map_ylim <- range(plot_df$XLAT, na.rm = TRUE) + c(-1, 1) * max(diff(range(plot_df$XLAT, na.rm = TRUE)) * 0.1, 0.05)
 
+  cell <- grid_cell_size(plot_df$LONG, plot_df$XLAT)
+
   # Generate the map
   yields <- ggplot() +
-    geom_tile(data = plot_df, aes(x = LONG, y = XLAT, fill = .data[[yield_col]])) +
+    geom_tile(data = plot_df, aes(x = LONG, y = XLAT, fill = .data[[yield_col]]),
+              width = cell, height = cell) +
     geom_path(data = country_outline, aes(x = long, y = lat, group = group), 
               color = "black", linewidth = 0.4, inherit.aes = FALSE) +
     

@@ -78,6 +78,10 @@ export_dssat <- !isTRUE(args[["skip-dssat"]])
 use_manual_extent <- isTRUE(args[["manual-extent"]])
 extent_manual <- as.numeric(strsplit(arg(args, "extent", "16,34,8,40"), ",", fixed = TRUE)[[1]])
 rainfall_override_csv <- arg(args, "rainfall-override-csv", "")
+year_start_obs <- as_int(arg(args, "year-start-obs", "1994"), "year-start-obs")
+year_end_obs <- as_int(arg(args, "year-end-obs", "2024"), "year-end-obs")
+year_hndS <- as_int(arg(args, "year-hnd-start", "1994"), "year-hnd-start")
+year_hndE <- as_int(arg(args, "year-hnd-end", "2016"), "year-hnd-end")
 if (use_manual_extent && length(extent_manual) != 4L) {
   stop("--extent must be four comma-separated values: north,west,south,east")
 }
@@ -96,6 +100,10 @@ run_agwise_seasonal_forecast_BC(
   season_length_months = season_length_months,
   forecast_year = season_year,
   forecast_lead_months = lead_months,
+  year_start_obs = year_start_obs,
+  year_end_obs = year_end_obs,
+  year_hndS = year_hndS,
+  year_hndE = year_hndE,
   use_manual_extent = use_manual_extent,
   extent_manual = extent_manual,
   base_dir = base_dir,

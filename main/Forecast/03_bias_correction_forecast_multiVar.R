@@ -97,6 +97,8 @@ run_agwise_seasonal_forecast_BC <- function(
     season_length_months = 3,
     forecast_year = as.integer(format(Sys.Date(), "%Y")),
     forecast_lead_months = 1,
+    year_start_obs = 1994, year_end_obs = 2024,
+    year_hndS = 1994, year_hndE = 2016,
     use_manual_extent = FALSE, extent_manual = c(16, 34, 8, 40),
     manual_domain_name = "User_Domain",
     base_dir=normalizePath("../../data", mustWork = FALSE),
@@ -125,7 +127,11 @@ run_agwise_seasonal_forecast_BC <- function(
                          init_month_user = init_month_user, init_day_user = init_day_user,
                          season_length_months = season_length_months,
                          forecast_year = forecast_year,
-                         forecast_lead_months = forecast_lead_months)
+                         forecast_lead_months = forecast_lead_months,
+                         year_start_obs = year_start_obs,
+                         year_end_obs = year_end_obs,
+                         year_hndS = year_hndS,
+                         year_hndE = year_hndE)
     
     
     config_json_path <- file.path(
@@ -309,6 +315,10 @@ run_agwise_seasonal_forecast_BC <- function(
         ", season_length_months=", as.integer(season_length_months),
         ", forecast_year=", as.integer(forecast_year),
         ", forecast_lead_months=", as.integer(forecast_lead_months),
+        ", year_start_obs=", as.integer(year_start_obs),
+        ", year_end_obs=", as.integer(year_end_obs),
+        ", year_hndS=", as.integer(year_hndS),
+        ", year_hndE=", as.integer(year_hndE),
         ", use_manual_extent=", r_bool(use_manual_extent),
         ", extent_manual=", r_num_vec(extent_manual),
         ", manual_domain_name=", r_quote(manual_domain_name),

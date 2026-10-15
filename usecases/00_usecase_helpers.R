@@ -223,6 +223,13 @@ usecase_runner_args <- function(usecase, cli, repo_root) {
     "--base-dir", cli[["base-dir"]] %||% file.path(repo_root, "data"),
     "--py-path", cli[["py-path"]] %||% usecase$py_path %||% "/home/jovyan/.conda-envs/agwise_fcst/bin/python"
   )
+  args <- c(
+    args,
+    "--year-start-obs", as.character(usecase$year_start_obs %||% 1994),
+    "--year-end-obs", as.character(usecase$year_end_obs %||% 2024),
+    "--year-hnd-start", as.character(usecase$year_hndS %||% 1994),
+    "--year-hnd-end", as.character(usecase$year_hndE %||% 2016)
+  )
 
   if (isTRUE(usecase$manual_extent)) {
     args <- c(args, "--manual-extent", "--extent", as_cli_vars(usecase$extent))

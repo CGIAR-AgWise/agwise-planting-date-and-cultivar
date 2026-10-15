@@ -4,6 +4,7 @@ export
 
 PYTHON ?= python
 RSCRIPT ?= Rscript
+PY_PATH ?= $(PYTHON)
 LOCATION ?= Chokwe
 CROP ?= Maize
 COUNTRY_CODE ?=
@@ -68,6 +69,7 @@ forecast:
 		--outputs "$(DSSAT_SUMMARY)"; then \
 		if $(RSCRIPT) usecases/run_usecase.R "$(USECASE_CONFIG)" \
 			--season-year "$(SEASON_YEAR)" --n-cores "$(AGWISE_N_CORES)" \
+			--py-path "$(PY_PATH)" \
 			$(if $(IWMI_PRCP_CSV),--rainfall-override-csv "$(IWMI_PRCP_CSV)",); then \
 			$(PYTHON) integration/workflow_state.py write \
 				--state "$(CHECKPOINT)" \

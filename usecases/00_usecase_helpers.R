@@ -30,8 +30,11 @@ usecase_repo_root <- function() {
 }
 
 agwise_tmp_dir <- function() {
-  tmp_dir <- Sys.getenv("AGWISE_TMPDIR", unset = "/Volumes/T7/tmp")
+  default_tmp <- if (identical(.Platform$OS.type, "windows")) tempdir() else "/Volumes/T7/tmp"
+  tmp_dir <- Sys.getenv("AGWISE_TMPDIR", unset = default_tmp)
+  if (!nzchar(trimws(tmp_dir))) tmp_dir <- default_tmp
   dir.create(tmp_dir, recursive = TRUE, showWarnings = FALSE)
+  if (!dir.exists(tmp_dir)) stop("Unable to create AGWISE_TMPDIR: ", tmp_dir)
   normalizePath(tmp_dir, mustWork = FALSE)
 }
 

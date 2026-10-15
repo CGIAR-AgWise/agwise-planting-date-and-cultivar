@@ -10,6 +10,11 @@
 
 prepare_data_to_save <- function(results_df, project_root, country, useCaseName, Crop,
                                  complete_usecase) {
+  if (nrow(results_df) == 0) {
+    warning("prepare_data_to_save: results_df has no rows - DSSAT produced no output. ",
+            "Check per-zone DSSAT-run summaries above for skipped sites.")
+    return(results_df)
+  }
   path.to.temdata <- check_dssat_temdata_path(project_root = project_root)
   
   cul_file <- DSSAT::read_cul(file.path(

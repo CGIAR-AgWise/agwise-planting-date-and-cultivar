@@ -51,9 +51,22 @@
 # that's both silent AND idle - matching the documented deadlock exactly -
 # gets killed and retried. A real (non-stall) CLI failure still stops
 # immediately, matching ad_run()'s own behavior.
+proc_is_zombie <- function(pid) {
+  # Under qemu emulation, ps may report non-zero %cpu for zombie processes.
+  # Read /proc/<pid>/status directly so the zombie check is always accurate.
+  tryCatch({
+    st <- readLines(sprintf("/proc/%d/status", as.integer(pid)), n = 4, warn = FALSE)
+    state_line <- grep("^State:", st, value = TRUE)
+    length(state_line) > 0 && grepl("\\bZ\\b", state_line[1])
+  }, error = function(e) FALSE)
+}
+
 cpu_pct_tree <- function(pid) {
   children <- suppressWarnings(system2("pgrep", c("-P", as.character(pid)), stdout = TRUE, stderr = FALSE))
   pids <- c(pid, as.integer(children))
+  # Exclude zombies: under qemu they can show non-zero %cpu even when defunct.
+  pids <- pids[!vapply(pids, proc_is_zombie, logical(1))]
+  if (length(pids) == 0) return(0)
   cpu <- suppressWarnings(system2(
     "ps", c("-o", "%cpu=", "-p", paste(pids, collapse = ",")),
     stdout = TRUE, stderr = FALSE))
@@ -118,7 +131,8 @@ ad_forecast_to_dssat_with_retry <- function(
     repeat {
       Sys.sleep(poll_secs)
       alive <- identical(
-        system2("kill", c("-0", as.character(pid)), stdout = FALSE, stderr = FALSE), 0L)
+        system2("kill", c("-0", as.character(pid)), stdout = FALSE, stderr = FALSE), 0L) &&
+        !proc_is_zombie(pid)
       if (!alive) break
 
       cur_byte_size <- suppressWarnings(file.info(out_file)$size)
@@ -186,9 +200,19 @@ generate_prestaged_dssat_via_datasourcing <- function(
     # values like "Cabo Delgado" before they hit system2()) land without
     # touching shared files. The CLI binary itself is still the shared,
     # already-installed conda env - only the R source differs.
-    datasourcing_repo_dir = "~/Alvaro_repos/data_sourcing",
-    datasourcing_bin = "~/agwise-datasourcing/envs/agwise_data/bin/agwise-data",
-    datasourcing_products_dir = "~/agwise-datasourcing/dataops/datasourcing/Data/Global_GeoData/Processed/products",
+    # Each of these three defaults matches this developer's own machine
+    # (CGLabs), not a container - AGWISE_DATA_REPO_DIR/AGWISE_DATA_BIN/
+    # AGWISE_DATA_PRODUCTS_DIR override them (same pattern already used for
+    # AGWISE_DATA_BIN below) so a container image can set container-local
+    # paths via ENV without touching this default, which stays exactly as-is
+    # for every existing non-container caller.
+    datasourcing_repo_dir = Sys.getenv(
+      "AGWISE_DATA_REPO_DIR", "~/Alvaro_repos/data_sourcing"),
+    datasourcing_bin = Sys.getenv(
+      "AGWISE_DATA_BIN", "~/agwise-datasourcing/envs/agwise_data/bin/agwise-data"),
+    datasourcing_products_dir = Sys.getenv(
+      "AGWISE_DATA_PRODUCTS_DIR",
+      "~/agwise-datasourcing/dataops/datasourcing/Data/Global_GeoData/Processed/products"),
     res_km = 5, calib_years = 1993:2016, ensemble = "mean") {
 
   if (!nzchar(Sys.getenv("AGWISE_DATA_BIN"))) {

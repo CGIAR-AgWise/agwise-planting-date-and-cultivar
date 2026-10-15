@@ -229,12 +229,7 @@ dssat.expfile <- function(
   
   # Location indices
   if (Forecast && !create_RS_schedule && !exists("rs_schedule_df")) {
-    base_dir <- file.path(
-      project_root, 
-      paste0("data/usecases/useCase_", country, "_", useCaseName), 
-      Crop, 
-      "transform/DSSAT/AOI"
-    )
+    base_dir <- dirname(path.to.extdata)
     
     indices <- list_exte_indices(base_dir, varietyid = varietyid, zone = zone)
     n_indices <- length(indices)

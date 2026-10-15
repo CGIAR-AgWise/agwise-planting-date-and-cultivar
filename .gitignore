@@ -3,6 +3,14 @@ data/
 data/archive/
 archive/
 
+# Local secrets for `docker run --env-file` (CDS API key, Azure Blob
+# connection string) - never committed, never baked into any image
+secrets.env
+
+# DSSAT-CSM binary tree staged locally for `docker build` (COPY'd into the
+# image, never committed - extract dssat-v4.8.1.40.tar.gz here, see Dockerfile)
+dssat-bin/
+
 # Ad-hoc assessment scratch folder (copied source rasters, not repo data)
 nigeria_maize_season_assessment/
 
@@ -15,6 +23,7 @@ nigeria_maize_season_assessment/
 # Session Data files
 .RData
 .RDataTmp
+.DS_Store
 
 # User-specific files
 .Ruserdata

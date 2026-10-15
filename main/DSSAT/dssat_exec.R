@@ -37,7 +37,21 @@ rundssat <-function(i, path.to.extdata, TRT, AOI = TRUE, crop_code){
               sep = "/"))
 
   # Generate a DSSAT batch file using a tibble
-  options(DSSAT.CSM = "/opt/DSSAT/v4.8.1.40/dscsm048")
+  dssat_csm <- Sys.getenv(
+    "DSSAT_CSM",
+    unset = if (identical(.Platform$OS.type, "windows")) {
+      "C:/DSSAT48/DSCSM048.EXE"
+    } else {
+      "/opt/DSSAT/v4.8.1.40/dscsm048"
+    }
+  )
+  if (!nzchar(dssat_csm) || !file.exists(dssat_csm)) {
+    stop(
+      "DSSAT executable was not found. Set DSSAT_CSM to the full path. ",
+      "Checked: ", dssat_csm
+    )
+  }
+  options(DSSAT.CSM = normalizePath(dssat_csm, mustWork = TRUE))
   tibble(FILEX = paste0(
     'EXTE', formatC(width = 4, as.integer((i)), flag = "0"), '.', crop_code,
     'X'), TRTNO = TRT, RP = 1, SQ = 0, OP = 0, CO = 0) %>%

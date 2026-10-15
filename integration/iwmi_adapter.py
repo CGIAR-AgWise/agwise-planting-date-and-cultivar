@@ -1,0 +1,388 @@
+#!/usr/bin/env python3
+"""Fetch and normalize IWMI context for the AgWise advisory contract."""
+
+import argparse
+import json
+import os
+import sys
+import time
+from datetime import datetime, timezone
+from urllib.parse import urlencode
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
+
+
+CONTEXT_NAMES = ("rainfall", "et_fraction", "irrigation", "water_stress")
+VALUE_KEYS = (
+    "value",
+    "values",
+    "data",
+    "result",
+    "results",
+    "items",
+)
+UNITS = {
+    "rainfall": "percent anomaly",
+    "et_fraction": (
+        "ODC ET-fraction percentage; linked COG Green ET mm/month conflict "
+        "specific to et_fraction_africa"
+    ),
+    "irrigation": "probability [0, 1]",
+    "water_stress": "unitless IWMI index",
+}
+STATIC_COLLECTIONS = {"irrigated_areas_limpopo"}
+PREFERRED_ASSETS = {"irrigation": ("prob",), "water_stress": ("evaporative_stress_index",)}
+
+
+def parse_endpoint(value):
+    name, separator, url = value.partition("=")
+    if not separator or name not in CONTEXT_NAMES or not url:
+        raise ValueError(
+            "Endpoint must use NAME=URL where NAME is one of: "
+            + ", ".join(CONTEXT_NAMES)
+        )
+    return name, url
+
+
+def fetch_json(url, timeout, retries=2):
+    headers = {"Accept": "application/json"}
+    bearer_token = os.getenv("IWMI_BEARER_TOKEN")
+    if bearer_token:
+        headers["Authorization"] = "Bearer " + bearer_token
+    headers["User-Agent"] = "AgWise-IWMI-adapter/1.0"
+    request = Request(url, headers=headers)
+    for attempt in range(retries + 1):
+        try:
+            with urlopen(request, timeout=timeout) as response:
+                body = response.read().decode("utf-8")
+                return json.loads(body)
+        except HTTPError as error:
+            if error.code not in (429, 500, 502, 503, 504) or attempt == retries:
+                raise RuntimeError(
+                    f"IWMI request failed with HTTP {error.code}: {url}"
+                ) from error
+        except URLError as error:
+            if attempt == retries:
+                raise RuntimeError(
+                    f"IWMI request failed after {retries + 1} attempts: "
+                    f"{url}: {error.reason}"
+                ) from error
+        except json.JSONDecodeError as error:
+            raise RuntimeError(f"IWMI response was not valid JSON: {url}") from error
+        time.sleep(0.5 * (attempt + 1))
+
+
+def to_date(value):
+    if not value:
+        return None
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).date()
+
+def item_end(item):
+    return item.get("properties", {}).get("end_datetime") or ""
+
+def overlaps(start, end, target_start, target_end):
+    start, end = to_date(start), to_date(end)
+    target_start, target_end = to_date(target_start), to_date(target_end)
+    if not (start and end and target_start and target_end):
+        return False
+    return start <= target_end and end >= target_start
+
+def search_stac(
+    catalog, collection, latitude, longitude, timeout, datetime_range=None, max_pages=10
+):
+    params = {
+        "collections": collection,
+        "bbox": f"{longitude - 0.01},{latitude - 0.01},{longitude + 0.01},{latitude + 0.01}",
+        "limit": 100,
+    }
+    if datetime_range:
+        params["datetime"] = datetime_range
+    url = f"{catalog.rstrip('/')}/search?{urlencode(params)}"
+    first_url = url
+    features = []
+    for _ in range(max_pages):
+        payload = fetch_json(url, timeout)
+        features.extend(payload.get("features", []))
+        link = next(
+            (l for l in payload.get("links", []) if l.get("rel") == "next"), None
+        )
+        if not link:
+            break
+        if link.get("method", "GET").upper() != "GET" or not link.get("href"):
+            print(
+                f"Warning: {collection} has more pages that cannot be followed with GET.",
+                file=sys.stderr,
+            )
+            break
+        url = link["href"]
+    else:
+        print(
+            f"Warning: {collection} search stopped after {max_pages} pages.",
+            file=sys.stderr,
+        )
+    return features, first_url
+
+
+def fetch_stac_item(
+    catalog, collection, latitude, longitude, timeout, target_start=None, target_end=None
+):
+    features, url = [], catalog
+    if target_start and target_end:
+        window = f"{target_start}T00:00:00Z/{target_end}T23:59:59Z"
+        try:
+            features, url = search_stac(
+                catalog, collection, latitude, longitude, timeout, window
+            )
+        except RuntimeError:
+            features = []  # server may not support the datetime filter
+    if not features:
+        features, url = search_stac(catalog, collection, latitude, longitude, timeout)
+    if not features:
+        raise RuntimeError(f"IWMI STAC collection returned no item: {collection}")
+
+    matching = [
+        item
+        for item in features
+        if overlaps(
+            item.get("properties", {}).get("start_datetime"),
+            item.get("properties", {}).get("end_datetime"),
+            target_start,
+            target_end,
+        )
+    ]
+    item = max(matching or features, key=item_end)
+    assets = item.get("assets", {})
+    preferred_keys = PREFERRED_ASSETS.get(
+        "irrigation" if collection == "irrigated_areas_limpopo" else collection
+    )
+    asset_key = next(
+        (key for key in preferred_keys or () if key in assets),
+        next(
+            (key for key, asset in assets.items() if "data" in asset.get("roles", [])),
+            next(iter(assets), None),
+        ),
+    )
+    data_asset = assets.get(asset_key, {})
+    period = {
+        "start": item.get("properties", {}).get("start_datetime"),
+        "end": item.get("properties", {}).get("end_datetime"),
+    }
+    temporal_role = (
+        "static_spatial_context"
+        if collection in STATIC_COLLECTIONS
+        else "current_season"
+        if matching
+        else "historical_reference"
+    )
+    return {
+        "status": "available",
+        "value": None,
+        "collection": collection,
+        "item_id": item.get("id"),
+        "asset_key": asset_key,
+        "asset_url": data_asset.get("href"),
+        "period": period,
+        "temporal_role": temporal_role,
+        "season_overlap": bool(matching),
+        "source": url,
+    }
+
+def raster_url(asset_url):
+    if asset_url.startswith("/vsicurl/"):
+        return asset_url[len("/vsicurl/") :]
+    if asset_url.startswith("s3://"):
+        bucket, _, key = asset_url[5:].partition("/")
+        return f"https://{bucket}.s3.af-south-1.amazonaws.com/{key}"
+    return asset_url
+
+
+def sample_raster(asset_url, latitude, longitude):
+    try:
+        import rasterio
+    except ImportError as error:
+        raise RuntimeError(
+            "Raster sampling requires rasterio. Install it with: python -m pip install rasterio"
+        ) from error
+
+    url = raster_url(asset_url)
+    try:
+        with rasterio.open(url) as dataset:
+            sample = next(dataset.sample([(longitude, latitude)]))
+            raw_value = float(sample[0])
+            nodata = dataset.nodata
+            if raw_value != raw_value or (nodata is not None and raw_value == nodata):
+                raise RuntimeError("sampled raster cell contains no data")
+            scale = dataset.scales[0] if dataset.scales else 1.0
+            offset = dataset.offsets[0] if dataset.offsets else 0.0
+            return (
+                raw_value,
+                raw_value * scale + offset,
+                scale,
+                offset,
+                dataset.crs.to_string() if dataset.crs else None,
+            )
+    except Exception as error:
+        if isinstance(error, RuntimeError):
+            raise
+        raise RuntimeError(f"Could not sample IWMI raster asset: {url}: {error}") from error
+
+
+def add_raster_value(measure, name, latitude, longitude):
+    raw_value, value, scale, offset, crs = sample_raster(
+        measure["asset_url"], latitude, longitude
+    )
+    measure["raw_value"] = raw_value
+    measure["value"] = value
+    measure["scale"] = scale
+    measure["offset"] = offset
+    measure["unit"] = UNITS.get(name, "product-specific")
+    measure["sample"] = {
+        "latitude": latitude,
+        "longitude": longitude,
+        "crs": crs,
+        "method": "nearest raster cell",
+    }
+    return measure
+
+
+def extract_value(payload):
+    if not isinstance(payload, dict):
+        return payload
+    for key in VALUE_KEYS:
+        if key in payload:
+            return payload[key]
+    return payload
+
+
+def normalize_measure(name, url, payload):
+    return {
+        "status": "available",
+        "value": extract_value(payload),
+        "source": url,
+    }
+
+
+def build_context(endpoints, timeout, allow_missing):
+    context = {"status": "available"}
+    failures = []
+    for name, url in endpoints.items():
+        try:
+            context[name] = normalize_measure(name, url, fetch_json(url, timeout))
+        except RuntimeError as error:
+            if not allow_missing:
+                raise
+            failures.append(str(error))
+            context[name] = {"status": "unavailable", "source": url}
+
+    if failures:
+        context["status"] = "unavailable"
+        context["errors"] = failures
+    return context
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Fetch IWMI endpoints into the AgWise-IWMI advisory payload."
+    )
+    parser.add_argument(
+        "--endpoint",
+        action="append",
+        default=[],
+        metavar="NAME=URL",
+        help="IWMI endpoint; repeat for rainfall, et_fraction, irrigation, or water_stress.",
+    )
+    parser.add_argument(
+        "--stac-collection",
+        action="append",
+        default=[],
+        metavar="NAME=COLLECTION",
+        help="Live IWMI STAC collection name, using the default public catalog.",
+    )
+    parser.add_argument(
+        "--stac-catalog",
+        default="https://odc-explorer.iwmi.org/stac",
+        help="IWMI STAC catalog URL.",
+    )
+    parser.add_argument("--input", required=True, help="AgWise advisory JSON payload.")
+    parser.add_argument("--output", required=True, help="Output normalized advisory JSON.")
+    parser.add_argument("--timeout", type=float, default=30.0)
+    parser.add_argument("--latitude", type=float)
+    parser.add_argument("--longitude", type=float)
+    parser.add_argument("--season-start", help="Target season start date (YYYY-MM-DD).")
+    parser.add_argument("--season-end", help="Target season end date (YYYY-MM-DD).")
+    parser.add_argument(
+        "--sample-raster",
+        action="store_true",
+        help="Sample the matching IWMI raster at the supplied coordinates.",
+    )
+    parser.add_argument(
+        "--allow-missing",
+        action="store_true",
+        help="Write unavailable context instead of stopping on an endpoint failure.",
+    )
+    args = parser.parse_args()
+    if bool(args.season_start) != bool(args.season_end):
+        parser.error("--season-start and --season-end must be supplied together")
+
+    endpoints = dict(parse_endpoint(item) for item in args.endpoint)
+    stac_collections = dict(parse_endpoint(item) for item in args.stac_collection)
+    if not endpoints and not stac_collections:
+        parser.error("provide at least one --endpoint or --stac-collection")
+    with open(args.input, encoding="utf-8") as handle:
+        payload = json.load(handle)
+
+    payload["iwmi"] = build_context(endpoints, args.timeout, args.allow_missing)
+    if stac_collections:
+        if args.latitude is None or args.longitude is None:
+            parser.error("--latitude and --longitude are required with --stac-collection")
+        for name, collection in stac_collections.items():
+            try:
+                payload["iwmi"][name] = fetch_stac_item(
+                    args.stac_catalog,
+                    collection,
+                    args.latitude,
+                    args.longitude,
+                    args.timeout,
+                    args.season_start,
+                    args.season_end,
+                )
+                if args.sample_raster:
+                    payload["iwmi"][name] = add_raster_value(
+                        payload["iwmi"][name], name, args.latitude, args.longitude
+                    )
+            except RuntimeError as error:
+                if not args.allow_missing:
+                    raise
+                payload["iwmi"][name] = {"status": "unavailable", "source": collection}
+                payload["iwmi"].setdefault("errors", []).append(str(error))
+        payload["iwmi"]["status"] = (
+            "available"
+            if all(payload["iwmi"][name]["status"] == "available" for name in stac_collections)
+            else "unavailable"
+        )
+    payload.setdefault("provenance", {}).setdefault("iwmi_sources", [])
+    payload["provenance"]["iwmi_sources"] = list(endpoints.values()) + [
+        f"{args.stac_catalog.rstrip('/')}/collections/{collection}"
+        for collection in stac_collections.values()
+    ]
+    payload["provenance"]["generated_at"] = datetime.now(timezone.utc).isoformat()
+    if args.sample_raster:
+        payload["provenance"]["limitations"] = [
+            limitation
+            for limitation in payload.get("provenance", {}).get("limitations", [])
+            if limitation != "IWMI context not yet requested"
+        ]
+        payload["provenance"]["limitations"].append(
+            "IWMI values are sampled from product rasters and are not yet used to re-rank DSSAT options"
+        )
+
+    with open(args.output, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2)
+        handle.write("\n")
+
+    if payload["iwmi"]["status"] != "available":
+        print("IWMI context completed with unavailable sources.", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    main()

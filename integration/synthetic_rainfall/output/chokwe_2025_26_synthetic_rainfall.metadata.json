@@ -1,0 +1,19 @@
+{
+  "location": "Chókwè, Mozambique",
+  "latitude": -24.500676,
+  "longitude": 33.001806,
+  "iwmi_station": "s24851s29487e",
+  "iwmi_channel": "cha1099",
+  "source_product": "Digital Twins rainfall_analyses total_monthly_rain",
+  "source_period": "2001-01 through 2016-12",
+  "source_unit": "mm/month",
+  "target_period": "2025-11-01 through 2026-02-28",
+  "target_frequency": "daily",
+  "target_unit": "mm/day",
+  "method": "calendar-month climatological mean allocated to deterministic synthetic wet days",
+  "wet_day_fraction": 0.25,
+  "seed": 2025,
+  "observed": false,
+  "synthetic": true,
+  "operational": false
+}

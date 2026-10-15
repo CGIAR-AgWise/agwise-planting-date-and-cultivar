@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/CGIAR-AgWise/agwise-planting-date-and-cultivar/blob/mhmd-review/integration/agwise_iwmi_advisory.schema.json",
+  "title": "AgWise-IWMI planting date and cultivar advisory",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "request",
+    "agwise",
+    "iwmi",
+    "recommendations",
+    "provenance"
+  ],
+  "properties": {
+    "contract_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "request": {
+      "type": "object",
+      "required": ["country_code", "location", "crop", "season"],
+      "properties": {
+        "country_code": { "type": "string", "pattern": "^[A-Z]{3}$" },
+        "location": {
+          "type": "object",
+          "required": ["name", "latitude", "longitude"],
+          "properties": {
+            "name": { "type": "string", "minLength": 1 },
+            "latitude": { "type": "number", "minimum": -90, "maximum": 90 },
+            "longitude": { "type": "number", "minimum": -180, "maximum": 180 }
+          },
+          "additionalProperties": false
+        },
+        "crop": { "type": "string", "minLength": 1 },
+        "season": {
+          "type": "object",
+          "required": ["year", "start_date", "length_months"],
+          "properties": {
+            "year": { "type": "integer" },
+            "start_date": { "type": "string", "format": "date" },
+            "length_months": { "type": "integer", "minimum": 1 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "agwise": {
+      "type": "object",
+      "required": ["status", "forecast", "dssat"],
+      "properties": {
+        "status": { "type": "string", "enum": ["available", "unavailable"] },
+        "forecast": {
+          "type": "object",
+          "required": ["variables", "lead_months"],
+          "properties": {
+            "variables": {
+              "type": "array",
+              "items": { "type": "string", "enum": ["PRCP", "TMAX", "TMIN", "SRAD"] },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "lead_months": { "type": "integer", "minimum": 0 },
+            "precipitation": {
+              "type": "object",
+              "required": ["source", "variable", "period", "temporal_role"],
+              "properties": {
+                "source": { "type": "string", "minLength": 1 },
+                "variable": { "type": "string", "const": "PRCP" },
+                "period": {
+                  "type": "object",
+                  "required": ["start", "end"],
+                  "properties": {
+                    "start": { "type": "string", "format": "date" },
+                    "end": { "type": "string", "format": "date" }
+                  },
+                  "additionalProperties": false
+                },
+                "temporal_role": {
+                  "type": "string",
+                  "const": "current_season"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "dssat": {
+          "type": "object",
+          "required": ["status", "metric", "recommendation_count"],
+          "properties": {
+            "status": { "type": "string", "enum": ["available", "unavailable"] },
+            "metric": { "type": "string", "const": "HWAH" },
+            "recommendation_count": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "iwmi": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["available", "unavailable", "not_requested"]
+        },
+        "rainfall": { "$ref": "#/$defs/contextMeasure" },
+        "et_fraction": { "$ref": "#/$defs/contextMeasure" },
+        "irrigation": { "$ref": "#/$defs/contextMeasure" },
+        "water_stress": { "$ref": "#/$defs/contextMeasure" },
+        "errors": { "type": "array", "items": { "type": "string" } },
+        "fallback": {
+          "type": "object",
+          "required": ["status", "message"],
+          "properties": {
+            "status": { "type": "string", "const": "agwise_dssat_only" },
+            "message": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rank", "planting_date", "cultivar_id", "yield_kg_ha"],
+        "properties": {
+          "rank": { "type": "integer", "minimum": 1 },
+          "planting_date": { "type": "string", "format": "date" },
+          "cultivar_id": { "type": "string", "minLength": 1 },
+          "yield_kg_ha": { "type": "number", "minimum": 0 },
+          "water_context": { "type": "string" },
+          "dssat_yield_kg_ha": { "type": "number", "minimum": 0 },
+          "iwmi_adjusted_yield_kg_ha": { "type": "number", "minimum": 0 },
+          "iwmi_ranking_effect": {
+            "type": "object",
+            "required": ["policy_id", "measure", "adjustment_fraction", "effect", "applied", "category"],
+            "properties": {
+              "policy_id": { "type": "string", "minLength": 1 },
+              "measure": { "type": "string", "const": "water_stress" },
+              "adjustment_fraction": { "type": "number", "exclusiveMinimum": -1, "exclusiveMaximum": 1 },
+              "effect": { "type": "string", "enum": ["bonus", "penalty", "none"] },
+              "applied": { "type": "boolean" },
+              "category": { "type": ["string", "null"] },
+              "mode": { "type": "string", "enum": ["approved", "experimental"] },
+              "policy_status": { "type": "string", "enum": ["approved", "experimental"] }
+            },
+            "additionalProperties": false
+          },
+          "yield_uncertainty": {
+            "type": "object",
+            "required": ["range_basis", "temporal_uncertainty", "interpretation"],
+            "properties": {
+              "range_basis": { "type": "string", "const": "spatial_grid_cells" },
+              "temporal_uncertainty": { "type": "string", "const": "not_estimated" },
+              "interpretation": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["run_id", "generated_at", "limitations"],
+      "properties": {
+        "run_id": { "type": "string", "minLength": 1 },
+        "generated_at": { "type": "string", "format": "date-time" },
+        "agwise_commit": { "type": "string" },
+        "iwmi_sources": { "type": "array", "items": { "type": "string", "format": "uri" } },
+        "iwmi_ranking": {
+          "type": "object",
+          "required": ["enabled"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "policy_id": { "type": "string" },
+            "mode": { "type": "string", "enum": ["approved", "experimental"] },
+            "policy_status": { "type": "string", "enum": ["approved", "experimental"] },
+            "not_for_operational_advice": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        },
+        "limitations": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "contextMeasure": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["available", "unavailable", "not_requested"]
+        },
+        "value": {},
+        "raw_value": { "type": "number" },
+        "scale": { "type": "number" },
+        "offset": { "type": "number" },
+        "unit": { "type": "string" },
+        "stress_category": {
+          "type": "string",
+          "enum": ["low", "moderate", "high"]
+        },
+        "stress_category_policy": { "type": "string", "minLength": 1 },
+        "period": {
+          "type": "object",
+          "properties": {
+            "start": { "type": ["string", "null"], "format": "date-time" },
+            "end": { "type": ["string", "null"], "format": "date-time" }
+          },
+          "additionalProperties": false
+        },
+        "source": { "type": "string" },
+        "collection": { "type": "string" },
+        "item_id": { "type": "string" },
+        "asset_key": { "type": "string" },
+        "asset_url": { "type": "string", "format": "uri-reference" },
+        "temporal_role": {
+          "type": "string",
+          "enum": ["current_season", "historical_reference", "static_spatial_context"]
+        },
+        "season_overlap": { "type": "boolean" },
+        "sample": {
+          "type": "object",
+          "required": ["latitude", "longitude", "method"],
+          "properties": {
+            "latitude": { "type": "number" },
+            "longitude": { "type": "number" },
+            "crs": { "type": ["string", "null"] },
+            "method": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

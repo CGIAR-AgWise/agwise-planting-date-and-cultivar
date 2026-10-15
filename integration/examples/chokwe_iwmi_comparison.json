@@ -1,0 +1,79 @@
+{
+  "location": "Chokwe",
+  "crop": "Maize",
+  "season": {
+    "year": 2025,
+    "start_date": "2025-11-01",
+    "length_months": 4
+  },
+  "baseline": {
+    "mode": "dssat",
+    "best": {
+      "planting_date": "2025-11-30",
+      "cultivar_id": "Short",
+      "score_kg_ha": 2975.5
+    }
+  },
+  "experimental": {
+    "mode": "experimental",
+    "policy_id": "maize-water-stress-experimental-v1",
+    "best": {
+      "planting_date": "2025-11-23",
+      "cultivar_id": "Short",
+      "score_kg_ha": 2765.56
+    }
+  },
+  "best_recommendation_changed": true,
+  "treatments": [
+    {
+      "planting_date": "2025-11-23",
+      "cultivar_id": "Short",
+      "baseline_rank": 2,
+      "experimental_rank": 1,
+      "rank_change": 1,
+      "dssat_yield_kg_ha": 2822.0,
+      "experimental_score_kg_ha": 2765.56,
+      "adjustment_fraction": -0.02
+    },
+    {
+      "planting_date": "2025-11-24",
+      "cultivar_id": "Short",
+      "baseline_rank": 4,
+      "experimental_rank": 4,
+      "rank_change": 0,
+      "dssat_yield_kg_ha": 2660.5,
+      "experimental_score_kg_ha": 2527.475,
+      "adjustment_fraction": -0.05
+    },
+    {
+      "planting_date": "2025-11-30",
+      "cultivar_id": "Short",
+      "baseline_rank": 1,
+      "experimental_rank": 3,
+      "rank_change": -2,
+      "dssat_yield_kg_ha": 2975.5,
+      "experimental_score_kg_ha": 2529.1749999999997,
+      "adjustment_fraction": -0.15
+    },
+    {
+      "planting_date": "2025-12-01",
+      "cultivar_id": "Short",
+      "baseline_rank": 3,
+      "experimental_rank": 2,
+      "rank_change": 1,
+      "dssat_yield_kg_ha": 2777.0,
+      "experimental_score_kg_ha": 2638.15,
+      "adjustment_fraction": -0.05
+    },
+    {
+      "planting_date": "2025-12-07",
+      "cultivar_id": "Short",
+      "baseline_rank": 5,
+      "experimental_rank": 5,
+      "rank_change": 0,
+      "dssat_yield_kg_ha": 2627.0,
+      "experimental_score_kg_ha": 2495.65,
+      "adjustment_fraction": -0.05
+    }
+  ]
+}

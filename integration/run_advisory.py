@@ -1,0 +1,465 @@
+#!/usr/bin/env python3
+"""Build and print an advisory from a DSSAT summary and IWMI context."""
+
+import argparse
+import csv
+import json
+from datetime import date, datetime, timezone
+from pathlib import Path
+
+from advisory import build_advisory
+from advisory import classify_water_stress
+from iwmi_adapter import add_raster_value, fetch_stac_item, overlaps
+
+
+COLLECTIONS = {
+    "rainfall": "limpopo_jfm_rainfall",
+    "et_fraction": "et_fraction_africa",
+    "irrigation": "irrigated_areas_limpopo",
+    "water_stress": "evaporative_stress_index_africa",
+}
+DEFAULT_LOCATIONS = Path(__file__).with_name("locations.json")
+
+RANK_COLUMNS = {"median": "HWAH_median", "mean": "HWAH_mean", "p10": "HWAH_p10"}
+IWMI_RANKING_UNAVAILABLE = (
+    "IWMI re-ranking cannot be enabled safely: an approved current-season "
+    "IWMI ranking policy is required before it can affect DSSAT recommendations."
+)
+EXTRA_FIELDS = {
+    "yield_p10_kg_ha": "HWAH_p10",
+    "yield_p90_kg_ha": "HWAH_p90",
+    "yield_cv_pct": "HWAH_cv_pct",
+    "n_simulations": "n_simulations",
+    "maturity_failure_rate_pct": "maturity_failure_rate_pct",
+}
+
+
+def first_value(row, names):
+    for name in names:
+        if name in row and row[name] not in ("", None):
+            return row[name]
+    raise ValueError(f"DSSAT summary is missing one of: {', '.join(names)}")
+
+
+def parse_date(value):
+    value = str(value).strip()
+    # ISO 8601, with or without time and trailing Z, e.g. 2025-11-09T00:00:00Z
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).date()
+    except ValueError:
+        pass
+    if value.isdigit() and len(value) == 7:  # YYYYDDD, e.g. 2025313
+        return datetime.strptime(value, "%Y%j").date()
+    if value.isdigit() and len(value) == 5:  # YYDDD, e.g. 25313
+        return datetime.strptime(value, "%y%j").date()
+    for pattern in ("%d/%m/%Y", "%m/%d/%Y"):
+        try:
+            return datetime.strptime(value, pattern).date()
+        except ValueError:
+            continue
+    raise ValueError(f"Unsupported DSSAT planting date: {value}")
+
+
+def optional_float(row, column):
+    value = row.get(column)
+    return float(value) if value not in ("", None) else None
+
+
+def load_recommendations(path, limit, rank_by="median"):
+    with open(path, newline="", encoding="utf-8-sig") as handle:
+        rows = list(csv.DictReader(handle))
+    if not rows:
+        raise ValueError(f"DSSAT summary contains no rows: {path}")
+
+    parsed = []
+    for row in rows:
+        entry = {
+            "planting_date": parse_date(
+                first_value(row, ("PDAT", "planting_date", "Planting_Date"))
+            ).isoformat(),
+            "cultivar_id": str(
+                first_value(row, ("Cultivar", "CULTIVAR", "INGENO", "cultivar_id"))
+            ),
+            "yield_kg_ha": float(
+                first_value(row, (RANK_COLUMNS[rank_by], "HWAH", "yield_kg_ha", "Yield"))
+            ),
+            "yield_metric": rank_by,
+        }
+        entry["dssat_yield_kg_ha"] = entry["yield_kg_ha"]
+        for field, column in EXTRA_FIELDS.items():
+            value = optional_float(row, column)
+            if value is not None:
+                entry[field] = int(value) if field == "n_simulations" else value
+        entry["yield_uncertainty"] = {
+            "range_basis": "spatial_grid_cells",
+            "temporal_uncertainty": "not_estimated",
+            "interpretation": (
+                "P10-P90 describes variation across DSSAT grid-cell simulations "
+                "for this planting date and cultivar, not year-to-year weather risk."
+            ),
+        }
+        parsed.append(entry)
+
+    parsed.sort(key=lambda item: item["yield_kg_ha"], reverse=True)
+    return [{"rank": rank, **entry} for rank, entry in enumerate(parsed[:limit], 1)]
+
+
+def resolve_location(name, country_code, latitude, longitude, locations_path):
+    if latitude is not None and longitude is not None:
+        if not country_code:
+            raise ValueError(
+                "--country-code is required when coordinates are given explicitly."
+            )
+        return {
+            "name": name,
+            "country_code": country_code,
+            "latitude": latitude,
+            "longitude": longitude,
+        }
+    if not locations_path.exists():
+        raise ValueError(
+            f"Location registry not found: {locations_path}. "
+            "Provide --latitude and --longitude."
+        )
+    with open(locations_path, encoding="utf-8") as handle:
+        locations = json.load(handle)
+    record = locations.get(name.lower())
+    if record is None:
+        available = ", ".join(sorted(locations))
+        raise ValueError(
+            f"Location '{name}' is not registered. Available locations: {available}. "
+            "Provide --latitude and --longitude for a new location."
+        )
+    if country_code and country_code != record["country_code"]:
+        raise ValueError(
+            f"Location '{name}' belongs to {record['country_code']}, "
+            f"not {country_code}."
+        )
+    return record
+
+
+def validate_iwmi_ranking_enabled(enabled):
+    return enabled
+
+
+def load_iwmi_ranking_policy(path, allow_experimental=False):
+    with open(path, encoding="utf-8") as handle:
+        policy = json.load(handle)
+    required = ("policy_id", "status", "approved", "measure", "direction")
+    missing = [field for field in required if field not in policy]
+    if missing:
+        raise ValueError(f"IWMI ranking policy is missing: {', '.join(missing)}")
+    if "penalty" not in policy and "adjustment_fraction" not in policy:
+        raise ValueError(
+            "IWMI ranking policy must define penalty or adjustment_fraction."
+        )
+    approved = policy["status"] == "approved" and policy["approved"] is True
+    experimental = (
+        allow_experimental
+        and policy["status"] == "experimental"
+        and policy["approved"] is False
+    )
+    if not approved and not experimental:
+        raise ValueError("IWMI ranking policy must have status 'approved' and approved=true.")
+    if policy["measure"] != "water_stress":
+        raise ValueError("IWMI ranking currently supports only water_stress.")
+    if policy["direction"] != "higher_values_mean_more_stress":
+        raise ValueError("IWMI ranking policy must define the approved stress direction.")
+    values = policy.get("adjustment_fraction", policy.get("penalty"))
+    signed = "adjustment_fraction" in policy
+    for category in ("moderate", "high"):
+        value = values.get(category)
+        valid = isinstance(value, (int, float)) and (
+            -1 < value < 1 if signed else 0 <= value < 1
+        )
+        if not valid:
+            label = "adjustment" if signed else "penalty"
+            raise ValueError(f"IWMI ranking policy has an invalid {category} {label}.")
+    date_key = (
+        "adjustment_by_planting_date"
+        if "adjustment_by_planting_date" in policy
+        else "penalty_by_planting_date"
+    )
+    date_penalties = policy.get(date_key, {})
+    for category, penalties in date_penalties.items():
+        if category not in ("moderate", "high") or not isinstance(penalties, dict):
+            raise ValueError("IWMI ranking policy has invalid date penalties.")
+        for planting_date, penalty in penalties.items():
+            if not isinstance(planting_date, str) or not isinstance(penalty, (int, float)):
+                raise ValueError("IWMI ranking policy has invalid date penalty values.")
+            if signed:
+                valid = -1 < penalty < 1
+            else:
+                valid = 0 <= penalty < 1
+            if not valid:
+                raise ValueError("IWMI ranking policy date adjustments must be in (-1, 1).")
+    return policy
+
+
+def validate_iwmi_ranking_inputs(iwmi, season_start, season_end):
+    measure = iwmi.get("water_stress", {})
+    if measure.get("status") != "available":
+        raise ValueError("IWMI ranking requires an available water-stress measure.")
+    if measure.get("temporal_role") != "current_season":
+        raise ValueError(
+            "IWMI ranking requires a current-season water-stress measure."
+        )
+    period = measure.get("period", {})
+    if not overlaps(period.get("start"), period.get("end"), season_start, season_end):
+        raise ValueError(
+            "IWMI ranking requires a water-stress period overlapping the advisory season."
+        )
+    if measure.get("stress_category_policy", "").endswith("not an IWMI product legend"):
+        raise ValueError(
+            "IWMI ranking cannot use provisional stress categories as a policy."
+        )
+
+
+def apply_iwmi_ranking_rule(recommendations, iwmi, policy):
+    measure = iwmi["water_stress"]
+    category = measure.get("stress_category")
+    adjusted = []
+    for recommendation in recommendations:
+        item = dict(recommendation)
+        values = policy.get("adjustment_fraction", policy.get("penalty"))
+        date_key = (
+            "adjustment_by_planting_date"
+            if "adjustment_by_planting_date" in policy
+            else "penalty_by_planting_date"
+        )
+        adjustment = policy.get(date_key, {}).get(category, {}).get(
+            recommendation["planting_date"],
+            values.get(category, 0),
+        )
+        if "penalty" in policy and "adjustment_fraction" not in policy:
+            adjustment = -adjustment
+        item["dssat_yield_kg_ha"] = item["yield_kg_ha"]
+        item["iwmi_adjusted_yield_kg_ha"] = item["yield_kg_ha"] * (1 + adjustment)
+        item["yield_kg_ha"] = item["iwmi_adjusted_yield_kg_ha"]
+        item["iwmi_ranking_effect"] = {
+            "policy_id": policy["policy_id"],
+            "measure": policy["measure"],
+            "adjustment_fraction": adjustment,
+            "effect": "bonus" if adjustment > 0 else "penalty" if adjustment < 0 else "none",
+            "applied": adjustment != 0,
+            "category": category,
+        }
+        adjusted.append(item)
+    adjusted.sort(key=lambda item: item["yield_kg_ha"], reverse=True)
+    return [{"rank": rank, **item} for rank, item in enumerate(adjusted, 1)]
+
+
+def build_payload(args):
+    validate_iwmi_ranking_enabled(args.enable_iwmi_ranking)
+    season_start = date.fromisoformat(args.season_start)
+    season_end = date.fromisoformat(args.season_end)
+    recommendations = load_recommendations(args.dssat_summary, None, args.rank_by)
+    location = resolve_location(
+        args.location,
+        args.country_code,
+        args.latitude,
+        args.longitude,
+        Path(args.locations_file),
+    )
+    payload = {
+        "contract_version": "1.0",
+        "request": {
+            "country_code": location["country_code"],
+            "location": {
+                "name": location["name"],
+                "latitude": location["latitude"],
+                "longitude": location["longitude"],
+            },
+            "crop": args.crop,
+            "season": {
+                "year": season_start.year,
+                "start_date": season_start.isoformat(),
+                "length_months": args.season_length_months,
+            },
+        },
+        "agwise": {
+            "status": "available",
+            "forecast": {
+                "variables": ["PRCP", "TMAX", "TMIN", "SRAD"],
+                "lead_months": args.lead_months,
+                "precipitation": {
+                    "source": "AgWise forecast PRCP used by DSSAT",
+                    "variable": "PRCP",
+                    "period": {
+                        "start": season_start.isoformat(),
+                        "end": season_end.isoformat(),
+                    },
+                    "temporal_role": "current_season",
+                },
+            },
+            "dssat": {
+                "status": "available",
+                "metric": "HWAH",
+                "recommendation_count": len(recommendations),
+            },
+        },
+        "iwmi": {"status": "unavailable"},
+        "recommendations": recommendations,
+        "provenance": {
+            "run_id": Path(args.dssat_summary).stem,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "iwmi_sources": [],
+            "limitations": [
+                "DSSAT results are interpreted from the supplied summary CSV",
+                "Target-season precipitation is identified as AgWise forecast PRCP used by DSSAT; no separate IWMI current-season rainfall value is inferred",
+                (
+                    "IWMI context is contextual and does not re-rank DSSAT options"
+                    if not args.experimental_iwmi_ranking
+                    else "Experimental Limpopo DT adjustment is not validated for operational advice"
+                ),
+                f"Yields are the {args.rank_by} across DSSAT runs at the grid cells in the summary, with one run per cell and planting date; the range shows spatial variation, not year-to-year weather risk",            ],
+        },
+    }
+
+    payload["iwmi"] = {"status": "available"}
+    errors = []
+    for name, collection in COLLECTIONS.items():
+        try:
+            measure = fetch_stac_item(
+                args.stac_catalog,
+                collection,
+                location["latitude"],
+                location["longitude"],
+                args.timeout,
+                season_start.isoformat(),
+                season_end.isoformat(),
+            )
+            if args.sample_raster:
+                measure = add_raster_value(
+                    measure, name, location["latitude"], location["longitude"]
+                )
+                if name == "water_stress" and isinstance(measure.get("value"), (int, float)):
+                    measure["stress_category"] = classify_water_stress(measure["value"])
+                    measure["stress_category_policy"] = (
+                        "Provisional project bands: low < 0.33, moderate 0.33 to < 0.66, "
+                        "high >= 0.66; not an IWMI product legend"
+                    )
+            payload["iwmi"][name] = measure
+        except RuntimeError as error:
+            if not args.allow_missing:
+                raise
+            errors.append(f"{name}: {error}")
+            payload["iwmi"][name] = {"status": "unavailable", "source": collection}
+
+    if args.enable_iwmi_ranking or args.experimental_iwmi_ranking:
+        if not args.iwmi_ranking_policy:
+            raise ValueError(
+                f"{IWMI_RANKING_UNAVAILABLE} Supply --iwmi-ranking-policy."
+            )
+        experimental = args.experimental_iwmi_ranking
+        policy = load_iwmi_ranking_policy(
+            args.iwmi_ranking_policy, allow_experimental=experimental
+        )
+        if not experimental:
+            validate_iwmi_ranking_inputs(
+                payload["iwmi"], season_start.isoformat(), season_end.isoformat()
+            )
+        payload["recommendations"] = apply_iwmi_ranking_rule(
+            recommendations, payload["iwmi"], policy
+        )[: args.top]
+        for recommendation in payload["recommendations"]:
+            recommendation["iwmi_ranking_effect"].update(
+                {
+                    "mode": "experimental" if experimental else "approved",
+                    "policy_status": policy["status"],
+                }
+            )
+        for rank, recommendation in enumerate(payload["recommendations"], 1):
+            recommendation["rank"] = rank
+        payload["provenance"]["iwmi_ranking"] = {
+            "enabled": True,
+            "policy_id": policy["policy_id"],
+            "mode": "experimental" if experimental else "approved",
+            "policy_status": policy["status"],
+            "not_for_operational_advice": experimental,
+        }
+    else:
+        payload["recommendations"] = recommendations[: args.top]
+        payload["provenance"]["iwmi_ranking"] = {"enabled": False}
+
+    if errors:
+        payload["iwmi"]["errors"] = errors
+        payload["iwmi"]["fallback"] = {
+            "status": "agwise_dssat_only",
+            "message": (
+                "Unavailable IWMI layers were omitted; recommendations remain "
+                "based on AgWise forecast and DSSAT results."
+            ),
+        }
+        payload["provenance"]["limitations"].append(
+            "One or more IWMI layers could not be retrieved for this run"
+        )
+        if all(
+            payload["iwmi"][name]["status"] == "unavailable" for name in COLLECTIONS
+        ):
+            payload["iwmi"]["status"] = "unavailable"
+
+    payload["provenance"]["iwmi_sources"] = [
+        f"{args.stac_catalog.rstrip('/')}/collections/{collection}"
+        for collection in COLLECTIONS.values()
+    ]
+    return payload
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--dssat-summary", required=True)
+    parser.add_argument("--country-code")
+    parser.add_argument("--location", required=True)
+    parser.add_argument("--crop", required=True)
+    parser.add_argument("--latitude", type=float)
+    parser.add_argument("--longitude", type=float)
+    parser.add_argument(
+        "--locations-file",
+        default=str(DEFAULT_LOCATIONS),
+        help="Location registry JSON used when coordinates are omitted.",
+    )
+    parser.add_argument("--season-start", required=True)
+    parser.add_argument("--season-end", required=True)
+    parser.add_argument("--season-length-months", type=int, default=4)
+    parser.add_argument("--lead-months", type=int, default=1)
+    parser.add_argument("--top", type=int, default=5)
+    parser.add_argument("--rank-by", choices=sorted(RANK_COLUMNS), default="median")
+    ranking_group = parser.add_mutually_exclusive_group()
+    ranking_group.add_argument(
+        "--enable-iwmi-ranking",
+        dest="enable_iwmi_ranking",
+        action="store_true",
+        help="Enable validated IWMI ranking adjustments.",
+    )
+    ranking_group.add_argument(
+        "--experimental-iwmi-ranking",
+        dest="experimental_iwmi_ranking",
+        action="store_true",
+        help="Run a non-operational experimental IWMI ranking comparison.",
+    )
+    ranking_group.add_argument(
+        "--disable-iwmi-ranking",
+        dest="enable_iwmi_ranking",
+        action="store_false",
+        help="Keep DSSAT-only ranking (default).",
+    )
+    parser.set_defaults(enable_iwmi_ranking=False, experimental_iwmi_ranking=False)
+    parser.add_argument("--stac-catalog", default="https://odc-explorer.iwmi.org/stac")
+    parser.add_argument("--timeout", type=float, default=30)
+    parser.add_argument("--sample-raster", action="store_true")
+    parser.add_argument("--allow-missing", action="store_true")
+    parser.add_argument("--output")
+    parser.add_argument("--iwmi-ranking-policy")
+    args = parser.parse_args()
+
+    payload = build_payload(args)
+    if args.output:
+        with open(args.output, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, indent=2)
+            handle.write("\n")
+    print(build_advisory(payload))
+
+
+if __name__ == "__main__":
+    main()

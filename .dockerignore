@@ -1,7 +1,15 @@
 .git
 data/
+Data/
 archive/
 docs/
 .ipynb_checkpoints
 .Rproj.user/
 *.nc
+# Never bake credentials or local test data into the image
+secrets.env
+*.env
+blob_test_data/
+run_logs/
+.claude/
+.DS_Store

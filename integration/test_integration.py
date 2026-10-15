@@ -105,28 +105,14 @@ def test_advisory_separates_iwmi_temporal_roles():
 
     advisory = build_advisory(payload)
 
-    assert (
-        "IWMI does not provide a current-season layer for this advisory period."
-        in advisory
-    )
-    assert "Historical and static IWMI context is shown where available." in advisory
-    assert (
-        "The target-season precipitation source is the AgWise forecast used by DSSAT."
-        in advisory
-    )
-    assert "Target-season rainfall:" in advisory
+    assert "Rainfall used by DSSAT:" in advisory
     assert (
         "- AgWise forecast PRCP used by DSSAT: 2025-11-01 to 2026-02-28"
         in advisory
     )
-    assert "Historical reference layers:" in advisory
-    assert (
-        "- Historical JFM rainfall anomaly composite (Limpopo domain): "
-        "1950-01-01 to 2022-12-31"
-    ) in advisory
-    assert "Static spatial-context layers:" in advisory
-    assert "- Irrigation context: 2026-06-01 to 2026-06-30" in advisory
+    assert "- Irrigation context: product located" in advisory
     assert "Temporal yield uncertainty: not estimated" in advisory
+    assert "Technical demonstration; review with local agronomic knowledge." in advisory
 
 
 def test_water_stress_uses_provisional_project_bands():

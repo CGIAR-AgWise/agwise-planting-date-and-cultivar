@@ -123,12 +123,21 @@ def format_target_season_precipitation(agwise):
     if not precipitation or not period.get("start") or not period.get("end"):
         return []
     return [
-        "Target-season rainfall:",
+        "Rainfall used by DSSAT:",
         (
             f"- {precipitation.get('source', 'AgWise forecast PRCP')}: "
             f"{period['start']} to {period['end']}"
         ),
     ]
+
+
+def format_compact_water_context(iwmi):
+    lines = []
+    for name in ("rainfall", "irrigation", "water_stress"):
+        measure = iwmi.get(name)
+        if isinstance(measure, dict) and measure.get("status") == "available":
+            lines.append(format_measure(name, measure))
+    return lines
 
 
 def interpret_water_context(iwmi):
@@ -231,7 +240,7 @@ def build_advisory(payload):
 
     if len(ranked) > 1:
         lines.extend(["", "Other simulated options", "-----------------------"])
-        for item in ranked[1:5]:
+        for item in ranked[1:4]:
             lines.append(
                 f"- {format_date(item['planting_date'])}, {item['cultivar_id']}: "
                 f"{item['yield_kg_ha']:,.0f} kg/ha"
@@ -255,26 +264,19 @@ def build_advisory(payload):
                 "not sampled, so no water-context numbers are shown. Rerun with "
                 "--sample-raster to add them."
             )
-        for name in LABELS:
-            if name in iwmi:
-                lines.append(format_measure(name, iwmi[name]))
+        compact_context = format_compact_water_context(iwmi)
+        if compact_context:
+            lines.extend(["", *compact_context])
         target_precipitation = format_target_season_precipitation(agwise)
         if target_precipitation:
             lines.extend(["", *target_precipitation])
-        temporal_context = format_temporal_context(iwmi)
-        if temporal_context:
-            lines.extend(["", "Temporal coverage", "-----------------"])
-            lines.extend(temporal_context)
-        statements = interpret_water_context(iwmi)
         if ranking.get("mode") == "experimental":
-            statements.append(
-                "The experimental Limpopo DT adjustment changed the displayed "
-                "ranking using a placeholder policy; compare this run with the "
-                "DSSAT-only baseline and do not use it operationally."
+            lines.extend(
+                [
+                    "",
+                    "Warning: experimental IWMI ranking adjustment; not operational advice.",
+                ]
             )
-        if statements:
-            lines.extend(["", "Interpretation", "--------------"])
-            lines.extend(f"- {statement}" for statement in statements)
         lines.append("")
     elif iwmi_status == "unavailable":
         lines.extend(
@@ -304,31 +306,13 @@ def build_advisory(payload):
 
     lines.extend(
         [
-            "Important limitations",
-            "---------------------",
-            "This is a technical demonstration, not a validated farm instruction.",
+            "Notes",
+            "-----",
+            "Technical demonstration; review with local agronomic knowledge.",
+            "Yield range shows spatial variation, not year-to-year weather risk.",
         ]
     )
-    for limitation in payload.get("provenance", {}).get("limitations", []):
-        lines.append(f"- {limitation}")
-    roles = {
-        measure.get("temporal_role")
-        for measure in iwmi.values()
-        if isinstance(measure, dict) and measure.get("temporal_role")
-    }
-    if "historical_reference" in roles or "static_spatial_context" in roles:
-        lines.append(
-            "- Some IWMI layers are historical references or static spatial context, "
-            "not direct observations for this season."
-        )
-    lines.extend(
-        [
-            "",
-            "The recommendation should be reviewed with local agronomic "
-            "knowledge before operational use.",
-            "",
-        ]
-    )
+    lines.extend(["IWMI context does not change the DSSAT ranking.", ""])
     return "\n".join(lines)
 
 

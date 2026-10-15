@@ -16,6 +16,7 @@ LEAD_MONTHS ?= 1
 USECASE_CONFIG ?= usecases/configs/MOZ/maize_chokwe.yml
 DSSAT_SUMMARY ?= $(firstword $(wildcard data/usecases/useCase_Mozambique_*/Maize/result/DSSAT/AOI/Maize_2025_treatment_summary.csv))
 ADVISORY_OUTPUT ?= integration/examples/$(shell echo "$(LOCATION)" | tr '[:upper:]' '[:lower:]')_$(shell echo "$(CROP)" | tr '[:upper:]' '[:lower:]')_advisory.json
+ADVISORY_RAINFALL_SOURCE ?= $(if $(IWMI_PRCP_CSV),Synthetic IWMI rainfall override used by DSSAT,AgWise forecast PRCP used by DSSAT)
 AGWISE_N_CORES ?= 2
 IWMI_PRCP_CSV ?=
 SKIP_DOWNLOAD ?= 0
@@ -92,6 +93,7 @@ advisory:
 		--inputs "$(DSSAT_SUMMARY)" "location=$(LOCATION)" "crop=$(CROP)" \
 			"season-start=$(SEASON_START)" "season-end=$(SEASON_END)" \
 			"season-length=$(SEASON_LENGTH_MONTHS)" "lead-months=$(LEAD_MONTHS)" \
+			"rainfall-source=$(ADVISORY_RAINFALL_SOURCE)" \
 		--outputs "$(ADVISORY_OUTPUT)"; then \
 		if $(PYTHON) integration/run_advisory.py \
 			--dssat-summary "$(DSSAT_SUMMARY)" \
@@ -102,6 +104,7 @@ advisory:
 			--season-end "$(SEASON_END)" \
 			--season-length-months "$(SEASON_LENGTH_MONTHS)" \
 			--lead-months "$(LEAD_MONTHS)" \
+			--rainfall-source "$(ADVISORY_RAINFALL_SOURCE)" \
 			--sample-raster \
 			--output "$(ADVISORY_OUTPUT)"; then \
 			$(PYTHON) integration/workflow_state.py write \
@@ -109,6 +112,7 @@ advisory:
 				--inputs "$(DSSAT_SUMMARY)" "location=$(LOCATION)" "crop=$(CROP)" \
 					"season-start=$(SEASON_START)" "season-end=$(SEASON_END)" \
 					"season-length=$(SEASON_LENGTH_MONTHS)" "lead-months=$(LEAD_MONTHS)" \
+					"rainfall-source=$(ADVISORY_RAINFALL_SOURCE)" \
 				--outputs "$(ADVISORY_OUTPUT)"; \
 		else \
 			echo "Advisory failed; checkpoint was not written." >&2; \
@@ -132,6 +136,7 @@ status:
 		--inputs "$(DSSAT_SUMMARY)" "location=$(LOCATION)" "crop=$(CROP)" \
 			"season-start=$(SEASON_START)" "season-end=$(SEASON_END)" \
 			"season-length=$(SEASON_LENGTH_MONTHS)" "lead-months=$(LEAD_MONTHS)" \
+			"rainfall-source=$(ADVISORY_RAINFALL_SOURCE)" \
 		--outputs "$(ADVISORY_OUTPUT)" || true
 
 invalidate:

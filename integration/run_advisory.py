@@ -283,7 +283,7 @@ def build_payload(args):
                 "variables": ["PRCP", "TMAX", "TMIN", "SRAD"],
                 "lead_months": args.lead_months,
                 "precipitation": {
-                    "source": "AgWise forecast PRCP used by DSSAT",
+                    "source": args.rainfall_source,
                     "variable": "PRCP",
                     "period": {
                         "start": season_start.isoformat(),
@@ -306,7 +306,11 @@ def build_payload(args):
             "iwmi_sources": [],
             "limitations": [
                 "DSSAT results are interpreted from the supplied summary CSV",
-                "Target-season precipitation is identified as AgWise forecast PRCP used by DSSAT; no separate IWMI current-season rainfall value is inferred",
+                (
+                    "Target-season precipitation is identified as "
+                    f"{args.rainfall_source}; no separate IWMI current-season "
+                    "rainfall value is inferred"
+                ),
                 (
                     "IWMI context is contextual and does not re-rank DSSAT options"
                     if not args.experimental_iwmi_ranking
@@ -423,6 +427,11 @@ def main():
     parser.add_argument("--season-end", required=True)
     parser.add_argument("--season-length-months", type=int, default=4)
     parser.add_argument("--lead-months", type=int, default=1)
+    parser.add_argument(
+        "--rainfall-source",
+        default="AgWise forecast PRCP used by DSSAT",
+        help="Description of the rainfall series used by DSSAT.",
+    )
     parser.add_argument("--top", type=int, default=5)
     parser.add_argument("--rank-by", choices=sorted(RANK_COLUMNS), default="median")
     ranking_group = parser.add_mutually_exclusive_group()

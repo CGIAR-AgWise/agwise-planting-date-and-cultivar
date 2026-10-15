@@ -181,10 +181,11 @@ python integration/advisory.py \
   integration/examples/chokwe_maize_advisory.json
 ```
 
-The terminal message identifies the highest-ranked DSSAT option, reports the
-simulated yield, states whether IWMI context is available, and lists the
-limitations. It is intentionally cautious: it does not present the current
-technical smoke test as a validated farm instruction.
+The terminal message is intentionally concise: it identifies the recommended
+planting date and cultivar, reports the yield range, shows the rainfall source
+used by DSSAT, and includes only decision-relevant water context and notes.
+The complete normalized payload retains detailed source metadata and
+provenance.
 
 ## End-to-end DSSAT-to-advisory command
 
@@ -201,6 +202,7 @@ python integration/run_advisory.py \
   --crop Maize \
   --latitude -24.500676 --longitude 33.001806 \
   --season-start 2025-11-01 --season-end 2026-02-28 \
+  --rainfall-source "Synthetic IWMI rainfall override used by DSSAT" \
   --sample-raster \
   --output integration/examples/chokwe_maize_advisory_with_iwmi_values.json
 ```
@@ -208,6 +210,11 @@ python integration/run_advisory.py \
 The command expects the summary to contain `PDAT`, a cultivar column such as
 `Cultivar` or `INGENO`, and `HWAH`. Use `--allow-missing` to print the DSSAT
 recommendation when IWMI is temporarily unavailable.
+
+When the DSSAT weather table uses the synthetic rainfall experiment, pass
+`--rainfall-source "Synthetic IWMI rainfall override used by DSSAT"` so the
+terminal advisory states that provenance explicitly. `make advisory` sets this
+automatically when `IWMI_PRCP_CSV` is provided.
 
 Locations are resolved from [`locations.json`](./locations.json), so registered
 locations do not need coordinates on every command:

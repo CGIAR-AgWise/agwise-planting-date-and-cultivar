@@ -16,6 +16,9 @@ need `usecases/` (see `usecases/README.md`) and, for viewing results,
 need to open or edit them for normal use (see "Creating a New Country or Crop
 Use Case" below).
 
+**Just want to see it run?** Follow "Run the Rwanda demo with Docker" below -
+it needs only Docker and one data download, no R/Python/DSSAT installation.
+
 ## Overview
 
 The pipeline connects climate forecast processing with DSSAT crop-model input
@@ -186,6 +189,161 @@ The default Python executable in the current use-case configs is:
 ```
 
 Override this path with `--py-path` if needed.
+
+## Run the Rwanda demo with Docker
+
+The quickest way to see the whole pipeline work. A prebuilt Docker image
+contains everything (R, the Python `agwise-data` CLI, DSSAT-CSM 4.8.1.40, all
+packages), and a small data bundle contains the already-prepared Rwanda
+weather, forecast and soil data. Nothing else needs installing, and the run
+works offline - no API keys or cloud credentials.
+
+What the demo does: Rwanda maize, September 2026 seasonal forecast, all 5
+provinces (~1,000 sites), one cultivar (890011), a range of planting dates -
+then ranks planting dates per site and builds an HTML dashboard.
+
+### 1. What you need
+
+- **Docker**:
+  - Linux: Docker Engine (`docker` command).
+  - Windows: Docker Desktop (uses WSL2). Run every command below from a WSL
+    (Ubuntu) terminal, not PowerShell.
+  - Mac: Docker Desktop, OrbStack or Colima. Colima is free for everyone:
+    ```bash
+    brew install colima docker
+    colima start --vm-type vz --vz-rosetta --cpu 4 --memory 8
+    ```
+    Docker Desktop is free only for personal use, education and small
+    organisations - larger institutions need a paid licence.
+- **About 12 GB of free disk space** (image ~9 GB unpacked, data ~1.3 GB).
+- **Give Docker at least 4 CPUs and 8 GB of memory** (tested with 4 CPUs /
+  10 GB).
+- **Access to the image**: a free Docker Hub account (hub.docker.com). Send
+  your Docker Hub username to the repository maintainer to be added to the
+  private image.
+- **The data bundle**: `agwise_demo_data.tar.gz` and its checksum file
+  `agwise_demo_data.tar.gz.sha256`, shared by the maintainer.
+
+The image is x86-64 (amd64) only, because the DSSAT binary is. On an x86
+PC/server it runs natively; on an Apple Silicon Mac it runs under emulation
+(Rosetta), which is slower but works.
+
+### 2. Get the image
+
+```bash
+docker login -u <your-docker-hub-username>
+docker pull --platform linux/amd64 acarmonacabrero/agwise-planting-date-and-cultivar:rwanda-demo-v1
+```
+
+`docker login` asks for a password - use a Docker Hub **personal access
+token** (Account settings -> Personal access tokens, "Read" access is enough)
+rather than your account password. `--platform linux/amd64` is required on
+Apple Silicon Macs and harmless elsewhere. The download is ~2.2 GB.
+
+### 3. Set up a demo folder with the data
+
+Create a folder for the demo (any name and location), put the two downloaded
+files in it, and work from there:
+
+```bash
+mkdir -p ~/agwise_demo
+cd ~/agwise_demo
+```
+
+Check the download is complete and unpack it:
+
+```bash
+shasum -a 256 -c agwise_demo_data.tar.gz.sha256
+tar -xzf agwise_demo_data.tar.gz
+mkdir -p results
+```
+
+`shasum` should print `agwise_demo_data.tar.gz: OK` (on Linux you can use
+`sha256sum -c` instead). You should now have:
+
+```text
+agwise_demo/
+├── agwise_demo_data/
+│   └── Processed/        weather, forecast, soil and boundary data (input)
+├── results/              empty - the pipeline writes its outputs here
+├── agwise_demo_data.tar.gz
+└── agwise_demo_data.tar.gz.sha256
+```
+
+### 4. Run the demo
+
+From inside the demo folder:
+
+```bash
+docker run --rm --platform linux/amd64 \
+  -v "$(pwd)/agwise_demo_data/Processed:/mnt/agwise_data_root" \
+  -v "$(pwd)/results:/workspace/Data" \
+  acarmonacabrero/agwise-planting-date-and-cultivar:rwanda-demo-v1 \
+  2>&1 | tee demo_run.log
+```
+
+What this does:
+
+- `--rm` deletes the container when it finishes (your results are kept, see
+  below).
+- The first `-v` makes the data folder visible inside the container, where the
+  pipeline expects its input data.
+- The second `-v` connects your `results` folder to the pipeline's output
+  folder. **Anything the pipeline writes anywhere else disappears when the
+  container ends** - this mount is what keeps the results.
+- With no config given, the image runs the demo config
+  `usecases/configs/RWA/maize_demo.yml`.
+- `| tee demo_run.log` shows the progress on screen and also saves it to
+  `demo_run.log`.
+
+It takes about 30 minutes on a recent Mac. It finishes with a line like:
+
+```text
+=== Pipeline finished at ..., exit code 0, elapsed 1650s ===
+```
+
+Lots of `STOP 99` lines and planting-date `WARNING`s during the run are
+normal. So is a summary like `239 expected, 200 finished, 39 skipped` for a
+province: DSSAT rejects a few sites' inputs, and those sites are skipped.
+
+### 5. Look at the results
+
+Everything is in
+`results/usecases/useCase_Rwanda_demo/Maize/result/DSSAT/AOI/`:
+
+| File | What it is |
+|---|---|
+| `Maize_Rwanda_dashboard.html` | Interactive dashboard - open it in a web browser |
+| `Maize_2026_top_5_HWAH_combination_recommendation.csv` | Best 5 planting dates per site, with simulated yield (HWAH, kg/ha) |
+| `Maize_2026_top_5_HWAH_combination_recommendation.nc` | The same, as a NetCDF grid |
+| `Maize_2026_treatment_summary.csv` | Yield statistics per planting date across all sites |
+| `Maize_2026_yield_by_pdate_cultivar.png` | Map of the yield of the top 3 planting dates |
+| `Maize_2026_planting_date_gradients.png` | Map of the top 3 planting dates |
+
+The DSSAT input and output files for every site are under
+`results/usecases/useCase_Rwanda_demo/Maize/transform/DSSAT/`.
+
+To run the demo again from scratch, delete and recreate `results/` first
+(`rm -rf results && mkdir results`), so files from the previous run don't mix
+in.
+
+### Going further
+
+- **Look inside the container** (opens a shell; type `exit` to leave). The
+  code is in `/workspace`, DSSAT in `/opt/DSSAT`:
+  ```bash
+  docker run --rm -it --platform linux/amd64 --entrypoint bash \
+    acarmonacabrero/agwise-planting-date-and-cultivar:rwanda-demo-v1
+  ```
+- **Run with your own code changes**: add
+  `-v "/path/to/this/repo/main:/workspace/main"` to the run command, and the
+  container uses your copy of `main/` instead of the one inside the image.
+- **Other countries or seasons**: the data bundle only covers this Rwanda
+  forecast. Other configs need their own prepared data (or live downloads with
+  CDS API credentials), which this demo doesn't include.
+- **Rebuilding the image**: see the comments at the top of `Dockerfile`. A
+  rebuild also needs the sibling `data_sourcing` repository's image and the
+  DSSAT-CSM binaries, neither of which is in this repository.
 
 ## New to running R scripts from a terminal?
 

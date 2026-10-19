@@ -17,7 +17,8 @@ need to open or edit them for normal use (see "Creating a New Country or Crop
 Use Case" below).
 
 **Just want to see it run?** Follow "Run the Rwanda demo with Docker" below -
-it needs only Docker and one data download, no R/Python/DSSAT installation.
+it needs Docker, a free Copernicus CDS account and one data download - no
+R/Python/DSSAT installation.
 
 ## Overview
 
@@ -193,14 +194,29 @@ Override this path with `--py-path` if needed.
 ## Run the Rwanda demo with Docker
 
 The quickest way to see the whole pipeline work. A prebuilt Docker image
-contains everything (R, the Python `agwise-data` CLI, DSSAT-CSM 4.8.1.40, all
-packages), and a small data bundle contains the already-prepared Rwanda
-weather, forecast and soil data. Nothing else needs installing, and the run
-works offline - no API keys or cloud credentials.
+contains all the software (R, the Python `agwise-data` CLI, DSSAT-CSM
+4.8.1.40, all packages) - nothing to install except Docker.
 
 What the demo does: Rwanda maize, September 2026 seasonal forecast, all 5
-provinces (~1,000 sites), one cultivar (890011), a range of planting dates -
-then ranks planting dates per site and builds an HTML dashboard.
+provinces (~1,000 sites), one cultivar (890011), a range of planting dates.
+The pipeline downloads the forecast, soil and elevation data, bias-corrects
+the forecast, runs DSSAT for every site and planting date, ranks the planting
+dates and builds an HTML dashboard.
+
+**What is shared vs. what the pipeline downloads.** Bias correction needs
+24 years (1993-2016) of historical data. Downloading it takes many hours and
+the CHIRPS v3 rainfall it uses can't be downloaded by the pipeline at all, so
+it is shared as a ready-made bundle. Everything specific to this run is
+downloaded by the pipeline itself:
+
+| Data | How you get it |
+|---|---|
+| Historical observations 1993-2016 (CHIRPS v3 rainfall, AgERA5 temperature and radiation) | Shared bundle |
+| Historical SEAS5 forecasts 1993-2016 (hindcasts) | Shared bundle |
+| SEAS5 seasonal forecast, September 2026 | **Downloaded** from Copernicus CDS - **needs your own CDS account** |
+| Soil properties (SoilGrids) | **Downloaded**, no account needed |
+| Elevation (Copernicus DEM) | **Downloaded**, no account needed |
+| Rwanda administrative boundaries | **Downloaded**, no account needed |
 
 ### 1. What you need
 
@@ -215,20 +231,43 @@ then ranks planting dates per site and builds an HTML dashboard.
     ```
     Docker Desktop is free only for personal use, education and small
     organisations - larger institutions need a paid licence.
-- **About 12 GB of free disk space** (image ~9 GB unpacked, data ~1.3 GB).
+- **About 13 GB of free disk space** (image ~9 GB unpacked, data ~1.5 GB once
+  downloaded).
 - **Give Docker at least 4 CPUs and 8 GB of memory** (tested with 4 CPUs /
   10 GB).
+- **An internet connection** for the downloads.
+- **A Copernicus Climate Data Store (CDS) account and API key** - see step 2.
+  This is required: without it the forecast can't be downloaded and the run
+  stops.
 - **Access to the image**: a free Docker Hub account (hub.docker.com). Send
   your Docker Hub username to the repository maintainer to be added to the
   private image.
-- **The data bundle**: `agwise_demo_data.tar.gz` and its checksum file
-  `agwise_demo_data.tar.gz.sha256`, shared by the maintainer.
+- **The historical data bundle**: `agwise_rwanda_historical_data.tar.gz` and
+  its checksum file `agwise_rwanda_historical_data.tar.gz.sha256` (~400 MB),
+  shared by the maintainer.
 
 The image is x86-64 (amd64) only, because the DSSAT binary is. On an x86
 PC/server it runs natively; on an Apple Silicon Mac it runs under emulation
 (Rosetta), which is slower but works.
 
-### 2. Get the image
+### 2. Get a CDS account and API key
+
+The SEAS5 seasonal forecast comes from the Copernicus Climate Data Store
+(CDS), which is free but requires your own account. Your key is personal -
+don't share it, and never put it in the repository or the image.
+
+1. Create an account at https://cds.climate.copernicus.eu (top right,
+   "Login - Register").
+2. Accept the dataset licence: open
+   https://cds.climate.copernicus.eu/datasets/seasonal-original-single-levels?tab=download,
+   scroll to **Terms of use** and click **Accept**. Downloads fail with a
+   "required licences not accepted" error until you do this.
+3. Copy your **Personal Access Token** from your profile page
+   (https://cds.climate.copernicus.eu/profile) - this is your API key.
+
+You'll put the key in a small `cds.env` file in step 4.
+
+### 3. Get the image
 
 ```bash
 docker login -u <your-docker-hub-username>
@@ -240,10 +279,10 @@ token** (Account settings -> Personal access tokens, "Read" access is enough)
 rather than your account password. `--platform linux/amd64` is required on
 Apple Silicon Macs and harmless elsewhere. The download is ~2.2 GB.
 
-### 3. Set up a demo folder with the data
+### 4. Set up a demo folder
 
 Create a folder for the demo (any name and location), put the two downloaded
-files in it, and work from there:
+bundle files in it, and work from there:
 
 ```bash
 mkdir -p ~/agwise_demo
@@ -253,30 +292,43 @@ cd ~/agwise_demo
 Check the download is complete and unpack it:
 
 ```bash
-shasum -a 256 -c agwise_demo_data.tar.gz.sha256
-tar -xzf agwise_demo_data.tar.gz
+shasum -a 256 -c agwise_rwanda_historical_data.tar.gz.sha256
+tar -xzf agwise_rwanda_historical_data.tar.gz
 mkdir -p results
 ```
 
-`shasum` should print `agwise_demo_data.tar.gz: OK` (on Linux you can use
-`sha256sum -c` instead). You should now have:
+`shasum` should print `agwise_rwanda_historical_data.tar.gz: OK` (on Linux
+you can use `sha256sum -c` instead).
+
+Now create a file called `cds.env` in the same folder with these two lines,
+replacing the second value with your Personal Access Token from step 2:
+
+```text
+CDSAPI_URL=https://cds.climate.copernicus.eu/api
+CDSAPI_KEY=your-personal-access-token
+```
+
+(No quotes, no spaces around `=`.) You should now have:
 
 ```text
 agwise_demo/
-├── agwise_demo_data/
-│   └── Processed/        weather, forecast, soil and boundary data (input)
+├── agwise_data/
+│   └── Processed/        data cache: historical data from the bundle; the
+│                         pipeline adds its downloads here
 ├── results/              empty - the pipeline writes its outputs here
-├── agwise_demo_data.tar.gz
-└── agwise_demo_data.tar.gz.sha256
+├── cds.env               your CDS key (keep it private)
+├── agwise_rwanda_historical_data.tar.gz
+└── agwise_rwanda_historical_data.tar.gz.sha256
 ```
 
-### 4. Run the demo
+### 5. Run the demo
 
 From inside the demo folder:
 
 ```bash
 docker run --rm --platform linux/amd64 \
-  -v "$(pwd)/agwise_demo_data/Processed:/mnt/agwise_data_root" \
+  --env-file cds.env \
+  -v "$(pwd)/agwise_data/Processed:/mnt/agwise_data_root" \
   -v "$(pwd)/results:/workspace/Data" \
   acarmonacabrero/agwise-planting-date-and-cultivar:rwanda-demo-v1 \
   2>&1 | tee demo_run.log
@@ -284,29 +336,39 @@ docker run --rm --platform linux/amd64 \
 
 What this does:
 
-- `--rm` deletes the container when it finishes (your results are kept, see
-  below).
-- The first `-v` makes the data folder visible inside the container, where the
-  pipeline expects its input data.
+- `--rm` deletes the container when it finishes (your data and results are
+  kept, see below).
+- `--env-file cds.env` gives the pipeline your CDS key for this run only - it
+  is not stored in the image or the container.
+- The first `-v` connects your `agwise_data/Processed` folder to the
+  pipeline's data cache: it reads the historical data from there and saves
+  everything it downloads there too.
 - The second `-v` connects your `results` folder to the pipeline's output
   folder. **Anything the pipeline writes anywhere else disappears when the
-  container ends** - this mount is what keeps the results.
+  container ends** - these two mounts are what keep the data and results.
 - With no config given, the image runs the demo config
   `usecases/configs/RWA/maize_demo.yml`.
 - `| tee demo_run.log` shows the progress on screen and also saves it to
   `demo_run.log`.
 
-It takes about 30 minutes on a recent Mac. It finishes with a line like:
+How long it takes: about **1 hour** in total on a recent Mac. The downloads
+come first (~30 minutes in our test: four CDS forecast requests, plus soil and
+elevation); CDS queues requests on its servers, so this part can be faster or
+much slower depending on how busy CDS is - the pipeline just waits. The DSSAT
+simulations then take about 25 minutes. It finishes with a line like:
 
 ```text
-=== Pipeline finished at ..., exit code 0, elapsed 1650s ===
+=== Pipeline finished at ..., exit code 0, elapsed 3513s ===
 ```
 
 Lots of `STOP 99` lines and planting-date `WARNING`s during the run are
 normal. So is a summary like `239 expected, 200 finished, 39 skipped` for a
 province: DSSAT rejects a few sites' inputs, and those sites are skipped.
 
-### 5. Look at the results
+Running it again is much faster: everything downloaded is kept in
+`agwise_data/Processed` and reused.
+
+### 6. Look at the results
 
 Everything is in
 `results/usecases/useCase_Rwanda_demo/Maize/result/DSSAT/AOI/`:
@@ -327,6 +389,13 @@ To run the demo again from scratch, delete and recreate `results/` first
 (`rm -rf results && mkdir results`), so files from the previous run don't mix
 in.
 
+### If something goes wrong
+
+- **The run stops with a CDS error mentioning licences or authentication**:
+  check step 2 (licence accepted, token copied correctly into `cds.env`).
+- **The run stops while downloading** (network error, timeout): run the same
+  command again - whatever was already downloaded is kept and reused.
+
 ### Going further
 
 - **Look inside the container** (opens a shell; type `exit` to leave). The
@@ -338,9 +407,9 @@ in.
 - **Run with your own code changes**: add
   `-v "/path/to/this/repo/main:/workspace/main"` to the run command, and the
   container uses your copy of `main/` instead of the one inside the image.
-- **Other countries or seasons**: the data bundle only covers this Rwanda
-  forecast. Other configs need their own prepared data (or live downloads with
-  CDS API credentials), which this demo doesn't include.
+- **Other countries or seasons**: the historical bundle only covers Rwanda
+  (1993-2016, September forecasts). Other configs also need their own
+  historical data, which this demo doesn't include.
 - **Rebuilding the image**: see the comments at the top of `Dockerfile`. A
   rebuild also needs the sibling `data_sourcing` repository's image and the
   DSSAT-CSM binaries, neither of which is in this repository.

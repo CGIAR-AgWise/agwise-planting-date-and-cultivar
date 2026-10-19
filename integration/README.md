@@ -53,6 +53,87 @@ cannot recover the original daily observations. A JSON sidecar records the
 selected monthly totals, fallback months, wet-day fraction, Gamma parameters,
 and random seed.
 
+## Comparing AgWise PRCP with the IWMI rainfall override
+
+The IWMI integration is an experiment, so compare it against a baseline run
+that uses the normal AgWise bias-corrected `PRCP`. Keep the same use case,
+season, DSSAT executable, forecast files, and number of cores in both runs.
+Only the rainfall source should change.
+
+First generate the target-year synthetic rainfall file:
+
+```bash
+python integration/raw_data/download_iwmi_chokwe_monthly.py
+
+python integration/synthetic_rainfall/generate_daily_rainfall.py \
+  --monthly-csv integration/raw_data/iwmi_chokwe_monthly_rainfall_2001_2026_09.csv \
+  --season-start 2025-11-01 \
+  --season-end 2026-02-28 \
+  --monthly-mode target-year \
+  --output integration/synthetic_rainfall/output/chokwe_2025_26_target_year_rainfall.csv
+```
+
+Run the AgWise-PRCP baseline without `IWMI_PRCP_CSV`, then copy the DSSAT
+summary before running the override. The exact result directory can vary with
+the configured use-case name, so resolve it first and pass the same path as
+`DSSAT_SUMMARY` to both runs:
+
+```bash
+SUMMARY="$(find data/usecases -path '*Maize/result/DSSAT/AOI/Maize_2025_treatment_summary.csv' | head -n 1)"
+
+make workflow FORCE=1 \
+  LOCATION=Chokwe CROP=Maize \
+  SEASON_START=2025-11-01 SEASON_END=2026-02-28 \
+  SEASON_YEAR=2025 AGWISE_N_CORES=2 \
+  SKIP_DOWNLOAD=1 DSSAT_SUMMARY="$SUMMARY"
+
+mkdir -p integration/comparison
+cp "$SUMMARY" integration/comparison/agwise_prcp_summary.csv
+cp integration/examples/chokwe_maize_advisory.json \
+  integration/comparison/agwise_prcp_advisory.json
+```
+
+Run the same workflow with the synthetic IWMI rainfall override:
+
+```bash
+make workflow FORCE=1 \
+  LOCATION=Chokwe CROP=Maize \
+  SEASON_START=2025-11-01 SEASON_END=2026-02-28 \
+  SEASON_YEAR=2025 AGWISE_N_CORES=2 \
+  SKIP_DOWNLOAD=1 \
+  DSSAT_SUMMARY="$SUMMARY" \
+  IWMI_PRCP_CSV=integration/synthetic_rainfall/output/chokwe_2025_26_target_year_rainfall.csv
+
+cp "$SUMMARY" integration/comparison/iwmi_prcp_summary.csv
+cp integration/examples/chokwe_maize_advisory.json \
+  integration/comparison/iwmi_prcp_advisory.json
+```
+
+The two DSSAT summaries should be compared by planting date and cultivar.
+At minimum, compare:
+
+| Quantity | Baseline | Override |
+|---|---|---|
+| DSSAT precipitation input | AgWise bias-corrected PRCP | Synthetic IWMI daily rainfall |
+| TMAX, TMIN, SRAD | AgWise bias-corrected forecast | Same AgWise values |
+| Planting-date/cultivar ranking | Baseline ranking | Override ranking |
+| Median simulated yield | Baseline yield | Override yield |
+| Yield range | Baseline spatial range | Override spatial range |
+| Advisory rainfall source | `AgWise forecast PRCP used by DSSAT` | `Synthetic IWMI rainfall override used by DSSAT` |
+
+Interpret the result as a rainfall-sensitivity comparison, not proof that one
+source is more accurate. A changed yield or ranking is attributable to the
+precipitation replacement only if the forecast period, grid-cell set, soil
+inputs, cultivar options, and DSSAT settings are unchanged. The yield range
+still describes spatial variation across the DSSAT summary; it is not
+year-to-year weather uncertainty.
+
+The comparison files are local working artifacts and should not be committed:
+
+```bash
+rm -rf integration/comparison
+```
+
 ## IWMI adapter
 
 [`iwmi_adapter.py`](./iwmi_adapter.py) is a credential-free adapter. It does

@@ -67,7 +67,7 @@ dry-run:
 
 iwmi-rainfall:
 	$(PYTHON) integration/synthetic_rainfall/generate_daily_rainfall.py \
-		--monthly-csv integration/raw_data/iwmi_chokwe_monthly_rainfall_2001_2016.csv \
+		--monthly-csv integration/raw_data/iwmi_chokwe_monthly_rainfall_2001_2026_09.csv \
 		--season-start "$(SEASON_START)" \
 		--season-end "$(SEASON_END)" \
 		--monthly-mode "$(IWMI_MONTHLY_MODE)" \

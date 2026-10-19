@@ -244,6 +244,15 @@ rainfall observation. The advisory therefore identifies the AgWise forecast
 IWMI composite as historical context. It does not download or infer a second
 current-season IWMI rainfall value.
 
+The separate monthly rainfall export used by the synthetic experiment comes
+from the Digital Twins `/chatbot/rainfall_analyses` endpoint. It is monthly
+analysis data, not daily observations. The exporter follows the generated
+`csv_url`, validates 309 monthly values from 2001-01 through 2026-09, and
+stores the raw response and source CSV beside the normalized export. The
+returned station identifier currently differs from the requested identifier;
+this provenance issue is recorded in the metadata and must be confirmed with
+IWMI before operational use.
+
 IWMI requests retry transient HTTP and network failures twice. If
 `--allow-missing` is enabled, failed layers are recorded individually with
 their errors and the payload includes an explicit `agwise_dssat_only` fallback.
@@ -344,10 +353,10 @@ date range so the DSSAT handoff can include the full forecast window:
 
 ```bash
 make iwmi-rainfall \
-  IWMI_PRCP_CSV=integration/synthetic_rainfall/output/chokwe_2025_26_synthetic_rainfall.csv
+  IWMI_RAINFALL_OUTPUT=integration/synthetic_rainfall/output/chokwe_2025_26_target_year_rainfall.csv
 
 make workflow FORCE=1 \
-  IWMI_PRCP_CSV=integration/synthetic_rainfall/output/chokwe_2025_26_synthetic_rainfall.csv \
+  IWMI_PRCP_CSV=integration/synthetic_rainfall/output/chokwe_2025_26_target_year_rainfall.csv \
   LOCATION=Chokwe CROP=Maize \
   SEASON_START=2025-11-01 SEASON_END=2026-02-28 \
   SEASON_YEAR=2025 AGWISE_N_CORES=2
@@ -360,7 +369,7 @@ pass `SKIP_DOWNLOAD=1` to reuse them and prevent CDS requests:
 make forecast \
   SKIP_DOWNLOAD=1 \
   PY_PATH="$CONDA_PREFIX/python.exe" \
-  IWMI_PRCP_CSV=integration/synthetic_rainfall/output/chokwe_2025_26_synthetic_rainfall.csv
+  IWMI_PRCP_CSV=integration/synthetic_rainfall/output/chokwe_2025_26_target_year_rainfall.csv
 ```
 
 The override is applied while preparing the DSSAT handoff RDS files and is

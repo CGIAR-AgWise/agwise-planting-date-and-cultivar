@@ -293,7 +293,7 @@ FORCE            1 to refresh completed checkpoints
 ```
 
 `make iwmi-rainfall` writes the synthetic series to
-`integration/synthetic_rainfall/output/chokwe_2025_26_synthetic_rainfall.csv`
+`integration/synthetic_rainfall/output/chokwe_2025_26_target_year_rainfall.csv`
 by default. `IWMI_RAINFALL_OUTPUT` can override that destination. This target
 does not enable the override by itself; pass the generated file as
 `IWMI_PRCP_CSV` to `make forecast` or `make workflow`.
@@ -337,10 +337,10 @@ To run the opt-in synthetic IWMI rainfall experiment:
 
 ```bash
 make iwmi-rainfall \
-  IWMI_PRCP_CSV=integration/synthetic_rainfall/output/chokwe_2025_26_synthetic_rainfall.csv
+  IWMI_RAINFALL_OUTPUT=integration/synthetic_rainfall/output/chokwe_2025_26_target_year_rainfall.csv
 
 make workflow FORCE=1 \
-  IWMI_PRCP_CSV=integration/synthetic_rainfall/output/chokwe_2025_26_synthetic_rainfall.csv \
+  IWMI_PRCP_CSV=integration/synthetic_rainfall/output/chokwe_2025_26_target_year_rainfall.csv \
   LOCATION=Chokwe CROP=Maize \
   SEASON_START=2025-11-01 SEASON_END=2026-02-28 \
   SEASON_YEAR=2025 AGWISE_N_CORES=2
@@ -384,7 +384,7 @@ override CSV; AgWise temperature and solar-radiation inputs remain in use:
 
 ```text
 integration/synthetic_rainfall/output/
-  chokwe_2025_26_synthetic_rainfall.csv
+  chokwe_2025_26_target_year_rainfall.csv
 ```
 
 Synthetic rainfall generation defaults to

@@ -15,9 +15,15 @@ The generator supports three monthly modes:
 - `target-year-fallback` (default): use exact year/month totals when available
   and the calendar-month mean only for missing months.
 
-The current repository sample covers 2001–2016, so a 2025–2026 run uses the
-fallback mode unless a newer IWMI export is supplied. The generated values are
-**not IWMI daily observations**.
+The repository includes a validated export covering 2001-01 through 2026-09:
+
+```text
+integration/raw_data/iwmi_chokwe_monthly_rainfall_2001_2026_09.csv
+```
+
+The generated values are **not IWMI daily observations**. The API export
+contains monthly analysis totals; the generator creates a reproducible
+synthetic daily pattern that preserves each selected monthly total.
 
 ## Generate the rainfall replacement
 
@@ -25,11 +31,11 @@ From the repository root:
 
 ```bash
 python integration/synthetic_rainfall/generate_daily_rainfall.py \
-  --monthly-csv integration/raw_data/iwmi_chokwe_monthly_rainfall_2001_2016.csv \
+  --monthly-csv integration/raw_data/iwmi_chokwe_monthly_rainfall_2001_2026_09.csv \
   --season-start 2025-11-01 \
   --season-end 2026-02-28 \
-  --monthly-mode target-year-fallback \
-  --output integration/synthetic_rainfall/output/chokwe_2025_26_synthetic_rainfall.csv
+  --monthly-mode target-year \
+  --output integration/synthetic_rainfall/output/chokwe_2025_26_target_year_rainfall.csv
 ```
 
 The output has one row per day:
@@ -66,7 +72,7 @@ other AgWise variables:
 ```bash
 python integration/synthetic_rainfall/merge_prcp.py \
   --agwise-csv path/to/agwise_daily_weather.csv \
-  --rainfall-csv integration/synthetic_rainfall/output/chokwe_2025_26_synthetic_rainfall.csv \
+  --rainfall-csv integration/synthetic_rainfall/output/chokwe_2025_26_target_year_rainfall.csv \
   --output integration/synthetic_rainfall/output/chokwe_2025_26_iwmi_prcp_weather.csv
 ```
 
@@ -79,6 +85,12 @@ TMIN:      AgWise
 SRAD:      AgWise
 ```
 
-It is not yet wired into the default forecast or DSSAT targets. The resulting
-weather file must be validated and compared with the normal AgWise run before
-being used for an advisory.
+It is not enabled by default. Pass the generated CSV as `IWMI_PRCP_CSV` to the
+opt-in forecast or workflow target. The resulting weather input must still be
+validated and compared with the normal AgWise run before being used for an
+advisory.
+
+The API metadata records the requested station and the station identifier
+returned by the service. The current export matches the existing 2001–2016
+values exactly, but the returned station identifier differs from the requested
+identifier and should be confirmed with IWMI before operational use.

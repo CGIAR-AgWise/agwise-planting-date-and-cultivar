@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import csv
 import calendar
+import json
 import random
 from collections import defaultdict
 from datetime import date
@@ -22,23 +23,34 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--season-start", type=date.fromisoformat, required=True)
     parser.add_argument("--season-end", type=date.fromisoformat, required=True)
+    parser.add_argument(
+        "--monthly-mode",
+        choices=("target-year", "climatology", "target-year-fallback"),
+        default="target-year-fallback",
+        help="Use target-year totals, climatology, or target-year with climatology fallback",
+    )
     parser.add_argument("--wet-day-fraction", type=float, default=0.25)
     parser.add_argument("--seed", type=int, default=2025)
     return parser.parse_args()
 
 
-def load_monthly(path: Path) -> dict[int, list[float]]:
-    values: dict[int, list[float]] = defaultdict(list)
+def load_monthly(path: Path) -> tuple[dict[tuple[int, int], float], dict[int, list[float]]]:
+    by_year_month: dict[tuple[int, int], float] = {}
+    by_month: dict[int, list[float]] = defaultdict(list)
     with path.open(newline="", encoding="utf-8") as handle:
         for row in csv.DictReader(handle):
             year, month = (int(part) for part in row["month"].split("-", 1))
             value = float(row["rainfall_mm"])
             if value < 0:
                 raise ValueError(f"Rainfall cannot be negative: {row}")
-            values[month].append(value)
-    if set(values) != set(range(1, 13)):
-        raise ValueError("Monthly input must contain all calendar months")
-    return values
+            key = (year, month)
+            if key in by_year_month:
+                raise ValueError(f"Monthly input contains duplicate month: {row['month']}")
+            by_year_month[key] = value
+            by_month[month].append(value)
+    if set(by_month) != set(range(1, 13)):
+        raise ValueError("Monthly input must contain at least one value for all calendar months")
+    return by_year_month, by_month
 
 
 def daterange(start: date, end: date):
@@ -55,17 +67,30 @@ def main() -> None:
     if not 0 < args.wet_day_fraction <= 1:
         raise ValueError("wet-day-fraction must be greater than 0 and at most 1")
 
-    monthly = load_monthly(args.monthly_csv)
+    by_year_month, by_month = load_monthly(args.monthly_csv)
     climatology = {
-        month: sum(values) / len(values) for month, values in monthly.items()
+        month: sum(values) / len(values) for month, values in by_month.items()
     }
     rng = random.Random(args.seed)
     rows = []
     synthetic_months: dict[tuple[int, int], dict[int, float]] = {}
+    selected_month_totals: dict[str, float] = {}
+    climatology_fallback_months: list[str] = []
     for day in daterange(args.season_start, args.season_end):
         month_key = (day.year, day.month)
         if month_key not in synthetic_months:
-            month_total = climatology[day.month]
+            exact_total = by_year_month.get(month_key)
+            if args.monthly_mode == "target-year" and exact_total is None:
+                raise ValueError(
+                    f"Missing target-year monthly rainfall for {day.year:04d}-{day.month:02d}"
+                )
+            if args.monthly_mode == "climatology" or exact_total is None:
+                month_total = climatology[day.month]
+                if args.monthly_mode == "target-year-fallback" and exact_total is None:
+                    climatology_fallback_months.append(f"{day.year:04d}-{day.month:02d}")
+            else:
+                month_total = exact_total
+            selected_month_totals[f"{day.year:04d}-{day.month:02d}"] = month_total
             days_in_month = calendar.monthrange(day.year, day.month)[1]
             wet_days = max(1, round(days_in_month * args.wet_day_fraction))
             event_days = sorted(rng.sample(range(days_in_month), wet_days))
@@ -85,6 +110,22 @@ def main() -> None:
         writer = csv.DictWriter(handle, fieldnames=["date", "rain_mm"])
         writer.writeheader()
         writer.writerows(rows)
+    metadata = {
+        "source_monthly_csv": str(args.monthly_csv),
+        "season_start": args.season_start.isoformat(),
+        "season_end": args.season_end.isoformat(),
+        "monthly_mode": args.monthly_mode,
+        "wet_day_fraction": args.wet_day_fraction,
+        "gamma_shape": 1.5,
+        "gamma_scale": 1.0,
+        "random_seed": args.seed,
+        "selected_month_totals_mm": selected_month_totals,
+        "climatology_fallback_months": climatology_fallback_months,
+        "daily_values_are_synthetic": True,
+        "daily_observations_recovered": False,
+    }
+    metadata_path = Path(f"{args.output}.metadata.json")
+    metadata_path.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

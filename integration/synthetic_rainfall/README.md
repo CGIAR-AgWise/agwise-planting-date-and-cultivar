@@ -8,11 +8,16 @@ synthetic daily rainfall series for the existing four-month use-case window:
 2025-11-01 through 2026-02-28
 ```
 
-The source file covers 2001–2016. Since it does not contain the target
-2025–2026 months, the generator uses the calendar-month climatological mean
-of that source period. It allocates each monthly total across a deterministic
-set of synthetic wet days. The generated values are **not IWMI daily
-observations**.
+The generator supports three monthly modes:
+
+- `target-year`: require the exact year/month total for every requested month.
+- `climatology`: use the calendar-month mean across all source years.
+- `target-year-fallback` (default): use exact year/month totals when available
+  and the calendar-month mean only for missing months.
+
+The current repository sample covers 2001–2016, so a 2025–2026 run uses the
+fallback mode unless a newer IWMI export is supplied. The generated values are
+**not IWMI daily observations**.
 
 ## Generate the rainfall replacement
 
@@ -23,6 +28,7 @@ python integration/synthetic_rainfall/generate_daily_rainfall.py \
   --monthly-csv integration/raw_data/iwmi_chokwe_monthly_rainfall_2001_2016.csv \
   --season-start 2025-11-01 \
   --season-end 2026-02-28 \
+  --monthly-mode target-year-fallback \
   --output integration/synthetic_rainfall/output/chokwe_2025_26_synthetic_rainfall.csv
 ```
 
@@ -33,8 +39,23 @@ date,rain_mm
 2025-11-01,...
 ```
 
-The monthly sums are constrained to the IWMI calendar-month climatology.
-`--seed` makes the synthetic event placement reproducible.
+The monthly sums are constrained to the selected target-year totals or
+climatological means. `--seed` makes the synthetic event placement
+reproducible. A JSON sidecar is written next to the CSV with the selected
+monthly totals, fallback months, mode, wet-day fraction, Gamma parameters, and
+seed.
+
+To require complete target-year coverage and fail if a requested month is
+missing:
+
+```bash
+python integration/synthetic_rainfall/generate_daily_rainfall.py \
+  --monthly-csv path/to/iwmi_monthly_2001_2026.csv \
+  --season-start 2025-11-01 \
+  --season-end 2026-02-28 \
+  --monthly-mode target-year \
+  --output path/to/target_year_daily_rainfall.csv
+```
 
 ## Merge into AgWise weather data
 

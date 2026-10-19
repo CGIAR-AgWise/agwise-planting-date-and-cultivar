@@ -1,0 +1,19 @@
+{
+  "source_monthly_csv": "integration\\raw_data\\iwmi_chokwe_monthly_rainfall_2001_2026_09.csv",
+  "season_start": "2025-11-01",
+  "season_end": "2026-02-28",
+  "monthly_mode": "target-year",
+  "wet_day_fraction": 0.25,
+  "gamma_shape": 1.5,
+  "gamma_scale": 1.0,
+  "random_seed": 2025,
+  "selected_month_totals_mm": {
+    "2025-11": 139.4987,
+    "2025-12": 140.34584,
+    "2026-01": 209.99066,
+    "2026-02": 16.47175
+  },
+  "climatology_fallback_months": [],
+  "daily_values_are_synthetic": true,
+  "daily_observations_recovered": false
+}

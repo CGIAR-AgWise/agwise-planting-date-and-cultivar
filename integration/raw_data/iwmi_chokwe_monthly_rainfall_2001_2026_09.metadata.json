@@ -1,0 +1,18 @@
+{
+  "source_url": "https://api.digitaltwins.iwmi.org/chatbot/rainfall_analyses",
+  "station_name": "s24851s29487e",
+  "channel_id": "cha1099",
+  "returned_station_name": "s24203s30788e",
+  "returned_channel_id": "cha1099",
+  "requested_start": "2001-01-01",
+  "requested_end": "2026-09-30",
+  "coverage_start": "2001-01",
+  "coverage_end": "2026-09",
+  "record_count": 309,
+  "unit": "mm",
+  "daily_observations": false,
+  "description": "Monthly IWMI rainfall analysis values. These are monthly totals used as constraints for synthetic daily rainfall generation.",
+  "raw_response": "integration\\raw_data\\iwmi_chokwe_monthly_rainfall_2001_2026_09.raw.json",
+  "source_csv": "integration\\raw_data\\iwmi_chokwe_monthly_rainfall_2001_2026_09.source.csv",
+  "source_csv_url": "https://api.digitaltwins.iwmi.org/chatbot/temp/rain_rainfall_data_1792396240.csv"
+}

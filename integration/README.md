@@ -46,8 +46,12 @@ that uses IWMI monthly rainfall analysis to generate a synthetic daily rainfall
 series for the current four-month Chókwè use-case window,
 `2025-11-01` through `2026-02-28`. It can replace only the AgWise `PRCP` or
 DSSAT `RAIN` column in a copied daily weather table; it does not change the
-default workflow. The generated values are explicitly synthetic because
-monthly totals cannot recover the original daily observations.
+default workflow. The generator supports exact target-year monthly totals,
+calendar-month climatology, and a hybrid target-year-with-climatology-fallback
+mode. The generated values are explicitly synthetic because monthly totals
+cannot recover the original daily observations. A JSON sidecar records the
+selected monthly totals, fallback months, wet-day fraction, Gamma parameters,
+and random seed.
 
 ## IWMI adapter
 

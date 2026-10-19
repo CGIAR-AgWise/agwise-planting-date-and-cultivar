@@ -387,6 +387,14 @@ integration/synthetic_rainfall/output/
   chokwe_2025_26_synthetic_rainfall.csv
 ```
 
+Synthetic rainfall generation defaults to
+`target-year-fallback`: exact IWMI year/month totals are used when available,
+and calendar-month climatology fills only missing months. Use
+`IWMI_MONTHLY_MODE=target-year` to require complete target-year monthly
+coverage, or `IWMI_MONTHLY_MODE=climatology` to use historical calendar-month
+means only. The generator writes a JSON metadata sidecar next to the rainfall
+CSV.
+
 ## Active Use Cases
 
 Current YAML configurations:

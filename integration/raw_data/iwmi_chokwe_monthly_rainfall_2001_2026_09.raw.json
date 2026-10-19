@@ -1,0 +1,22 @@
+{
+  "ok": true,
+  "processing_date": "2026-10-19T07:50:41.748597",
+  "title": "Rainfall Timeseries",
+  "subtitle": "Station s24203s30788e \u00b7 Channel cha1099 \u00b7 2001-01-01 to 2026-09-30",
+  "figure_url": "https://api.digitaltwins.iwmi.org/chatbot/temp/rain_timeseries_1792396241.png",
+  "csv_url": "https://api.digitaltwins.iwmi.org/chatbot/temp/rain_rainfall_data_1792396240.csv",
+  "markdown": "![Rainfall Timeseries](https://api.digitaltwins.iwmi.org/chatbot/temp/rain_timeseries_1792396241.png)\n\n**Key Metrics:**\n\u2022 Average: -0.0 mm\n\u2022 Range: -81.47\u2013202.6 mm\n\n**Statistics:**\n\u2022 Count: 309\n\u2022 Average: -0.0\n\u2022 Range: -81.47 \u2013 202.6\n\nChannel cha1099; period 2001-01-01\u20132026-09-30. Backend: matplotlib.\n\n[\ud83d\udcca Download CSV](https://api.digitaltwins.iwmi.org/chatbot/temp/rain_rainfall_data_1792396240.csv)",
+  "unit": "mm",
+  "stats": {
+    "count": 309,
+    "min": -81.47,
+    "mean": -0.0,
+    "max": 202.6,
+    "sum": -0.0
+  },
+  "provenance": {
+    "stationName": "s24203s30788e",
+    "channelId": "cha1099",
+    "processing_timezone": "Africa/Johannesburg"
+  }
+}

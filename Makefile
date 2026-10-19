@@ -22,6 +22,7 @@ ADVISORY_RAINFALL_SOURCE ?= $(if $(IWMI_PRCP_CSV),Synthetic IWMI rainfall overri
 AGWISE_N_CORES ?= 2
 IWMI_PRCP_CSV ?=
 IWMI_RAINFALL_OUTPUT ?= integration/synthetic_rainfall/output/chokwe_2025_26_synthetic_rainfall.csv
+IWMI_MONTHLY_MODE ?= target-year-fallback
 SKIP_DOWNLOAD ?= 0
 STATE_DIR ?= .agwise/state
 FORCE ?= 0
@@ -51,6 +52,7 @@ help:
 	@echo "  DSSAT_SUMMARY=path/to/treatment_summary.csv"
 	@echo "  IWMI_PRCP_CSV=path/to/daily_rainfall.csv  # opt-in PRCP replacement"
 	@echo "  IWMI_RAINFALL_OUTPUT=path/to/generated_daily_rainfall.csv"
+	@echo "  IWMI_MONTHLY_MODE=target-year-fallback|target-year|climatology"
 
 setup:
 	@echo "Create the Conda environment with: conda env create -f environment.yml"
@@ -68,6 +70,7 @@ iwmi-rainfall:
 		--monthly-csv integration/raw_data/iwmi_chokwe_monthly_rainfall_2001_2016.csv \
 		--season-start "$(SEASON_START)" \
 		--season-end "$(SEASON_END)" \
+		--monthly-mode "$(IWMI_MONTHLY_MODE)" \
 		--output "$(IWMI_RAINFALL_OUTPUT)"
 
 forecast:

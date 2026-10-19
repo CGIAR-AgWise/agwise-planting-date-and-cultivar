@@ -134,7 +134,7 @@ You'll put the key in a small `cds.env` file in step 4.
 
 ```bash
 docker login -u <your-docker-hub-username>
-docker pull --platform linux/amd64 acarmonacabrero/agwise-planting-date-and-cultivar:rwanda-demo-v1
+docker pull --platform linux/amd64 acarmonacabrero/agwise-planting-date-and-cultivar:rwanda-demo-v2
 ```
 
 `docker login` asks for a password - use a Docker Hub **personal access
@@ -193,7 +193,7 @@ docker run --rm --platform linux/amd64 \
   --env-file cds.env \
   -v "$(pwd)/agwise_data/Processed:/mnt/agwise_data_root" \
   -v "$(pwd)/results:/workspace/Data" \
-  acarmonacabrero/agwise-planting-date-and-cultivar:rwanda-demo-v1 \
+  acarmonacabrero/agwise-planting-date-and-cultivar:rwanda-demo-v2 \
   2>&1 | tee demo_run.log
 ```
 
@@ -258,6 +258,9 @@ in.
   check step 2 (licence accepted, token copied correctly into `cds.env`).
 - **The run stops while downloading** (network error, timeout): run the same
   command again - whatever was already downloaded is kept and reused.
+- **On an Apple Silicon Mac, a site is occasionally skipped with a `core`
+  file in its folder**: DSSAT crashed under x86 emulation. It's harmless -
+  that site is left out of the results - and doesn't happen on x86 machines.
 
 ### Going further
 
@@ -265,7 +268,7 @@ in.
   code is in `/workspace`, DSSAT in `/opt/DSSAT`:
   ```bash
   docker run --rm -it --platform linux/amd64 --entrypoint bash \
-    acarmonacabrero/agwise-planting-date-and-cultivar:rwanda-demo-v1
+    acarmonacabrero/agwise-planting-date-and-cultivar:rwanda-demo-v2
   ```
 - **Run with your own code changes**: add
   `-v "/path/to/this/repo/main:/workspace/main"` to the run command, and the

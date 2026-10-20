@@ -17,16 +17,11 @@ run_logs/
 # doesn't run - kept in the repo, left out of the image
 main/Forecast/
 main/RS/
+main/azure_blob/
 usecases/README.md
 usecases/0[1-7]_*.R
 usecases/run_multi_country.R
 usecases/create_usecase_config.R
 usecases/configs/ETH/
 usecases/configs/GHA/
-usecases/configs/KEN/maize_example.yml
-usecases/configs/KEN/maize_test.yml
-usecases/configs/MWI/maize_national.yml
-usecases/configs/RWA/maize_rab.yml
-usecases/configs/RWA/maize_august_init.yml
-usecases/configs/RWA/potato_*.yml
-usecases/configs/RWA/wheat_*.yml
+usecases/configs/RWA/*_august_init.yml

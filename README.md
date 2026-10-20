@@ -40,7 +40,11 @@ and does everything DSSAT-related itself.
 Key points:
 
 - **Forecast initialization** = season start minus `lead_months` (e.g. season
-  starting 1 October with `lead_months: 2` uses the August forecast).
+  starting 1 October with `lead_months: 1` uses the September forecast).
+- **Lead-0 spin-up**: with `lead_months: 0` the forecast starts on the
+  planting-season start date, so the previous month's forecast is prepended
+  to each site's weather as a spin-up period (taken from an existing export,
+  or generated - which also needs that month's hindcasts).
 - **Bias correction** uses 1993-2016 as calibration period: SEAS5 hindcasts
   vs. CHIRPS v3 rainfall and AgERA5 temperature/radiation.
 - **Sites** are a regular grid (default 5 km) over each zone; all zones of a
@@ -60,7 +64,8 @@ The quickest way to see the whole pipeline work. A prebuilt Docker image
 contains all the software (R, the Python `agwise-data` CLI, DSSAT-CSM
 4.8.1.40, all packages) - nothing to install except Docker.
 
-What the demo does: Rwanda maize, September 2026 seasonal forecast, all 5
+What the demo does: Rwanda maize, season starting 1 October 2026, using the
+September 2026 seasonal forecast (`lead_months: 1`), all 5
 provinces (~1,000 sites), one cultivar (890011), a range of planting dates.
 The pipeline downloads the forecast, soil and elevation data, bias-corrects
 the forecast, runs DSSAT for every site and planting date, ranks the planting
@@ -292,6 +297,7 @@ main/
   DSSAT/                    The pipeline: data_sourcing export, FILEX creation,
                             DSSAT runs, merging, ranking, plots, dashboards
   Kvuno/                    Convert results to the Kvuno upload format
+  azure_blob/               Stage/upload the data cache to Azure Blob (CGLabs)
   RS/                       Remote-sensing helpers (crop type, phenology)
   Forecast/                 LEGACY R forecast workflow (see LEGACY_PIPELINE.md)
 
@@ -318,27 +324,27 @@ dssat.expfile.log, dssat.exec.log                  per-site progress/skip logs
 Current use cases (all on the `agwise-data` path):
 
 ```text
-KEN  maize_full
-MOZ  maize_full, soybean_full, maize_test
-MWI  maize_full, soybean_full, maize_test
-NGA  maize_full_mar, maize_full_apr, maize_full_jun, maize_full_jul, maize_test
-RWA  maize_sep_init, maize_demo
-ZMB  maize_full, soybean_full, maize_test
+KEN  maize_sep_init
+MOZ  maize_oct_init, soybean_oct_init
+MWI  maize_oct_init, soybean_oct_init
+NGA  maize_full_mar, maize_full_apr, maize_full_jun, maize_full_jul
+RWA  maize_sep_init, maize_sep_init_fert, maize_demo
+ZMB  maize_oct_init, soybean_oct_init
 ```
 
-`*_test` configs are small versions for quick checks; `RWA/maize_demo` is the
-Docker demo. Configs without `skip_weather_soil_creation: true` (ETH, GHA, the
-other KEN/MWI/RWA ones) still use the legacy forecast workflow.
+`RWA/maize_demo` is the Docker demo; `RWA/maize_sep_init_fert` shows the
+fertilizer options. Configs without `skip_weather_soil_creation: true` (ETH,
+GHA and the RWA `*_august_init` ones) still use the legacy forecast workflow.
 
 ### YAML configuration
 
-Example (`usecases/configs/ZMB/maize_full.yml`):
+Example (`usecases/configs/ZMB/maize_oct_init.yml`, zones shortened):
 
 ```yaml
-name: Zambia full maize (via agwise-datasourcing)
+name: Zambia maize (October 2026 forecast init, lead_months=0, via agwise-datasourcing)
 country_code: ZMB
 country_name: Zambia
-use_case_name: full
+use_case_name: oct_init
 crop: Maize
 zones:
   - Central
@@ -348,13 +354,14 @@ season_start_month: 10
 season_start_day: 1
 season_year: 2026
 season_length_months: 3
-lead_months: 2
+lead_months: 0
 varietyids:
   - 900111
   - 900112
   - 900113
 skip_weather_soil_creation: true
 generate_dssat_via_datasourcing: true
+resolution_km: 10
 build_dashboard: true
 ```
 
@@ -391,11 +398,22 @@ dssat_model            DSSAT model code when it differs from the cultivar
                        file prefix (e.g. CSCER for Wheat)
 ```
 
-The YAML reader in this repo is minimal: use only `key: value` lines and
-`  - item` lists as above. **Comment lines (`# ...`) are not supported** and
-stop the run with "Unsupported YAML line".
+Fertilizer (at most one mode on; see `RWA/maize_sep_init_fert.yml`):
 
-To add a use case, copy a current config (e.g. `ZMB/maize_full.yml`), change
+```text
+simple_fertilizer       Use the FILEX template's own preset fertilizer
+fert_grid_search        NPK rate factorial: fert_N_rates, fert_P_rates,
+                        fert_K_rates, fert_application_dap (days after planting)
+fert_factorial_preset   Run every treatment in fert_treatments_file (CSV)
+crop_price              Optional; ranks treatments by net return
+soil_p_raster           Soil P raster added to the FILEX when a fertilizer mode
+                        is on (default: CGLabs path - not in the Docker image)
+```
+
+The YAML reader in this repo is minimal: use only `key: value` lines,
+`  - item` lists as above and full-line `# comments`.
+
+To add a use case, copy a current config (e.g. `ZMB/maize_oct_init.yml`), change
 the country, zones, season and cultivars, and run it. New cultivars must exist
 in the cultivar file under `Landing/DSSAT/` (e.g. `MZCER048.CUL`).
 (`usecases/create_usecase_config.R` generates legacy-style configs and should
@@ -460,8 +478,8 @@ AGWISE_TMPDIR              Scratch folder for temporary files
 Run a use case (check the configuration first with `--dry-run`):
 
 ```bash
-Rscript usecases/run_usecase.R usecases/configs/ZMB/maize_test.yml --dry-run
-Rscript usecases/run_usecase.R usecases/configs/ZMB/maize_test.yml
+Rscript usecases/run_usecase.R usecases/configs/RWA/maize_demo.yml --dry-run
+Rscript usecases/run_usecase.R usecases/configs/RWA/maize_demo.yml
 ```
 
 ## Results and dashboards

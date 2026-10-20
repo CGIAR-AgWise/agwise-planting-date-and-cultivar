@@ -1,0 +1,31 @@
+name: Rwanda maize fertilizer test (September 2026 forecast init, reuses sep_init export)
+country_code: RWA
+country_name: Rwanda
+use_case_name: sep_init_fert
+dssat_source_use_case_name: sep_init
+crop: Maize
+zones:
+  - City of Kigali
+season_start_month: 9
+season_start_day: 1
+season_year: 2026
+season_length_months: 4
+lead_months: 0
+varietyids:
+  - 890012
+skip_weather_soil_creation: true
+generate_dssat_via_datasourcing: true
+build_dashboard: false
+# NPK grid search: total kg/ha, N split evenly across application DAPs
+fert_grid_search: true
+fert_N_rates:
+  - 0
+  - 50
+  - 100
+  - 150
+fert_application_dap:
+  - 0
+  - 42
+# Preset treatment list instead (set fert_grid_search to false):
+# fert_factorial_preset: true
+# fert_treatments_file: Landing/DSSAT/fertilizer/RWA_maize_fert_treatments_example.csv

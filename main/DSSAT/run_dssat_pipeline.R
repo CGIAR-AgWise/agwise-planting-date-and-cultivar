@@ -16,9 +16,31 @@ load_dssat_defaults <- function(usecase, repo_root) {
     soil_source         = "ISRIC",
     aoi                 = TRUE,
     forecast            = TRUE,
-    fertilizer          = FALSE,
-    fert_factorial      = FALSE,
-    fert_grid_RS        = FALSE,
+    # Fertilizer modes (at most one TRUE): simple_fertilizer uses the FILEX
+    # template's own preset fertilizer; fert_grid_search runs an NPK rate
+    # factorial (fert_*_rates); fert_factorial_preset runs every treatment
+    # listed in fert_treatments_file and compares them.
+    simple_fertilizer     = FALSE,
+    fert_grid_search      = FALSE,
+    fert_factorial_preset = FALSE,
+    fert_N_rates          = NULL,
+    fert_P_rates          = 0,
+    fert_K_rates          = 0,
+    fert_application_dap  = c(0, 42),
+    fert_material         = "FE005",
+    fert_method           = "AP002",
+    fert_depth            = 5,
+    fert_treatments_file  = NULL,
+    # No soil P/K data in the current soil sources - keep P/K unsimulated
+    # unless the soil files support it.
+    simulate_P            = FALSE,
+    simulate_K            = FALSE,
+    # ISRIC AfSoilGrids250m Mehlich-3 P (0-30 cm), used to add soil P to the
+    # FILEX when a fertilizer mode is on and SOIL.SOL has no P block.
+    soil_p_raster         = "~/agwise-datasourcing/dataops/datasourcing/Data/Global_GeoData/Landing/Soil/soilGrids/af_p_0-30cm_30s.tif",
+    # Optional, ranks fertilizer treatments by net return when the
+    # treatments file has a cost column.
+    crop_price            = NULL,
     season              = 1,
     path_in_zone        = TRUE,
     level2              = NA,
@@ -58,7 +80,10 @@ load_dssat_defaults <- function(usecase, repo_root) {
     # skip_weather_soil_creation is FALSE. Default 5 matches this pipeline's
     # historical grid density; a usecase can widen it (e.g. 10) to cut the
     # site count ~4x for faster/coarser runs.
-    resolution_km = 5
+    resolution_km = 5,
+    # Reuse another usecase's pre-staged export (e.g. a derived test
+    # usecase) instead of generating a new one.
+    dssat_source_use_case_name = NULL
   )
   
   # Combine keeping user choices first
@@ -68,8 +93,88 @@ load_dssat_defaults <- function(usecase, repo_root) {
   complete_usecase$soil_depths <- if (complete_usecase$soil_source == "ISRIC") c(5, 15, 30, 60, 100, 200) else c("0-20cm", "20-50cm")
   
   complete_usecase$use_case_name <- str_to_lower(usecase$use_case_name)
+
+  complete_usecase <- build_fertilizer_inputs(complete_usecase, repo_root)
   
   return(complete_usecase)
+}
+
+
+# Validate fertilizer flags and build the inputs each mode reads downstream
+build_fertilizer_inputs <- function(complete_usecase, repo_root) {
+  modes <- c("simple_fertilizer", "fert_grid_search", "fert_factorial_preset")
+  active <- modes[vapply(modes, function(m) isTRUE(complete_usecase[[m]]), logical(1))]
+  if (length(active) > 1) {
+    stop("Only one fertilizer mode can be TRUE, got: ", paste(active, collapse = ", "))
+  }
+  complete_usecase$NPK_ranges <- NULL
+  complete_usecase$fert_treatments_df <- NULL
+
+  if (isTRUE(complete_usecase$fert_grid_search)) {
+    if (is.null(complete_usecase$fert_N_rates)) {
+      stop("fert_grid_search = TRUE requires fert_N_rates.")
+    }
+    dap <- as.numeric(unlist(complete_usecase$fert_application_dap))
+    complete_usecase$NPK_ranges <- list(
+      N = as.numeric(unlist(complete_usecase$fert_N_rates)),
+      P = as.numeric(unlist(complete_usecase$fert_P_rates)),
+      K = as.numeric(unlist(complete_usecase$fert_K_rates)),
+      F.dap = dap,
+      n_split_applications = length(dap),
+      FMCD = complete_usecase$fert_material,
+      FACD = complete_usecase$fert_method,
+      FDEP = complete_usecase$fert_depth,
+      FAMC = -99, FAMO = -99, FOCD = -99)
+  }
+
+  if (isTRUE(complete_usecase$fert_factorial_preset)) {
+    if (is.null(complete_usecase$fert_treatments_file)) {
+      stop("fert_factorial_preset = TRUE requires fert_treatments_file.")
+    }
+    path <- complete_usecase$fert_treatments_file
+    if (!file.exists(path)) path <- file.path(repo_root, path)
+    complete_usecase$fert_treatments_df <- read_fert_treatments(path)
+  }
+
+  complete_usecase
+}
+
+
+# Read and validate a fertilizer treatments list (one row per application)
+read_fert_treatments <- function(path) {
+  df <- utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE)
+  required <- c("FERNAME", "F.dap", "FMCD", "FACD", "FDEP", "FAMN", "FAMP", "FAMK")
+  missing <- setdiff(required, names(df))
+  if (length(missing) > 0) {
+    stop("Fertilizer treatments file ", path, " is missing columns: ",
+         paste(missing, collapse = ", "))
+  }
+  # "<FERNAME> 8th pd" must fit DSSAT's 25-char TNAME
+  too_long <- unique(df$FERNAME[nchar(df$FERNAME) > 16])
+  if (length(too_long) > 0) {
+    stop("FERNAME must be <= 16 characters: ", paste(too_long, collapse = ", "))
+  }
+  if (any(grepl("\\d+(st|nd|rd|th) (app|pd)", df$FERNAME))) {
+    stop("FERNAME must not contain '<n>th app' / '<n>th pd' patterns.")
+  }
+  for (col in c("FAMC", "FAMO", "FOCD")) {
+    if (!col %in% names(df)) df[[col]] <- -99
+  }
+  df$F <- match(df$FERNAME, unique(df$FERNAME))
+  df
+}
+
+
+# Number of fertilizer treatments per planting date (1 when no fertilizer mode)
+get_n_fert_treatments <- function(complete_usecase) {
+  if (!is.null(complete_usecase$NPK_ranges)) {
+    r <- complete_usecase$NPK_ranges
+    return(length(r$N) * length(r$P) * length(r$K))
+  }
+  if (!is.null(complete_usecase$fert_treatments_df)) {
+    return(length(unique(complete_usecase$fert_treatments_df$FERNAME)))
+  }
+  1
 }
 
 
@@ -194,8 +299,11 @@ run_dssat_pipeline <- function(
   if (exists("future::plan")) future::plan(future::sequential)
 
   # --- STEP 3: Run DSSAT Simulations ---
-  message("Running DSSAT simulations... Number of treatments set to 8 planting dates")
-  TRT <- 1:8
+  # Every site has 8 onset planting dates x the same fertilizer treatments
+  n_fert <- get_n_fert_treatments(complete_usecase)
+  TRT <- 1:(8 * n_fert)
+  message("Running DSSAT simulations... ", length(TRT), " treatments per site (8 planting dates x ",
+          n_fert, " fertilizer treatment(s))")
 
   # Logged per-zone (appending) - see Step 1's comment for why. This is the
   # step that previously crashed mid-run with no tryCatch and no log at all
@@ -308,17 +416,32 @@ run_dssat_pipeline <- function(
     country = complete_usecase$country_name
   )
 
+  if (isTRUE(complete_usecase$fert_grid_search) ||
+      isTRUE(complete_usecase$fert_factorial_preset)) {
+    run_fertilizer_comparison(
+      results_df = results_df, output_dir = result_output_dir,
+      file_prefix = file_prefix, metric = "HWAH",
+      crop_price = complete_usecase$crop_price)
+  }
+
   # --- STEP 6: Build the results dashboard ---
   # force_rebuild = TRUE: this run just (re)computed results_df above, so any
   # dashboard_extract.RDS already on disk necessarily predates it and would
   # otherwise be served stale.
+  # A failed render (e.g. pandoc OOM-killed on large countries) must not fail
+  # the run: all results are already saved and the HTML is only a viewer.
   if (isTRUE(complete_usecase$build_dashboard)) {
     message("Building results dashboard...")
-    build_crop_dashboard(
-      crop = complete_usecase$crop, result_dir = result_output_dir,
-      base_filename = dssat_output_base_filename, crop_mask_dir = crop_mask_dir,
-      repo_root = repo_root, country_name = complete_usecase$country_name,
-      force_rebuild = TRUE)
+    tryCatch(
+      build_crop_dashboard(
+        crop = complete_usecase$crop, result_dir = result_output_dir,
+        base_filename = dssat_output_base_filename, crop_mask_dir = crop_mask_dir,
+        repo_root = repo_root, country_name = complete_usecase$country_name,
+        force_rebuild = TRUE),
+      error = function(e) {
+        warning("Results dashboard build failed; results are saved, continuing: ",
+                conditionMessage(e), call. = FALSE)
+      })
   }
 
 }

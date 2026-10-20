@@ -1,7 +1,7 @@
 name: Kenya full maize (via agwise-datasourcing)
 country_code: KEN
 country_name: Kenya
-use_case_name: full
+use_case_name: sep_init
 crop: Maize
 zones:
   - Baringo
@@ -55,7 +55,7 @@ season_start_month: 10
 season_start_day: 1
 season_year: 2026
 season_length_months: 3
-lead_months: 2
+lead_months: 1
 varietyids:
   - 900111
   - 900112

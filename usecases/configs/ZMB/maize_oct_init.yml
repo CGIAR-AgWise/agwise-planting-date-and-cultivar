@@ -1,9 +1,8 @@
-name: Zambia full soybean (via agwise-datasourcing)
+name: Zambia maize (October 2026 forecast init, lead_months=0, via agwise-datasourcing)
 country_code: ZMB
 country_name: Zambia
-use_case_name: full
-crop: Soybean
-dssat_model: CRGRO
+use_case_name: oct_init
+crop: Maize
 zones:
   - Central
   - Copperbelt
@@ -19,11 +18,12 @@ season_start_month: 10
 season_start_day: 1
 season_year: 2026
 season_length_months: 3
-lead_months: 2
+lead_months: 0
 varietyids:
-  - 880011
-  - 880012
-  - 880013
+  - 900111
+  - 900112
+  - 900113
 skip_weather_soil_creation: true
 generate_dssat_via_datasourcing: true
+resolution_km: 10
 build_dashboard: true

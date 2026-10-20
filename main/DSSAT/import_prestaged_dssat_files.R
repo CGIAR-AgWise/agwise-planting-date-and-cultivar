@@ -156,6 +156,136 @@ generate_onset_dates_for_zone <- function(
 }
 
 
+### Spin-up month for lead_months = 0
+#
+# FILEX starts the simulation one month before the first planting date, but
+# a lead-0 forecast's WTH starts on the init date. That month is taken from
+# the previous month's init forecast (same bias correction and ensemble
+# reduction), which a monthly schedule has usually already exported; if not,
+# it's generated through agwise-datasourcing first.
+
+# Text-level WTH parse (read_wth() shifts 4-digit-year dates by 100 years)
+parse_wth_file <- function(wth_file) {
+  lines <- readLines(wth_file, warn = FALSE)
+  date_hdr <- grep("^@ +DATE", lines)[1]
+  site <- strsplit(trimws(lines[grep("^@ +INSI", lines)[1] + 1]), " +")[[1]]
+  rows <- lines[(date_hdr + 1):length(lines)]
+  rows <- rows[nzchar(trimws(rows))]
+  list(
+    lines = lines, date_hdr = date_hdr, rows = rows,
+    dates = as.Date(sub(" .*", "", trimws(rows)), format = "%Y%j"),
+    key = sprintf("%.3f_%.3f", as.numeric(site[2]), as.numeric(site[3])))
+}
+
+# Site coordinate keys of every WTH in a folder, read from the headers only
+wth_site_keys <- function(dir) {
+  vapply(Sys.glob(file.path(dir, "EXTE*", "WHTE*.WTH")), function(f) {
+    head_lines <- readLines(f, n = 15, warn = FALSE)
+    site <- strsplit(trimws(head_lines[grep("^@ +INSI", head_lines)[1] + 1]), " +")[[1]]
+    sprintf("%.3f_%.3f", as.numeric(site[2]), as.numeric(site[3]))
+  }, character(1), USE.NAMES = FALSE)
+}
+
+# Init date of an export: manifest.json when present, else its first WTH date
+export_init_date <- function(export_dir) {
+  manifest <- file.path(export_dir, "manifest.json")
+  if (file.exists(manifest)) {
+    p <- jsonlite::fromJSON(manifest)$parameters
+    if (!is.null(p$init_month) && !is.null(p$forecast_year)) {
+      return(as.Date(sprintf("%d-%02d-01", as.integer(p$forecast_year), as.integer(p$init_month))))
+    }
+  }
+  wth <- Sys.glob(file.path(export_dir, "EXTE*", "WHTE*.WTH"))
+  if (length(wth) == 0) return(as.Date(NA))
+  first_date <- parse_wth_file(wth[[1]])$dates[1]
+  lubridate::floor_date(first_date, "month")
+}
+
+resolve_spinup_source_dir <- function(complete_usecase, zone, products_dir, repo_root, target_dir) {
+  init <- forecast_init_from_usecase(complete_usecase)
+  prev_init <- as.Date(sprintf("%d-%02d-01", init$year, init$month)) %m-% months(1)
+
+  find_exports <- function() {
+    dirs <- Sys.glob(file.path(
+      path.expand(products_dir),
+      paste0(complete_usecase$country_code, c("_", "_ADM1_"), zone, "_forecast*")))
+    dirs <- dirs[dir.exists(dirs)]
+    dirs[vapply(dirs, function(d) isTRUE(export_init_date(d) == prev_init), logical(1))]
+  }
+
+  found <- find_exports()
+  if (length(found) == 0) {
+    if (!isTRUE(complete_usecase$generate_dssat_via_datasourcing)) {
+      stop("No ", format(prev_init, "%Y-%m"), " init export found for spin-up of zone '", zone,
+           "' in ", products_dir, " and generate_dssat_via_datasourcing is FALSE.")
+    }
+    message("No ", format(prev_init, "%Y-%m"), " init export for spin-up of zone '", zone,
+            "' - generating it via agwise-datasourcing...")
+    generate_prestaged_dssat_via_datasourcing(
+      complete_usecase = complete_usecase, repo_root = repo_root,
+      datasourcing_products_dir = products_dir, res_km = complete_usecase$resolution_km,
+      init = list(year = lubridate::year(prev_init), month = lubridate::month(prev_init)),
+      # Same "<mon>_init" name a monthly usecase uses, so either run reuses it
+      out_suffix = paste0(tolower(month.abb[lubridate::month(prev_init)]), "_init"))
+    found <- find_exports()
+    if (length(found) == 0) stop("Spin-up export generation did not produce a usable folder for zone '", zone, "'.")
+  }
+
+  # Several exports of the same init can exist on different grids (e.g. a
+  # 10 km "full" and a 5 km "sep_init"): prefer the one covering the most
+  # target sites, then one with a manifest, then the newest
+  target_keys <- wth_site_keys(target_dir)
+  coverage <- vapply(found, function(d) mean(target_keys %in% wth_site_keys(d)), numeric(1))
+  has_manifest <- file.exists(file.path(found, "manifest.json"))
+  ord <- order(-coverage, !has_manifest, -as.numeric(file.mtime(found)))
+  message(sprintf(
+    "Spin-up weather for zone '%s' from: %s (covers %.0f%% of sites)",
+    zone, found[[ord[1]]], 100 * coverage[[ord[1]]]))
+  found[[ord[1]]]
+}
+
+# Prepend spin-up rows (window_start up to the day before each site's first
+# WTH date), matching sites by coordinates since EXTE numbering can have gaps
+prepend_spinup_weather <- function(target_dir, spinup_dir, window_start) {
+  spin <- lapply(Sys.glob(file.path(spinup_dir, "EXTE*", "WHTE*.WTH")), parse_wth_file)
+  spin_keys <- vapply(spin, `[[`, character(1), "key")
+
+  n_spliced <- 0L
+  n_already <- 0L
+  not_spliced <- character(0)
+  for (f in Sys.glob(file.path(target_dir, "EXTE*", "WHTE*.WTH"))) {
+    w <- parse_wth_file(f)
+    if (w$dates[1] <= window_start) {
+      n_already <- n_already + 1L
+      next
+    }
+    j <- match(w$key, spin_keys)
+    s <- if (is.na(j)) NULL else spin[[j]]
+    keep <- if (is.null(s)) logical(0) else s$dates >= window_start & s$dates < w$dates[1]
+    contiguous <- any(keep) && min(s$dates[keep]) == window_start &&
+      max(s$dates[keep]) == w$dates[1] - 1 &&
+      identical(trimws(s$lines[s$date_hdr]), trimws(w$lines[w$date_hdr]))
+    if (!contiguous) {
+      not_spliced <- c(not_spliced, basename(dirname(f)))
+      next
+    }
+    writeLines(c(w$lines[seq_len(w$date_hdr)], s$rows[keep], w$rows), f)
+    n_spliced <- n_spliced + 1L
+  }
+
+  message(sprintf(
+    "Spin-up weather from %s in %s: %d site(s) spliced, %d already covered, %d not spliced",
+    window_start, target_dir, n_spliced, n_already, length(not_spliced)))
+  if (length(not_spliced) > 0) {
+    warning(
+      length(not_spliced), " site(s) got no spin-up weather (no matching point or ",
+      "incomplete coverage) - their simulation start will be clamped to the first ",
+      "weather date:\n  ", paste(head(not_spliced, 10), collapse = "\n  "), call. = FALSE)
+  }
+  invisible(n_spliced)
+}
+
+
 ### Entry point: stage every zone's pre-built DSSAT files for one usecase
 #
 # Called from run_dssat_pipeline.R's Step 1 when skip_weather_soil_creation
@@ -182,18 +312,37 @@ import_prestaged_dssat_files <- function(
   # force fresh .WTH/.SOL in rather than skipping on folder-count match.
   force_weather_refresh <- isTRUE(complete_usecase$reuse_existing_filex)
 
+  # Only lead-0 forecasts start on the init date and need a spin-up month
+  needs_spinup <- identical(as.integer(complete_usecase$lead_months %||% 1L), 0L)
+  if (needs_spinup) {
+    if (!exists("forecast_init_from_usecase", mode = "function")) {
+      source(file.path(repo_root, "usecases", "00_usecase_helpers.R"))
+    }
+    spinup_window_start <- as.Date(sprintf(
+      "%d-%02d-01", as.integer(complete_usecase$season_year),
+      as.integer(complete_usecase$season_start_month))) %m-% months(1)
+  }
+
   for (zone in complete_usecase$zones) {
     message("Importing pre-staged DSSAT files for zone: ", zone)
     source_dir <- resolve_prestaged_dssat_source_dir(
       country_code = complete_usecase$country_code, zone = zone,
       season_year = complete_usecase$season_year,
-      use_case_name = complete_usecase$use_case_name,
+      use_case_name = complete_usecase$dssat_source_use_case_name %||%
+        complete_usecase$use_case_name,
       datasourcing_products_dir = products_dir)
 
     target_dir <- file.path(path.to.extdata, zone)
     stage_prestaged_dssat_zone(
       source_dir = source_dir, target_dir = target_dir,
       force_weather_refresh = force_weather_refresh)
+    if (needs_spinup) {
+      spinup_dir <- resolve_spinup_source_dir(
+        complete_usecase = complete_usecase, zone = zone,
+        products_dir = products_dir, repo_root = repo_root, target_dir = target_dir)
+      prepend_spinup_weather(
+        target_dir = target_dir, spinup_dir = spinup_dir, window_start = spinup_window_start)
+    }
     generate_onset_dates_for_zone(
       target_dir = target_dir, season_start_month = complete_usecase$season_start_month,
       zone = zone)

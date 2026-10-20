@@ -76,7 +76,7 @@ kill_process_tree <- function(pid) {
 ad_forecast_to_dssat_with_retry <- function(
     points, init_month, forecast_year, calib_years, bbox, country_name,
     out_dir, ensemble = "mean", stall_secs = 1200, poll_secs = 20,
-    cpu_active_pct = 1.0, max_attempts = 3) {
+    cpu_active_pct = 1.0, max_attempts = 3, throttle_wait_secs = 600) {
 
   points_csv <- points
   if (is.data.frame(points)) {
@@ -160,11 +160,20 @@ ad_forecast_to_dssat_with_retry <- function(
         return(invisible(NULL))
       }
     }
+    # CDS throttles queued requests per dataset; already-fetched chunks are
+    # cached, so wait and retry instead of failing the whole usecase
+    if (attempt < max_attempts && any(grepl("queued requests for this dataset is temporarily limited", out))) {
+      wait_secs <- throttle_wait_secs * attempt
+      message("  CDS queue limit hit (attempt ", attempt, "/", max_attempts,
+              ") - retrying in ", wait_secs, "s...")
+      Sys.sleep(wait_secs)
+      next
+    }
     stop("agwise-data forecast-to-dssat failed (attempt ", attempt, "/", max_attempts,
          "). Output:\n", paste(utils::tail(out, 20), collapse = "\n"))
   }
-  stop("agwise-data forecast-to-dssat stalled (no output for ", stall_secs, "s) ",
-       max_attempts, " times in a row for out_dir=", out_dir, " - giving up.")
+  stop("agwise-data forecast-to-dssat stalled or was throttled ", max_attempts,
+       " times in a row for out_dir=", out_dir, " - giving up.")
 }
 
 
@@ -181,15 +190,11 @@ ad_forecast_to_dssat_with_retry <- function(
 # already has EXTE#### sites, so re-running a usecase never re-downloads.
 generate_prestaged_dssat_via_datasourcing <- function(
     complete_usecase, repo_root,
-    # Own clone (not the shared ~/agwise-datasourcing install) so pipeline-
-    # side fixes to the R wrapper (e.g. quoting multi-word admin_name
-    # values like "Cabo Delgado" before they hit system2()) land without
-    # touching shared files. The CLI binary itself is still the shared,
-    # already-installed conda env - only the R source differs.
-    datasourcing_repo_dir = "~/Alvaro_repos/data_sourcing",
+    datasourcing_repo_dir = "~/agwise-datasourcing/code/data_sourcing",
     datasourcing_bin = "~/agwise-datasourcing/envs/agwise_data/bin/agwise-data",
     datasourcing_products_dir = "~/agwise-datasourcing/dataops/datasourcing/Data/Global_GeoData/Processed/products",
-    res_km = 5, calib_years = 1993:2016, ensemble = "mean") {
+    res_km = 5, calib_years = 1993:2016, ensemble = "mean",
+    init = NULL, out_suffix = NULL) {
 
   if (!nzchar(Sys.getenv("AGWISE_DATA_BIN"))) {
     Sys.setenv(AGWISE_DATA_BIN = path.expand(datasourcing_bin))
@@ -201,14 +206,18 @@ generate_prestaged_dssat_via_datasourcing <- function(
   if (!exists("forecast_init_from_usecase", mode = "function")) {
     source(file.path(repo_root, "usecases", "00_usecase_helpers.R"))
   }
-  init <- forecast_init_from_usecase(complete_usecase)
+  # init/out_suffix let the lead-0 spin-up step generate the previous month's
+  # forecast into its own folder (see import_prestaged_dssat_files.R)
+  if (is.null(init)) init <- forecast_init_from_usecase(complete_usecase)
+  out_suffix <- out_suffix %||% complete_usecase$dssat_source_use_case_name %||%
+    complete_usecase$use_case_name
   buffer_deg <- 0.5
 
   zone_out_dir <- function(zone) file.path(
     path.expand(datasourcing_products_dir),
     paste0(
       complete_usecase$country_code, "_", zone, "_forecast",
-      complete_usecase$season_year, "_", complete_usecase$use_case_name))
+      complete_usecase$season_year, "_", out_suffix))
 
   # --- Pass 1: which zones still need generating, and their (cheap,
   # offline - no network calls) point grids ---

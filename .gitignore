@@ -73,3 +73,8 @@ rsconnect/
 
 # Jupyter server files
 *.ipynb_checkpoints
+
+# Local Blob test data, pipeline logs and rendered README preview
+blob_test_data/
+run_logs/
+README.html

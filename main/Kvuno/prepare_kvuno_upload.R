@@ -29,7 +29,12 @@
 #          exactly with the AOI grid.
 #
 #          season_type has no equivalent in this repo's output (each run is
-#          a single season) and is left NA unless --season-type is given.
+#          a single season) and defaults to "Average" unless --season-type
+#          is given.
+#
+#          XY is a pixel-identity key Kvuno also expects: paste0(lon, "_",
+#          lat) built from the same lon/lat values as the lon/lat columns,
+#          no rounding.
 #
 # Usage:
 #   Rscript main/Kvuno/prepare_kvuno_upload.R \
@@ -47,15 +52,13 @@
 #                   each pixel x cultivar. Default: HWAH.
 #   --top-n         Keep only planting_option <= this rank per pixel x
 #                   cultivar (Kvuno's existing Zambia data uses 5). Default: 5.
-#   --season-type   Value to stamp into season_type on every row. Default:
-#                   NA (this repo doesn't produce season_type).
+#   --season-type   Value to stamp into Season_type on every row. Default:
+#                   "Average" (this repo doesn't produce season_type).
 #   --out           Output .RDS path. Default: ./kvuno_upload/<basename of
 #                   --file> (created if it doesn't exist).
 #
-# Output columns match Kvuno's /ui/columns exactly (country, lat, lon,
-# opt_date, planting_option, province, season_type, variety), so the file
-# uploads through /ui/upload with every column auto-mapped - no manual
-# mapping step needed.
+# Output columns: XY, Country, Province, lon, lat, Variety, Season_type,
+# Opt_date, Planting_Option.
 ###############################################################################
 
 parse_args <- function(args) {
@@ -83,7 +86,7 @@ file_path   <- arg(args, "file")
 country     <- arg(args, "country")
 metric      <- arg(args, "metric", "HWAH")
 top_n       <- as.integer(arg(args, "top-n", "5"))
-season_type <- arg(args, "season-type", NA_character_)
+season_type <- arg(args, "season-type", "Average")
 out_path    <- arg(args, "out")
 
 if (is.null(file_path) || is.null(country)) {
@@ -123,21 +126,25 @@ ranked <- df %>%
   ungroup() %>%
   filter(planting_option <= top_n)
 
+lat <- ranked$XLAT
+lon <- ranked$LONG
+
 upload_df <- data.frame(
-  country         = country,
-  lat             = ranked$XLAT,
-  lon             = ranked$LONG,
-  province        = ranked$zone,
-  variety         = tolower(ranked$Cultivar),
-  season_type     = season_type,
-  opt_date        = format(ranked$PDAT, "%d-%b"),
-  planting_option = ranked$planting_option,
+  XY              = paste0(lon, "_", lat),
+  Country         = country,
+  Province        = ranked$zone,
+  lon             = lon,
+  lat             = lat,
+  Variety         = tolower(ranked$Cultivar),
+  Season_type     = season_type,
+  Opt_date        = format(ranked$PDAT, "%d-%b"),
+  Planting_Option = ranked$planting_option,
   stringsAsFactors = FALSE
 )
 
-variety_values <- sort(unique(upload_df$variety))
+variety_values <- sort(unique(upload_df$Variety))
 message(
-  "variety values in output: ", paste(variety_values, collapse = ", "),
+  "Variety values in output: ", paste(variety_values, collapse = ", "),
   " - check this matches Kvuno's existing convention (e.g. an 'average' or ",
   "'longer' cultivar label won't be recognized if the rest of the dataset ",
   "only uses short/medium/long).")
@@ -145,5 +152,5 @@ message(
 saveRDS(upload_df, out_path)
 message(
   nrow(upload_df), " rows written to ", out_path,
-  " (", length(unique(paste(upload_df$lat, upload_df$lon))), " pixels, ",
+  " (", length(unique(upload_df$XY)), " pixels, ",
   length(variety_values), " variety values, country = ", country, ").")

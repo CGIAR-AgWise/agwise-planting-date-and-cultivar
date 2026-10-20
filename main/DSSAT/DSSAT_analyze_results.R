@@ -139,19 +139,80 @@ run_full_soil_comparison <- function(
 }
 
 
-# TODO Add this function that calls all the helpers
+# Compare fertilizer treatments (grid search or preset list) and suggest the
+# best one per pixel. Ranks by net return when crop_price and a treatment cost
+# are both available, otherwise by the metric itself.
 run_fertilizer_comparison <- function(
-    all_results, variable = HWAH, by_treatment = T, ...) {
-  summary_DSSAT_results(all_results, variable = variable, by_treatment = T)
-  
-  plot_DSSAT_pixel(all_results, lat = lat_pixel, lon = lon_pixel,
-                   variable = variable)
-  
-  plot_aggregate(all_results, variable = variable)
-  
-  plot_map(
-    all_results, treatment = treatment_to_plot, year_selected = map_year,
-    variable = variable)
+    results_df, output_dir, file_prefix = "", metric = "HWAH", crop_price = NULL) {
+
+  df <- results_df %>%
+    dplyr::filter(!is.na(Fert_treatment)) %>%
+    dplyr::mutate(PD_index = as.integer(sub(".* (\\d+)(st|nd|rd|th) pd$", "\\1", TNAM)))
+  if (nrow(df) == 0) {
+    message("No fertilizer treatments in results - skipping fertilizer comparison.")
+    return(invisible(NULL))
+  }
+
+  use_net_return <- !is.null(crop_price) && "cost" %in% names(df)
+  df$Score <- if (use_net_return) df[[metric]] * crop_price - df$cost else df[[metric]]
+  if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
+
+  # 1. Treatment summary across pixels; Region_rank suggests one overall
+  summary_df <- df %>%
+    dplyr::group_by(Cultivar, PD_index, Fert_treatment,
+                    dplyr::across(dplyr::any_of(c("FAMN", "FAMP", "FAMK", "cost")))) %>%
+    dplyr::summarise(
+      n = dplyr::n(),
+      mean = mean(.data[[metric]], na.rm = TRUE),
+      median = median(.data[[metric]], na.rm = TRUE),
+      Q1 = quantile(.data[[metric]], 0.25, na.rm = TRUE),
+      Q3 = quantile(.data[[metric]], 0.75, na.rm = TRUE),
+      mean_score = mean(Score, na.rm = TRUE),
+      .groups = "drop") %>%
+    dplyr::group_by(Cultivar, PD_index) %>%
+    dplyr::mutate(Region_rank = dplyr::row_number(dplyr::desc(mean_score))) %>%
+    dplyr::ungroup()
+  write.csv(summary_df, file.path(output_dir, paste0(
+    file_prefix, "fertilizer_treatment_summary.csv")), row.names = FALSE)
+
+  # 2. Best treatment per pixel x cultivar x planting date
+  keep_cols <- c("XLAT", "LONG", "zone", "Cultivar", "PD_index", "PDAT",
+                 "Fert_treatment", "FAMN", "FAMP", "FAMK", "cost", metric,
+                 if (use_net_return) "Score")
+  by_pdate <- df %>%
+    dplyr::group_by(XLAT, LONG, Cultivar, PD_index) %>%
+    dplyr::slice_max(Score, n = 1, with_ties = FALSE) %>%
+    dplyr::ungroup() %>%
+    dplyr::select(dplyr::any_of(keep_cols)) %>%
+    dplyr::rename(dplyr::any_of(c(Net_return = "Score")))
+  write.csv(by_pdate, file.path(output_dir, paste0(
+    file_prefix, "fertilizer_recommendation_by_pdate.csv")), row.names = FALSE)
+
+  # 3. Best cultivar x planting date x treatment per pixel
+  best <- df %>%
+    dplyr::group_by(XLAT, LONG) %>%
+    dplyr::slice_max(Score, n = 1, with_ties = FALSE) %>%
+    dplyr::ungroup() %>%
+    dplyr::select(dplyr::any_of(keep_cols)) %>%
+    dplyr::rename(dplyr::any_of(c(Net_return = "Score")))
+  write.csv(best, file.path(output_dir, paste0(
+    file_prefix, "fertilizer_recommendation.csv")), row.names = FALSE)
+
+  # 4. Response plot: mean metric by planting date and treatment
+  p <- ggplot(summary_df, aes(x = PD_index, y = mean, color = Fert_treatment,
+                              group = Fert_treatment)) +
+    geom_line(linewidth = 0.8) +
+    geom_point(size = 1.8) +
+    facet_wrap(~ Cultivar) +
+    scale_x_continuous(breaks = sort(unique(summary_df$PD_index))) +
+    labs(x = "Planting date (onset order)", y = paste("Mean", metric),
+         color = "Fertilizer", title = paste("Fertilizer response:", metric)) +
+    theme_bw()
+  ggsave(file.path(output_dir, paste0(file_prefix, "fertilizer_response.png")),
+         p, width = 9, height = 5, dpi = 200)
+
+  message("Fertilizer comparison saved to: ", output_dir)
+  invisible(list(summary = summary_df, by_pdate = by_pdate, best = best))
 }
 
 

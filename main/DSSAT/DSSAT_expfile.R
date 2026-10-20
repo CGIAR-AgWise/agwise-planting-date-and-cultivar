@@ -27,7 +27,9 @@
 #' @param varietyid DSSAT cultivar id (INGENO)
 #' @param zone admin level 1 name
 #' @param level2 admin level 2 name (optional)
-#' @param fertilizer if TRUE, fertilizer at planting
+#' @param simple_fertilizer if TRUE, keep the FILEX template's preset fertilizer (not implemented yet)
+#' @param fert_grid_search if TRUE, NPK rate factorial from NPK_ranges
+#' @param fert_factorial_preset if TRUE, every treatment in template_df
 #' @param geneticfiles prefix of CUL/ECO/SPE files to copy (e.g., "MZCER048")
 #' @param index_soilwat initial soil water index (0 = WP, 1 = FC)
 #' @param wsta_prefix weather station prefix
@@ -35,10 +37,11 @@
 #' @return invisibly, the path to the written FILEX
 create_filex <- function(i, path.to.temdata, filex_temp, path.to.extdata, coords,
                          AOI = TRUE, crop_code, plantingWindow = 1,
-                         varietyid, zone, level2 = NA, fertilizer = FALSE,
-                         fert_factorial = FALSE, fert_grid_RS = FALSE,
+                         varietyid, zone, level2 = NA, simple_fertilizer = FALSE,
+                         fert_factorial_preset = FALSE, fert_grid_search = FALSE,
                          NPK_ranges = NULL, geneticfiles, dssat_model = NULL,
-                         index_soilwat = 1,
+                         index_soilwat = 1, simulate_P = FALSE, simulate_K = FALSE,
+                         soil_source = "ISRIC", soil_p_raster = NULL,
                          wsta_prefix = "WHTE", template_df = NULL,
                          plant_dates = NULL) {
   
@@ -70,6 +73,13 @@ create_filex <- function(i, path.to.temdata, filex_temp, path.to.extdata, coords
     working_path = working_path, i = i)
   max_weather_date <- get_max_wth_date(
     working_path = working_path, i = i)
+  min_weather_date <- get_min_wth_date(
+    working_path = working_path, i = i)
+  if (min(as.Date(plant_dates)) %m-% months(1) < min_weather_date) {
+    message(sprintf(
+      "EXTE%04d: simulation start clamped to first weather date %s (shorter spin-up)",
+      as.integer(i), min_weather_date))
+  }
 
   file_x <- DSSAT::read_filex(file.path(path.to.temdata, filex_temp))
   
@@ -97,6 +107,7 @@ create_filex <- function(i, path.to.temdata, filex_temp, path.to.extdata, coords
   
   # One IC for each planting date
   ic_df <- get_filex_initial_conditions(ex_profile, crop_code, plant_dates, file_x)
+  ic_df$ICDAT <- clamp_to_weather_start(ic_df$ICDAT, min_weather_date)
   file_x$`INITIAL CONDITIONS` <- ic_df
   
   pd_df <- get_filex_plantdetails(file_x, plant_dates)
@@ -106,7 +117,8 @@ create_filex <- function(i, path.to.temdata, filex_temp, path.to.extdata, coords
   file_x$`HARVEST DETAILS` <- hd_df
   
   fert_list <- create_fertilizer_flags(
-    NPK_ranges = if (exists("NPK_ranges")) NPK_ranges else NULL, template_df)
+    NPK_ranges = NPK_ranges, template_df = template_df,
+    simulate_P = simulate_P, simulate_K = simulate_K)
   
   sc_df <- get_filex_simulationcontrols(file_x, plant_dates, number_years, fert_list)
   # SMODEL selects which crop routine DSCSM048 runs; the template's own value
@@ -117,16 +129,41 @@ create_filex <- function(i, path.to.temdata, filex_temp, path.to.extdata, coords
   # Wheat's files are WHCER048.* but this install's registered model is
   # CSCER048); fall back to the geneticfiles-style code if not supplied.
   sc_df$SMODEL <- if (!is.null(dssat_model)) dssat_model else paste0(crop_code, get_DSSAT_crop_submodel(crop_code))
+  sc_df$SDATE <- clamp_to_weather_start(sc_df$SDATE, min_weather_date)
   file_x$`SIMULATION CONTROLS` <- sc_df
   
+  # Site coords from SOIL.SOL - coords is NULL on the forecast path
   fi_df <- get_filex_fertilizersinorganic(
-    file_x, plant_dates, template_df, 
-    NPK_ranges = if (exists("NPK_ranges")) NPK_ranges else NULL, 
-    longitude = coords$longitude[i],
-    latitude = coords$latitude[i], varietyid, fert_list)
+    file_x, plant_dates, template_df, NPK_ranges = NPK_ranges,
+    longitude = ex_profile$LONG, latitude = ex_profile$LAT, varietyid, fert_list)
   file_x$`FERTILIZERS (INORGANIC)` <- fi_df
+  # The template has no fertilizer section; place it where DSSAT expects it
+  if (!is.null(fi_df)) {
+    nms <- names(file_x)
+    nms <- append(nms[nms != "FERTILIZERS (INORGANIC)"], "FERTILIZERS (INORGANIC)",
+                  after = which(nms == "PLANTING DETAILS"))
+    file_x <- file_x[nms]
+  }
   
   treatments_df <- get_filex_treatments(file_x, fert_list)
+
+  # Fertilizer runs need soil P; datasourcing SOIL.SOL files have none, so
+  # add it through the FILEX soil analysis from the matching soil source
+  fert_mode <- simple_fertilizer || fert_grid_search || fert_factorial_preset
+  soil_has_p <- !is.null(ex_profile$SLPX) && any(unlist(ex_profile$SLPX) > 0, na.rm = TRUE)
+  if (fert_mode && !soil_has_p) {
+    if (soil_source != "ISRIC") {
+      stop("Soil P for fertilizer runs is only implemented for ISRIC soils, got: ", soil_source)
+    }
+    slb <- sort(ex_profile$SLB[[1]])
+    olsen_p <- get_isric_olsen_p(ex_profile$LONG, ex_profile$LAT, slb, soil_p_raster)
+    sa_df <- get_filex_soil_analysis(
+      slb, olsen_p, max(min(as.Date(plant_dates)) %m-% months(1), min_weather_date))
+    nms <- names(file_x)
+    file_x$`SOIL ANALYSIS` <- sa_df
+    file_x <- file_x[append(nms, "SOIL ANALYSIS", after = which(nms == "FIELDS"))]
+    treatments_df$SA <- 1
+  }
   file_x$`TREATMENTS                        -------------FACTOR LEVELS------------` <- treatments_df
   
   DSSAT::write_filex(
@@ -162,6 +199,14 @@ dssat.expfile <- function(
   ID <- complete_usecase$id
   plantingWindow <- complete_usecase$planting_window
   Soil_source <- complete_usecase$soil_source
+  simple_fertilizer <- isTRUE(complete_usecase$simple_fertilizer)
+  fert_grid_search <- isTRUE(complete_usecase$fert_grid_search)
+  fert_factorial_preset <- isTRUE(complete_usecase$fert_factorial_preset)
+  NPK_ranges <- if (fert_grid_search) complete_usecase$NPK_ranges else NULL
+  template_df <- if (fert_factorial_preset) complete_usecase$fert_treatments_df else NULL
+  simulate_P <- isTRUE(complete_usecase$simulate_P)
+  simulate_K <- isTRUE(complete_usecase$simulate_K)
+  soil_p_raster <- complete_usecase$soil_p_raster
   
   message("Creating DSSAT exp file for variety: ", varietyid, ", zone: ", zone)
   
@@ -312,13 +357,18 @@ dssat.expfile <- function(
         varietyid = varietyid,
         zone = zone,
         level2 = level2,
-        fertilizer = fertilizer,
-        fert_factorial = fert_factorial,
-        fert_grid_RS = fert_grid_RS,
-        NPK_ranges = NULL,
+        simple_fertilizer = simple_fertilizer,
+        fert_factorial_preset = fert_factorial_preset,
+        fert_grid_search = fert_grid_search,
+        NPK_ranges = NPK_ranges,
         geneticfiles = geneticfiles,
         dssat_model = dssat_model,
         index_soilwat = index_soilwat,
+        simulate_P = simulate_P,
+        simulate_K = simulate_K,
+        soil_source = Soil_source,
+        soil_p_raster = soil_p_raster,
+        template_df = template_df,
         plant_dates = coords$planting_dates[[i]]  # <<< RS-driven vector of Dates (4 per coordinate)
       )
       paste(

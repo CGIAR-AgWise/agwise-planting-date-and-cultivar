@@ -437,8 +437,27 @@ get_max_wth_date <- function(working_path, i) {
 }
 
 
+# First date in a point's WTH file, parsed from the text since read_wth()
+# shifts 4-digit-year dates by 100 years
+get_min_wth_date <- function(working_path, i) {
+  wth_lines <- readLines(file.path(working_path, sprintf("WHTE%04d.WTH", as.integer(i))), warn = FALSE)
+  first_row <- wth_lines[grep("^@ +DATE", wth_lines)[1] + 1]
+  date_tok <- strsplit(trimws(first_row), " +")[[1]][1]
+  as.Date(date_tok, format = if (nchar(date_tok) == 7) "%Y%j" else "%y%j")
+}
+
+
+# Keep SDATE/ICDAT (planting - 1 month) from falling before the first weather
+# date, e.g. a lead-0 forecast whose spin-up month couldn't be prepended
+clamp_to_weather_start <- function(dates, min_weather_date) {
+  pmax(dates, as.POSIXct(min_weather_date))
+}
+
+
 # Create list of fertilizer flags for the Simulation Controls DSSAT information
-create_fertilizer_flags <- function(NPK_ranges = NULL, template_df = NULL) {
+# PHOSP/POTAS need soil P/K data, so they're only on when explicitly requested
+create_fertilizer_flags <- function(
+    NPK_ranges = NULL, template_df = NULL, simulate_P = FALSE, simulate_K = FALSE) {
   # Default flags
     fert_list <- list(NITRO = "N", PHOSP = "N", POTAS = "N", FERTI = "N")
   
@@ -454,10 +473,44 @@ create_fertilizer_flags <- function(NPK_ranges = NULL, template_df = NULL) {
     fert_list$PHOSP <- if (any(template_df$FAMP > 0, na.rm = TRUE)) "Y" else "N"
     fert_list$POTAS <- if (any(template_df$FAMK > 0, na.rm = TRUE)) "Y" else "N"
   }
+  if (!simulate_P) fert_list$PHOSP <- "N"
+  if (!simulate_K) fert_list$POTAS <- "N"
   
   fert_list$FERTI <- if (any(unlist(fert_list[1:3]) == "Y")) "R" else "N"
   
   return(fert_list)
+}
+
+
+# Olsen P (mg/kg) per soil layer from ISRIC AfSoilGrids250m Mehlich-3 P
+# (0-30 cm, stored as mg/kg x 100). Same method as the legacy
+# get_geo_spatial_data_w_phosphorus.R: exponential decay with depth from the
+# 0-30 cm mean, then Mehlich-3 -> Olsen (non-calcareous).
+get_isric_olsen_p <- function(lon, lat, slb, p_raster, k = 0.03) {
+  p_0_30 <- terra::extract(terra::rast(path.expand(p_raster)), cbind(lon, lat))[[1]] / 100
+  if (is.na(p_0_30)) stop("No ISRIC P value at ", lon, ", ", lat)
+  mid <- (c(0, head(slb, -1)) + slb) / 2
+  mehlich3 <- p_0_30 * (30 * k) / (1 - exp(-30 * k)) * exp(-k * mid)
+  0.47 * mehlich3 + 2.4
+}
+
+
+# Soil analysis section carrying Olsen P (SMPX = SA001) per layer. DSSAT uses
+# it in place of the SOIL.SOL P data, so imported soil files stay untouched.
+get_filex_soil_analysis <- function(slb, olsen_p, sadat) {
+  n <- length(slb)
+  missing_layer <- list(rep(NA_real_, n))
+  sa_df <- tibble::tibble(
+    A = 1L, SADAT = as.POSIXct(sadat), SMHB = NA_character_, SMPX = "SA001",
+    SMKE = NA_character_, SANAME = NA_character_,
+    SABL = list(slb), SADM = missing_layer, SAOC = missing_layer,
+    SANI = missing_layer, SAPHW = missing_layer, SAPHB = missing_layer,
+    SAPX = list(round(olsen_p, 1)), SAKE = missing_layer, SASC = missing_layer)
+  attr(sa_df, "tier_info") <- list(
+    c("A", "SADAT", "SMHB", "SMPX", "SMKE", "SANAME"),
+    c("A", "SABL", "SADM", "SAOC", "SANI", "SAPHW", "SAPHB", "SAPX", "SAKE", "SASC"))
+  class(sa_df) <- c("DSSAT_tbl", class(sa_df))
+  sa_df
 }
 
 
@@ -654,30 +707,31 @@ get_filex_simulationcontrols <- function(
 get_filex_fertilizersinorganic <- function(
     file_x, plant_dates, template_df, NPK_ranges, longitude, latitude, varietyid, fert_list) {
   fi_df <- file_x$`FERTILIZERS (INORGANIC)`
-  
-  # Path: fertilizer from template file
+  # Same order as get_filex_plantdetails(), so "<n>th pd" matches P levels
+  plant_dates <- sort(as.Date(plant_dates))
+
+  # Path: fertilizer from treatments list (one row per application)
   if(!is.null(template_df$FAMN)) {
-    fi_df <- template_df %>%
-      dplyr::filter(lon == longitude,
-             lat == latitude)
-             
-    n_split_applications <- dim(fi_df)[1]/max(fi_df$F)
-    
-    fi_df <- fi_df[rep(1:nrow(fi_df), times = length(plant_dates)), ]
-    row.names(fi_df) <- NULL
-    
-    n0 <- nrow(fi_df) / length(plant_dates)
-    # fi_df$FDATE <- as.POSIXct(fi_df$F.dap + rep(plant_dates, each = n0))
-    fi_df$FDATE_date <- as.Date(fi_df$F.dap + rep(plant_dates, each = n0))
-    fi_df$FDATE <- as.integer(
-      format(fi_df$FDATE_date, "%y")) * 1000 +
-      as.integer(format(fi_df$FDATE_date, "%j"))
-    
-    fi_df <- fi_df %>% dplyr::select(-FDATE_date)
-    
-    fi_df$F <- rep(seq_len(dim(fi_df)[1]/n_split_applications), each = n_split_applications)
-    
-    fi_df <- fi_df %>% 
+    fi_df <- template_df
+    # Site-specific lists carry lon/lat; otherwise every site gets every row
+    if (all(c("lon", "lat") %in% names(fi_df))) {
+      fi_df <- fi_df %>%
+        dplyr::filter(abs(lon - longitude) < 1e-4, abs(lat - latitude) < 1e-4)
+      if (nrow(fi_df) == 0) stop("No fertilizer treatments for site at ", longitude, ", ", latitude)
+    }
+    fi_df <- fi_df %>%
+      dplyr::group_by(F) %>%
+      dplyr::mutate(app_index = dplyr::row_number()) %>%
+      dplyr::ungroup()
+    n_fert <- length(unique(fi_df$F))
+
+    fi_df <- tidyr::expand_grid(pd_index = seq_along(plant_dates), fi_df) %>%
+      dplyr::mutate(
+        F = (pd_index - 1) * n_fert + F,
+        FDATE = as.POSIXct(plant_dates[pd_index] + F.dap),
+        FERNAME = paste(FERNAME, ordinal(app_index), "app", ordinal(pd_index), "pd")
+      ) %>%
+      dplyr::arrange(F, FDATE) %>%
       dplyr::select(any_of(
         c("F", "FDATE", "FMCD", "FACD", "FDEP", "FAMN", "FAMP", "FAMK", "FAMC",
           "FAMO", "FOCD", "FERNAME")))
@@ -697,19 +751,22 @@ get_filex_fertilizersinorganic <- function(
       ) %>% 
         mutate(F = row_number())
       
+      # N split evenly across applications; P and K all at the first one.
+      # FERNAME carries total rates so they survive into Summary.OUT's TNAM.
       fi_expanded <- fi_df %>%
         mutate(
-          FAMN = FAMN / n_split,
-          FAMP = FAMP / n_split,
-          FAMK = FAMK / n_split,
+          rate_label = paste0("N", FAMN, "P", FAMP, "K", FAMK),
           pd_index = match(plant_date, plant_dates)
         ) %>%
         uncount(n_split, .id = "application_index") %>%
         mutate(
+          FAMN = FAMN / n_split_applications,
+          FAMP = ifelse(application_index == 1, FAMP, 0),
+          FAMK = ifelse(application_index == 1, FAMK, 0),
           F.dap = NPK_ranges$F.dap[application_index],
           FDATE = as.POSIXct(plant_date + F.dap),
           FERNAME = paste(
-            ordinal(F), "fert",
+            rate_label,
             ordinal(application_index), "app",
             ordinal(pd_index), "pd"
           ),
@@ -720,7 +777,7 @@ get_filex_fertilizersinorganic <- function(
           FAMO = NPK_ranges$FAMO,
           FOCD = NPK_ranges$FOCD
         ) %>%
-        select(-c(application_index, plant_date, pd_index, F.dap)) %>%
+        select(-c(application_index, plant_date, pd_index, F.dap, rate_label)) %>%
         select(c(F, FDATE, FMCD, FACD, FDEP, FAMN, FAMP, FAMK, FAMC, FAMO, FOCD,
                  FERNAME))
       
@@ -815,10 +872,10 @@ check_layers_order <- function(ex_profile) {
 
 # Get range of treatments
 get_n_treatments <- function(
-    template_df, Forecast, fertilizer, fert_factorial, fert_grid_RS,
+    template_df, Forecast, simple_fertilizer, fert_factorial_preset, fert_grid_search,
     NPK_ranges = NULL) {
   
-  if (fert_factorial) {
+  if (fert_factorial_preset) {
     n_applications <- length(unique(template_df$F.dap))
     
     one_location_levels <- template_df %>%

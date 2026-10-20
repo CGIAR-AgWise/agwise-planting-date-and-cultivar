@@ -62,7 +62,7 @@ parse_usecase_args <- function(args = commandArgs(trailingOnly = TRUE)) {
 }
 
 strip_yaml_comment <- function(line) {
-  sub("[[:space:]]+#.*$", "", line)
+  sub("(^|[[:space:]]+)#.*$", "", line)
 }
 
 parse_yaml_scalar <- function(value) {

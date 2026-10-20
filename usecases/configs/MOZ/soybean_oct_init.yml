@@ -1,7 +1,7 @@
-name: Mozambique full soybean (via agwise-datasourcing)
+name: Mozambique soybean (October 2026 forecast init, lead_months=0, via agwise-datasourcing)
 country_code: MOZ
 country_name: Mozambique
-use_case_name: full
+use_case_name: oct_init
 crop: Soybean
 dssat_model: CRGRO
 zones:
@@ -19,12 +19,12 @@ season_start_month: 10
 season_start_day: 1
 season_year: 2026
 season_length_months: 3
-lead_months: 2
+lead_months: 0
 varietyids:
   - 880011
   - 880012
   - 880013
 skip_weather_soil_creation: true
 generate_dssat_via_datasourcing: true
-resolution_km: 10
+resolution_km: 5
 build_dashboard: true

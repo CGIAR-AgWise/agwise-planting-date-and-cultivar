@@ -60,6 +60,38 @@ prepare_data_to_save <- function(results_df, project_root, country, useCaseName,
 }
 
 
+# Fertilizer treatment label and total N/P/K rates, parsed from TNAM
+# ("<label> <n>th pd"). NA for runs without a fertilizer mode.
+add_fertilizer_columns <- function(results_df, complete_usecase) {
+  if (nrow(results_df) == 0) return(results_df)
+  pd_suffix <- " \\d+(st|nd|rd|th) pd$"
+  has_fert <- isTRUE(complete_usecase$fert_grid_search) ||
+    isTRUE(complete_usecase$fert_factorial_preset)
+  results_df$Fert_treatment <- if (has_fert) {
+    ifelse(grepl(pd_suffix, results_df$TNAM), sub(pd_suffix, "", results_df$TNAM), NA_character_)
+  } else {
+    NA_character_
+  }
+
+  if (isTRUE(complete_usecase$fert_grid_search)) {
+    rates <- stringr::str_match(
+      results_df$Fert_treatment, "^N([0-9.]+)P([0-9.]+)K([0-9.]+)$")
+    results_df$FAMN <- as.numeric(rates[, 2])
+    results_df$FAMP <- as.numeric(rates[, 3])
+    results_df$FAMK <- as.numeric(rates[, 4])
+  } else if (isTRUE(complete_usecase$fert_factorial_preset)) {
+    totals <- complete_usecase$fert_treatments_df %>%
+      dplyr::group_by(Fert_treatment = FERNAME) %>%
+      dplyr::summarise(
+        FAMN = sum(FAMN), FAMP = sum(FAMP), FAMK = sum(FAMK),
+        dplyr::across(dplyr::any_of("cost"), ~ sum(.x, na.rm = TRUE)),
+        .groups = "drop")
+    results_df <- dplyr::left_join(results_df, totals, by = "Fert_treatment")
+  }
+  results_df
+}
+
+
 #' @param country country name
 #' @param useCaseName use case name  name
 #' @param Crop the name of the crop to be used in creating file name to write out the result.
@@ -121,9 +153,11 @@ merge_DSSAT_output <- function(
           }
         }
 
+        # NICM (N applied) kept when present, to check fertilizer runs
         file <- file[, c("XLAT", "LONG", "TRNO", "TNAM", "PDAT","ADAT","MDAT",
                          "HDAT", "CWAM", "HWAH", "CNAM", "GNAM", "NDCH",
-                         "TMAXA", "TMINA", "SRADA", "PRCP", "ETCP", "ESCP", "CRST")]
+                         "TMAXA", "TMINA", "SRADA", "PRCP", "ETCP", "ESCP", "CRST",
+                         intersect("NICM", names(file)))]
         file$file_name <- .x
         file$WUE <- file$HWAH / file$PRCP
         
@@ -170,6 +204,7 @@ merge_DSSAT_output <- function(
   
   all_results <- prepare_data_to_save(
     all_results, project_root, country, useCaseName, Crop, complete_usecase)
+  all_results <- add_fertilizer_columns(all_results, complete_usecase)
   
   if (AOI) {
     dir_path <- file.path(usecase_dir, Crop, "result", "DSSAT", "AOI")

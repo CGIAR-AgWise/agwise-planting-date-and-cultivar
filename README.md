@@ -139,7 +139,7 @@ You'll put the key in a small `cds.env` file in step 4.
 
 ```bash
 docker login -u <your-docker-hub-username>
-docker pull --platform linux/amd64 acarmonacabrero/agwise-planting-date-and-cultivar:rwanda-demo-v2
+docker pull --platform linux/amd64 acarmonacabrero/agwise-planting-date-and-cultivar:rwanda-demo-v3
 ```
 
 `docker login` asks for a password - use a Docker Hub **personal access
@@ -198,7 +198,7 @@ docker run --rm --platform linux/amd64 \
   --env-file cds.env \
   -v "$(pwd)/agwise_data/Processed:/mnt/agwise_data_root" \
   -v "$(pwd)/results:/workspace/Data" \
-  acarmonacabrero/agwise-planting-date-and-cultivar:rwanda-demo-v2 \
+  acarmonacabrero/agwise-planting-date-and-cultivar:rwanda-demo-v3 \
   2>&1 | tee demo_run.log
 ```
 
@@ -226,7 +226,7 @@ much slower depending on how busy CDS is - the pipeline just waits. The DSSAT
 simulations then take about 25 minutes. It finishes with a line like:
 
 ```text
-=== Pipeline finished at ..., exit code 0, elapsed 3513s ===
+=== Pipeline finished at ..., exit code 0, elapsed 3674s ===
 ```
 
 Lots of `STOP 99` lines and planting-date `WARNING`s during the run are
@@ -273,7 +273,7 @@ in.
   code is in `/workspace`, DSSAT in `/opt/DSSAT`:
   ```bash
   docker run --rm -it --platform linux/amd64 --entrypoint bash \
-    acarmonacabrero/agwise-planting-date-and-cultivar:rwanda-demo-v2
+    acarmonacabrero/agwise-planting-date-and-cultivar:rwanda-demo-v3
   ```
 - **Run with your own code changes**: add
   `-v "/path/to/this/repo/main:/workspace/main"` to the run command, and the

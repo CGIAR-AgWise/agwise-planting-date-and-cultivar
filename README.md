@@ -509,8 +509,7 @@ Rscript usecases/run_usecase.R usecases/configs/RWA/maize_demo.yml
 ## Author
 
 ```text
-Author: Jemal S. Ahmed
-Email: jemal.ahmed@cgiar.org
-Institution: Alliance of Bioversity International and CIAT (CGIAR)
-Date: 2026-05-29
+Authors: Álvaro Carmona-Cabrero, Jemal S. Ahmed
+Email: acarmonacabrero@gmail.com, jemal.ahmed@cgiar.org
+Institution: CGIAR
 ```

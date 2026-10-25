@@ -210,6 +210,7 @@ run_dssat_pipeline <- function(
   source(file.path(repo_root, "main/DSSAT/DSSAT_analyze_results.R"))
   source(file.path(repo_root, "main/DSSAT/helpers_DSSAT_analyze_results.R"))
   source(file.path(repo_root, "main/DSSAT/get_pdate_cultivar_recommendation.R"))
+  source(file.path(repo_root, "main/DSSAT/bc_daily_rain.R"))
   
   # Expand usecase forecast config with DSSAT default config
   complete_usecase <- load_dssat_defaults(usecase, repo_root)
@@ -367,6 +368,18 @@ run_dssat_pipeline <- function(
     crop_mask_dir = file.path(repo_root, "Landing", "crop_masks"),
     output_dir = result_output_dir, base_filename = dssat_output_base_filename,
     country = complete_usecase$country_name)
+
+  # --- STEP 4.6: Daily rain at the result pixels, for the dashboard's
+  # rainfall maps. Read from the bias-corrected cubes; a missing cube only
+  # skips the maps, it must not fail the run.
+  tryCatch(
+    write_daily_rain(
+      complete_usecase, results_df, output_dir = result_output_dir,
+      base_filename = dssat_output_base_filename),
+    error = function(e) {
+      warning("Daily rain extraction failed; results are saved, continuing: ",
+              conditionMessage(e), call. = FALSE)
+    })
 
   # --- STEP 5: Produce Final Outputs ---
   message("Saving nc, plots, and statistics...")

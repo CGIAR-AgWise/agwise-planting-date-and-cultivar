@@ -72,6 +72,17 @@ GADM_ROOT <- resolve_first_existing(
 
 ds <- arrow::open_dataset(STORE_DIR)
 
+# Daily rain for the rainfall maps (built by build_dashboard_store.R next to
+# dashboard_store/). Optional: without it the maps show a note instead.
+RAIN_DIR <- Filter(dir.exists, c(
+  file.path(getwd(), "data", "rain_store"),
+  file.path(getwd(), "..", "..", "..", "data", "usecases", "results", "rain_store")))[1]
+rain_ds <- if (!is.na(RAIN_DIR)) arrow::open_dataset(RAIN_DIR) else NULL
+
+# Recommended rainfall windows (days); see the note under the rainfall maps
+X_AFTER_DEFAULT <- 30
+X_BEFORE_DEFAULT <- 14
+
 # Available (country, crop, usecase) combinations - arrow prunes this to the
 # partition directory names rather than scanning any row data, so it's
 # instant even once the store holds many countries/crops.
@@ -181,6 +192,44 @@ base_map <- function(elementId, outline, bounds) {
   m
 }
 
+pixel_key <- function(lat, lon) sprintf("%.3f_%.3f", lat, lon)
+
+# One usecase's daily rain as a pixel x day cumulative-sum matrix, so any
+# window sum is two lookups: cum[, end + 1] - cum[, start]. Missing days
+# count as 0 mm.
+build_rain_cum <- function(rain) {
+  if (is.null(rain) || nrow(rain) == 0) return(NULL)
+  keys <- unique(pixel_key(rain$XLAT, rain$LONG))
+  dates <- sort(unique(rain$DATE))
+  m <- matrix(0, length(keys), length(dates))
+  m[cbind(match(pixel_key(rain$XLAT, rain$LONG), keys), match(rain$DATE, dates))] <-
+    ifelse(is.na(rain$RAIN), 0, rain$RAIN)
+  cum <- cbind(0, m)
+  for (j in seq_len(ncol(m))) cum[, j + 1] <- cum[, j] + m[, j]
+  list(keys = keys, first = dates[1], last = dates[length(dates)], cum = cum)
+}
+
+# Rain summed over [start, end] (inclusive) at each point. A window starting
+# before the data is NA; one running past the data end is clipped to it.
+rain_window_sum <- function(rc, lat, lon, start, end) {
+  n <- length(lat)
+  if (is.null(rc) || n == 0) return(list(value = rep(NA_real_, n), n_na = n, n_clipped = 0L))
+  row <- match(pixel_key(lat, lon), rc$keys)
+  n_days <- ncol(rc$cum) - 1L
+  s <- as.integer(as.Date(start) - rc$first) + 1L
+  e <- as.integer(as.Date(end) - rc$first) + 1L
+  clipped <- !is.na(e) & e > n_days
+  e <- pmin(e, n_days)
+  ok <- !is.na(row) & !is.na(s) & !is.na(e) & s >= 1L & s <= n_days
+  value <- rep(NA_real_, n)
+  value[ok] <- ifelse(
+    e[ok] < s[ok], 0,
+    rc$cum[cbind(row[ok], e[ok] + 1L)] - rc$cum[cbind(row[ok], s[ok])])
+  list(value = value, n_na = sum(!ok), n_clipped = sum(clipped & ok))
+}
+
+fmt_day <- function(d) format(as.Date(d), "%d %b %Y")
+
 # Pure cascade-resolution logic (country -> crop -> usecase), factored out of
 # the observeEvent()s below so it can be unit-tested directly - testServer()
 # can't verify this any other way, since it can't simulate the browser-side
@@ -237,7 +286,10 @@ ui <- fluidPage(
         "every simulated point is shown regardless of this filter (flagged below the filters when it applies)."),
       tags$li(
         "Results depend on the weather, soil, and management inputs used for each simulation and on DSSAT's ",
-        "own modeling assumptions - they are a decision-support estimate, not a guarantee of field outcomes."))
+        "own modeling assumptions - they are a decision-support estimate, not a guarantee of field outcomes."),
+      tags$li(
+        "Rainfall maps show the bias-corrected seasonal forecast rain (ensemble mean) that the simulations ",
+        "were run with, not observed rain."))
   ),
   sidebarLayout(
     sidebarPanel(
@@ -268,8 +320,38 @@ ui <- fluidPage(
         column(4, h5("Recommended Cultivar"), leafletOutput("map_cultivar", height = 420)),
         column(4, h5("Recommended Planting Date"), leafletOutput("map_pdat", height = 420))
       ),
-      h4("Yield distribution by cultivar"),
-      plotlyOutput("boxplot", height = 320),
+      fluidRow(
+        column(6, h4("Yield distribution by cultivar"), plotlyOutput("boxplot", height = 320)),
+        column(6, h4("Planting dates of the selected recommendations"),
+               plotlyOutput("pdat_hist", height = 320))
+      ),
+      h4("Rainfall (bias-corrected forecast used in the simulations)"),
+      uiOutput("rain_note"),
+      div(class = "filter-note",
+          "Default windows: 30 days after onset or planting covers germination, emergence and early ",
+          "growth, the window where a false start shows (FAO-56 initial stage: 20-30 d maize, 15-20 d ",
+          "soybean; onset studies check dry spells over the 20-30 d after onset). 14 days before planting ",
+          "reflects seedbed moisture at sowing, since topsoil dries out within about two weeks."),
+      fluidRow(
+        column(6,
+          h5("Rain in the first X days after season onset"),
+          sliderInput("x_onset", "X (days)", min = 7, max = 60, value = X_AFTER_DEFAULT, step = 1),
+          leafletOutput("map_rain_onset", height = 380), uiOutput("cap_onset")),
+        column(6,
+          h5("Rain X days before / after planting"),
+          radioButtons("plant_mode", NULL, inline = TRUE, selected = "after",
+                       choices = c("Before planting" = "before", "After planting" = "after")),
+          sliderInput("x_plant", "X (days)", min = 7, max = 60, value = X_AFTER_DEFAULT, step = 1),
+          leafletOutput("map_rain_plant", height = 380), uiOutput("cap_plant"))
+      ),
+      fluidRow(
+        column(6,
+          h5("Rain from planting to maturity (or harvest if maturity isn't reached)"),
+          leafletOutput("map_rain_season", height = 380), uiOutput("cap_season")),
+        column(6,
+          h5("Rain from the start of the rainfall data to sowing"),
+          leafletOutput("map_rain_presow", height = 380), uiOutput("cap_presow"))
+      ),
       h4("Recommendations table"),
       DTOutput("table")
     )
@@ -487,6 +569,130 @@ server <- function(input, output, session) {
       showlegend = FALSE) %>%
       plotly::layout(xaxis = list(title = "Cultivar"), yaxis = list(title = "Yield (kg/ha)"))
   })
+
+  output$pdat_hist <- renderPlotly({
+    d <- filtered_data()
+    if (nrow(d) == 0) return(plotly::plotly_empty(type = "scatter", mode = "markers"))
+    # Shared 7-day bins (one per candidate-date spacing), starting at the
+    # scope's earliest date so the stacked cultivar bars line up
+    bin_start <- as.Date(scope_meta()$pdat_range[1], origin = "1970-01-01")
+    plotly::plot_ly(
+      d, x = ~PDAT, color = ~Cultivar, colors = GLOBAL_CULTIVAR_COLORS, type = "histogram",
+      xbins = list(start = format(as.POSIXct(bin_start) - 43200, "%Y-%m-%d %H:%M:%S"), size = 7 * 86400000)) %>%
+      plotly::layout(
+        barmode = "stack", xaxis = list(title = "Planting date"),
+        yaxis = list(title = "Grid points x cultivars"))
+  })
+
+  # --- Rainfall maps
+  scope_rain <- reactive({
+    req(input$country, input$usecase)
+    if (is.null(rain_ds)) return(NULL)
+    rain_ds %>%
+      dplyr::filter(country == input$country, usecase == input$usecase) %>%
+      dplyr::select(XLAT, LONG, DATE, RAIN) %>%
+      dplyr::collect() %>%
+      build_rain_cum()
+  })
+
+  # Every rank of the scope, for colour domains that stay fixed while the
+  # rank/cultivar filters change (like the other maps)
+  scope_all <- reactive({
+    scope() %>%
+      dplyr::select(XLAT, LONG, PDAT, MDAT, HDAT, onset_date, maturity_failed, in_crop_mask) %>%
+      dplyr::collect()
+  })
+
+  output$rain_note <- renderUI({
+    if (!is.null(scope_rain())) return(NULL)
+    div(class = "mask-note", sprintf(
+      "No daily rain stored for %s (%s) - rainfall maps are empty. Run add_rain_onset_to_results.R and rebuild the store.",
+      input$country, input$usecase))
+  })
+
+  observeEvent(input$plant_mode, {
+    updateSliderInput(session, "x_plant",
+                      value = if (input$plant_mode == "before") X_BEFORE_DEFAULT else X_AFTER_DEFAULT)
+  }, ignoreInit = TRUE)
+
+  output$map_rain_onset <- renderLeaflet(base_map("map_rain_onset", outline(), map_bounds()))
+  output$map_rain_plant <- renderLeaflet(base_map("map_rain_plant", outline(), map_bounds()))
+  output$map_rain_season <- renderLeaflet(base_map("map_rain_season", outline(), map_bounds()))
+  output$map_rain_presow <- renderLeaflet(base_map("map_rain_presow", outline(), map_bounds()))
+
+  # Each window is (start, end) per row of a data frame with PDAT/MDAT/...
+  window_onset <- function(d) list(start = d$onset_date, end = d$onset_date + input$x_onset - 1)
+  window_plant <- function(d) {
+    if (input$plant_mode == "before") list(start = d$PDAT - input$x_plant, end = d$PDAT - 1)
+    else list(start = d$PDAT, end = d$PDAT + input$x_plant - 1)
+  }
+  window_season <- function(d) list(start = d$PDAT, end = dplyr::if_else(d$maturity_failed, d$HDAT, d$MDAT))
+  window_presow <- function(d) {
+    first <- if (is.null(scope_rain())) as.Date(NA) else scope_rain()$first
+    list(start = rep(first, nrow(d)), end = d$PDAT - 1)
+  }
+
+  rain_layer <- function(d, window_fn, all_rows) {
+    rc <- scope_rain()
+    w <- window_fn(d)
+    r <- rain_window_sum(rc, d$XLAT, d$LONG, w$start, w$end)
+    w_all <- window_fn(all_rows)
+    dom <- range(rain_window_sum(rc, all_rows$XLAT, all_rows$LONG, w_all$start, w_all$end)$value, na.rm = TRUE)
+    if (!all(is.finite(dom))) dom <- c(0, 1)
+    c(r, list(d = d, start = w$start, end = w$end, domain = dom))
+  }
+
+  # Map 2 is per pixel (onset doesn't depend on rank/cultivar), only masked
+  onset_pixels <- reactive({
+    p <- dplyr::distinct(scope_all(), XLAT, LONG, onset_date, in_crop_mask)
+    if (isTRUE(input$mask_only)) p <- p[p$in_crop_mask, ]
+    p
+  })
+  layer_onset <- reactive(rain_layer(onset_pixels(), window_onset, dplyr::distinct(scope_all(), XLAT, LONG, onset_date)))
+  layer_plant <- reactive(rain_layer(filtered_data(), window_plant, scope_all()))
+  layer_season <- reactive(rain_layer(filtered_data(), window_season, scope_all()))
+  layer_presow <- reactive(rain_layer(filtered_data(), window_presow, scope_all()))
+
+  draw_rain <- function(map_id, layer, show_cultivar = TRUE) {
+    d <- layer$d
+    pal <- leaflet::colorNumeric("YlGnBu", domain = layer$domain, na.color = "#bdbdbd")
+    label <- if (nrow(d) == 0) NULL else sprintf(
+      "%s%.0f mm (%s - %s)",
+      if (show_cultivar) sprintf("%s | %s | ", d$Cultivar, format(d$PDAT, "%d %b")) else "",
+      layer$value, format(as.Date(layer$start), "%d %b"), format(as.Date(layer$end), "%d %b"))
+    leaflet::leafletProxy(map_id) %>%
+      leaflet::clearMarkers() %>% leaflet::clearControls() %>%
+      leaflet::addCircleMarkers(
+        data = d, lng = ~LONG, lat = ~XLAT, radius = 5, stroke = FALSE, fillOpacity = 0.8,
+        color = pal(layer$value), label = label) %>%
+      leaflet::addLegend("bottomright", pal = pal, values = layer$domain, title = "Rain (mm)")
+  }
+
+  rain_caption <- function(layer, text) {
+    rc <- scope_rain()
+    notes <- c(
+      if (!is.null(rc)) sprintf("Rain data: %s to %s.", fmt_day(rc$first), fmt_day(rc$last)),
+      if (layer$n_na > 0) sprintf("%s point(s) with no rain value (grey).", format(layer$n_na, big.mark = ",")),
+      if (layer$n_clipped > 0) sprintf("%s window(s) cut at the end of the data.", format(layer$n_clipped, big.mark = ",")))
+    div(class = "filter-note", style = "margin-top: 4px;", text, " ", paste(notes, collapse = " "))
+  }
+
+  observe(draw_rain("map_rain_onset", layer_onset(), show_cultivar = FALSE))
+  observe(draw_rain("map_rain_plant", layer_plant()))
+  observe(draw_rain("map_rain_season", layer_season()))
+  observe(draw_rain("map_rain_presow", layer_presow()))
+
+  output$cap_onset <- renderUI(rain_caption(
+    layer_onset(), sprintf("Onset day through day %d after it.", input$x_onset - 1)))
+  output$cap_plant <- renderUI(rain_caption(layer_plant(), if (input$plant_mode == "before") {
+    sprintf("The %d days before the planting date (planting day excluded).", input$x_plant)
+  } else {
+    sprintf("Planting day and the %d days after it.", input$x_plant - 1)
+  }))
+  output$cap_season <- renderUI(rain_caption(
+    layer_season(), "Planting date to maturity; to the harvest date when the crop doesn't mature."))
+  output$cap_presow <- renderUI(rain_caption(
+    layer_presow(), "First day of rain data to the day before planting."))
 
   output$table <- DT::renderDT({
     d <- filtered_data()[, c(

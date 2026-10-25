@@ -2,7 +2,7 @@
 ###############################################################################
 # Script: build_usecase_dashboard.R
 # Purpose: Build a self-contained, shareable HTML dashboard per crop for a
-#          usecase (e.g. useCase_Rwanda_rab). One HTML per crop, not one
+#          usecase (e.g. useCase_Rwanda_sep_init). One HTML per crop, not one
 #          combined file - crosstalk's filter widgets can't force a
 #          non-empty single selection (clearing a "Crop" dropdown would
 #          always fall back to showing every crop at once), so separate
@@ -17,7 +17,7 @@
 #
 # Example:
 #   Rscript main/DSSAT/build_usecase_dashboard.R \
-#     --usecase-dir data/usecases/useCase_Rwanda_rab \
+#     --usecase-dir data/usecases/useCase_Rwanda_sep_init \
 #     --country-name Rwanda
 ###############################################################################
 

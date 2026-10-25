@@ -151,8 +151,11 @@ build_dashboard_extract <- function(
   }
   raw_df <- readRDS(raw_path)
 
+  # MDAT/HDAT/onset_date feed the dashboard's rainfall windows; onset_date
+  # is missing from results merged before it was added.
   dashboard_cols <- c(
-    "XLAT", "LONG", "zone", "Cultivar", "TRNO", "PDAT", "HWAH", "CWAM", "WUE")
+    "XLAT", "LONG", "zone", "Cultivar", "TRNO", "PDAT", "HWAH", "CWAM", "WUE",
+    intersect(c("MDAT", "HDAT", "onset_date"), names(raw_df)))
   extract_df <- raw_df[, dashboard_cols]
   extract_df$maturity_failed <- is.na(raw_df$MDAT)
 
@@ -202,7 +205,8 @@ build_dashboard_extract <- function(
 # would resolve to the wrong place inside the Rmd's readRDS(params$data_rds)
 # and fail with a confusing "cannot open the connection" error.
 build_crop_dashboard <- function(crop, result_dir, base_filename, crop_mask_dir,
-                                  repo_root, country_name, force_rebuild = FALSE) {
+                                  repo_root, country_name, force_rebuild = FALSE,
+                                  render_html = TRUE) {
   result_dir <- normalizePath(result_dir, mustWork = TRUE)
   repo_root <- normalizePath(repo_root, mustWork = TRUE)
   extract_path <- file.path(result_dir, paste0(crop, "_dashboard_extract.RDS"))
@@ -235,6 +239,11 @@ build_crop_dashboard <- function(crop, result_dir, base_filename, crop_mask_dir,
 
   dashboard_rds_path <- file.path(result_dir, paste0(output_basename, "_data.RDS"))
   saveRDS(dat, dashboard_rds_path)
+  # render_html = FALSE: only refresh the data the Shiny store reads
+  if (!render_html) {
+    message("Dashboard data saved to: ", dashboard_rds_path)
+    return(invisible(dashboard_rds_path))
+  }
 
   rmarkdown::render(
     input = file.path(repo_root, "main/DSSAT/dashboard_template.Rmd"),

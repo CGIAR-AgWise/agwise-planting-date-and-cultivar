@@ -200,6 +200,7 @@ merge_DSSAT_output <- function(
   all_results <- prepare_data_to_save(
     all_results, project_root, country, useCaseName, Crop, complete_usecase)
   all_results <- add_fertilizer_columns(all_results, complete_usecase)
+  all_results <- add_onset_dates(all_results)
   
   if (AOI) {
     dir_path <- file.path(usecase_dir, Crop, "result", "DSSAT", "AOI")

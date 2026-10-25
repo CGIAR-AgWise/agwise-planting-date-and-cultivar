@@ -164,9 +164,13 @@ message("Found ", length(all_files), " dashboard data file(s) to ingest.")
 standard_cols <- c(
   "XLAT", "LONG", "zone", "Cultivar", "TRNO", "PDAT", "HWAH", "CWAM", "WUE",
   "maturity_failed", "Date_Rank", "Combination_Rank", "in_crop_mask", "row_key")
+# For the rainfall maps; NA for data built before they were added (backfill
+# with add_rain_onset_to_results.R)
+optional_date_cols <- c("MDAT", "HDAT", "onset_date")
 
 seen_keys <- character(0)
 chunks <- vector("list", length(all_files))
+rain_sources <- list()
 
 for (i in seq_along(all_files)) {
   f <- all_files[[i]]
@@ -187,7 +191,10 @@ for (i in seq_along(all_files)) {
     next
   }
 
-  dat <- dat[, standard_cols]
+  for (col in optional_date_cols) {
+    dat[[col]] <- if (col %in% names(dat)) as.Date(dat[[col]]) else as.Date(NA)
+  }
+  dat <- dat[, c(standard_cols, optional_date_cols)]
   dat$PDAT <- as.Date(dat$PDAT)
   dat$country <- meta$country
   dat$crop <- meta$crop
@@ -196,6 +203,12 @@ for (i in seq_along(all_files)) {
     "  %-30s %-10s %-24s %7d rows (%d grid points)", meta$country, meta$crop,
     meta$usecase, nrow(dat), nrow(unique(dat[, c("XLAT", "LONG")]))))
   chunks[[i]] <- dat
+
+  # Daily rain is identical across a usecase's crops: keep the first found
+  rain_file <- list.files(dirname(f), pattern = "_daily_rain\\.RDS$", full.names = TRUE)
+  if (length(rain_file) > 0 && !(meta$usecase %in% names(rain_sources))) {
+    rain_sources[[meta$usecase]] <- list(file = rain_file[[1]], country = meta$country)
+  }
 }
 
 combined <- dplyr::bind_rows(chunks)
@@ -211,6 +224,28 @@ arrow::write_dataset(
   partitioning = c("country", "crop", "usecase"))
 
 message("\nDashboard store written to: ", store_dir)
+
+### Daily rain store for the rainfall maps, one partition per usecase
+### (country/usecase) - see bc_daily_rain.R for how the RDS files are made
+rain_store_dir <- file.path(repo_root, "data", "usecases", "results", "rain_store")
+if (dir.exists(rain_store_dir)) unlink(rain_store_dir, recursive = TRUE)
+if (length(rain_sources) > 0) {
+  rain <- dplyr::bind_rows(lapply(names(rain_sources), function(u) {
+    r <- readRDS(rain_sources[[u]]$file)
+    r$country <- rain_sources[[u]]$country
+    r$usecase <- u
+    r
+  }))
+  dir.create(rain_store_dir, recursive = TRUE)
+  arrow::write_dataset(
+    rain, path = rain_store_dir, format = "parquet", partitioning = c("country", "usecase"))
+  message("Rain store written to: ", rain_store_dir, " (", length(rain_sources), " usecase(s), ",
+          nrow(rain), " rows)")
+}
+missing_rain <- setdiff(unique(combined$usecase), names(rain_sources))
+if (length(missing_rain) > 0) {
+  message("No daily rain (rainfall maps disabled) for: ", paste(missing_rain, collapse = ", "))
+}
 message("Run the app with: shiny::runApp('main/DSSAT/dashboard_app')")
 
 ### Repackage the laptop bundle from the store just built, so the bundle

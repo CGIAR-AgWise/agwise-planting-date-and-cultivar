@@ -42,7 +42,7 @@
 #     --country Nigeria
 #
 #   Rscript main/Kvuno/prepare_kvuno_upload.R \
-#     --file data/usecases/useCase_Zambia_full/Maize/result/DSSAT/AOI/ISRIC_useCase_Zambia_full_Maize_AOI_season_1.RDS \
+#     --file data/usecases/useCase_Zambia_oct_init/Maize/result/DSSAT/AOI/ISRIC_useCase_Zambia_oct_init_Maize_AOI_season_1.RDS \
 #     --country Zambia --top-n 5
 #
 #   --file          Path to an AOI result RDS (merge_DSSAT_output()'s raw

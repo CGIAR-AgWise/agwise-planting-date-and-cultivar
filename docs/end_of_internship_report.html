@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>End-of-Internship Report | AgWise–DSSAT–IWMI</title>
+<style>
+@page { size: A4; margin: 12mm 14mm; }
+* { box-sizing: border-box; }
+body { margin: 0; color: #17212b; font: 9.2pt/1.28 "Segoe UI", Arial, sans-serif; background: #eef2f3; }
+.page { width: 182mm; min-height: 273mm; margin: 0 auto 8mm; padding: 0; background: white; page-break-after: always; position: relative; }
+.page:last-child { page-break-after: auto; }
+h1 { color: #083b4c; font-size: 23pt; line-height: 1.05; margin: 0 0 3mm; letter-spacing: -.3px; }
+h2 { color: #087f8c; font-size: 14pt; margin: 4mm 0 1.5mm; border-bottom: 1.5px solid #b9dfe1; padding-bottom: 1mm; }
+h3 { color: #0b6571; font-size: 10.5pt; margin: 2.5mm 0 1mm; }
+p { margin: 1.4mm 0; }
+.kicker { color: #087f8c; font-weight: 700; letter-spacing: 1.1px; text-transform: uppercase; font-size: 8pt; }
+.subtitle { color: #4b5d66; font-size: 11pt; margin-bottom: 5mm; }
+.meta { display: flex; gap: 4mm; margin: 2mm 0 5mm; }
+.meta div { flex: 1; background: #edf7f7; border-left: 3px solid #0b9aa5; padding: 2.2mm; }
+.meta b { display: block; color: #0b6571; font-size: 8pt; text-transform: uppercase; }
+.callout { background: #fff6df; border-left: 4px solid #e3a52b; padding: 2.3mm 3mm; margin: 2mm 0; }
+.preferred { background: #e8f5ec; border-left: 4px solid #299653; padding: 2.3mm 3mm; }
+table { width: 100%; border-collapse: collapse; margin: 2mm 0 3mm; font-size: 8.2pt; }
+th { background: #0b6571; color: white; text-align: left; padding: 1.5mm; }
+td { border-bottom: 1px solid #d9e2e4; padding: 1.35mm 1.5mm; vertical-align: top; }
+tr:nth-child(even) td { background: #f5f8f8; }
+.small { font-size: 7.7pt; color: #50616a; }
+.two { display: grid; grid-template-columns: 1.05fr .95fr; gap: 5mm; }
+.diagram { border: 1px solid #c8dadd; border-radius: 4px; padding: 2mm; background: #fbfdfd; }
+.diagram svg { width: 100%; height: 53mm; }
+.chart { border: 1px solid #c8dadd; border-radius: 4px; padding: 2.5mm; background: #fbfdfd; }
+.chart svg { width: 100%; height: 54mm; }
+ul, ol { margin: 1mm 0 2mm 5mm; padding-left: 4mm; }
+li { margin: .7mm 0; }
+.footer { position: absolute; bottom: 0; left: 0; right: 0; border-top: 1px solid #d8e3e5; padding-top: 2mm; color: #6c7b82; font-size: 7.5pt; display: flex; justify-content: space-between; }
+.pagebreak-note { color: #087f8c; font-weight: 700; }
+code { font-family: Consolas, monospace; font-size: .9em; background: #f0f3f4; padding: .2mm .7mm; }
+@media print {
+  body { background: white; }
+  .page { margin: 0; }
+}
+</style>
+</head>
+<body>
+
+<section class="page">
+  <div class="kicker">End-of-internship report · 2026</div>
+  <h1>AgWise–DSSAT–IWMI integration</h1>
+  <div class="subtitle">A transparent maize advisory workflow for Chókwè, Mozambique</div>
+  <div class="meta">
+    <div><b>Case study</b>Maize · 2025/26 season</div>
+    <div><b>Location</b>Chókwè, Mozambique</div>
+    <div><b>Primary output</b>Planting date + cultivar ranking</div>
+  </div>
+  <h2>1. Introduction</h2>
+  <p>This internship developed and documented an integration between the AgWise
+  seasonal climate-forecast pipeline, DSSAT, and IWMI water-context products.
+  The work made the Chókwè workflow reproducible, exposed ranked DSSAT
+  treatments through an advisory payload, and tested how IWMI rainfall could
+  complement the precipitation input.</p>
+  <div class="preferred"><b>Main target approach.</b> The preferred operational
+  solution is to integrate validated IWMI <b>daily observations</b> into the
+  AgWise observation/reference layer. This is not yet complete because IWMI
+  daily observations and their metadata are still pending. A synthetic
+  monthly-to-daily experiment was implemented as an interim bridge.</div>
+  <h2>2. Implemented workflow</h2>
+  <div class="diagram">
+  <svg viewBox="0 0 760 220" role="img" aria-label="AgWise DSSAT IWMI workflow diagram">
+    <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#0b6571"/></marker></defs>
+    <g font-family="Segoe UI,Arial" font-size="15" text-anchor="middle">
+      <rect x="12" y="35" width="125" height="52" rx="8" fill="#dceff1" stroke="#0b9aa5"/><text x="74" y="58" fill="#083b4c">Forecast +</text><text x="74" y="77" fill="#083b4c">hindcast</text>
+      <rect x="177" y="35" width="135" height="52" rx="8" fill="#dceff1" stroke="#0b9aa5"/><text x="244" y="58" fill="#083b4c">Bias</text><text x="244" y="77" fill="#083b4c">correction</text>
+      <rect x="352" y="35" width="135" height="52" rx="8" fill="#dceff1" stroke="#0b9aa5"/><text x="419" y="58" fill="#083b4c">DSSAT</text><text x="419" y="77" fill="#083b4c">handoff</text>
+      <rect x="527" y="35" width="105" height="52" rx="8" fill="#dceff1" stroke="#0b9aa5"/><text x="579" y="58" fill="#083b4c">DSSAT</text><text x="579" y="77" fill="#083b4c">runs</text>
+      <rect x="672" y="35" width="76" height="52" rx="8" fill="#e8f5ec" stroke="#299653"/><text x="710" y="58" fill="#083b4c">Advisory</text><text x="710" y="77" fill="#083b4c">rank</text>
+      <path d="M137 61 H177 M312 61 H352 M487 61 H527 M632 61 H672" stroke="#0b6571" stroke-width="2" marker-end="url(#arrow)"/>
+      <rect x="175" y="137" width="150" height="45" rx="8" fill="#fff1d0" stroke="#e3a52b"/><text x="250" y="157" fill="#6f4d00">IWMI monthly</text><text x="250" y="175" fill="#6f4d00">analysis</text>
+      <rect x="365" y="137" width="150" height="45" rx="8" fill="#fff1d0" stroke="#e3a52b"/><text x="440" y="157" fill="#6f4d00">Synthetic daily</text><text x="440" y="175" fill="#6f4d00">PRCP (interim)</text>
+      <path d="M325 159 H365" stroke="#e3a52b" stroke-width="2" marker-end="url(#arrow)"/><path d="M440 137 V88" stroke="#e3a52b" stroke-width="2" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+      <text x="545" y="158" fill="#0b6571">Future: IWMI daily observations</text><text x="545" y="177" fill="#0b6571">→ reference/validation layer</text>
+    </g>
+  </svg>
+  </div>
+  <p class="small">Chókwè configuration: 2025-11-01 to 2026-02-28; one-month lead;
+  maize cultivar ID 900111; manual extent <code>-23.5, 32.5, -25.5, 33.5</code>.</p>
+  <h2>3. Methodology</h2>
+  <p>AgWise uses forecast, hindcast, and historical reference data to learn
+  systematic model errors, then produces corrected daily <code>PRCP</code>,
+  <code>TMAX</code>, <code>TMIN</code>, and <code>SRAD</code> fields for DSSAT.
+  IWMI context is retained with provenance and does not silently rerank
+  treatments.</p>
+  <div class="callout"><b>Interim rainfall experiment:</b> synthetic IWMI
+  rainfall replaces only PRCP at the DSSAT handoff; corrected AgWise
+  temperature and solar radiation remain in use.</div>
+  <div class="footer"><span>AgWise–DSSAT–IWMI internship report</span><span>1 / 3</span></div>
+</section>
+
+<section class="page">
+  <div class="kicker">Methods and evidence</div>
+  <h2>4. Three integration approaches</h2>
+  <table>
+    <tr><th>Approach</th><th>Purpose</th><th>Status and interpretation</th></tr>
+    <tr><td><b>1. Contextual advisory</b></td><td>Show rainfall anomaly, ET, irrigation probability, and water stress.</td><td><b>Implemented.</b> Context is qualified and does not change DSSAT ranking.</td></tr>
+    <tr><td><b>2. Synthetic PRCP</b></td><td>Test DSSAT sensitivity to IWMI monthly rainfall.</td><td><b>Implemented as interim.</b> Synthetic daily values; not observations.</td></tr>
+    <tr><td><b>3. Daily observations</b></td><td>Integrate validated IWMI daily data into AgWise reference/validation.</td><td><b>Main target; pending IWMI.</b> Preferred operational approach.</td></tr>
+  </table>
+  <div class="preferred"><b>Why Approach 3 is preferred:</b> daily observations
+  preserve actual wet-day timing and support measurement of bias, wet-day
+  frequency, dry spells, extremes, and forecast skill. The current monthly
+  export cannot recover those properties.</div>
+  <h2>5. IWMI monthly-to-daily synthesis</h2>
+  <p>The Digital Twins rainfall analysis export contains <b>309 monthly
+  values</b> from 2001-01 through 2026-09. It is not a daily observational
+  dataset (<code>daily_observations: false</code>). For each month, exact
+  target-year totals were used for the 2025/26 season; no climatology fallback
+  was needed.</p>
+  <div class="two">
+    <div>
+      <table>
+        <tr><th>Month</th><th>Target total (mm)</th></tr>
+        <tr><td>2025-11</td><td>139.50</td></tr>
+        <tr><td>2025-12</td><td>140.35</td></tr>
+        <tr><td>2026-01</td><td>209.99</td></tr>
+        <tr><td>2026-02</td><td>16.47</td></tr>
+      </table>
+      <p class="small">Daily values are allocated to deterministic wet days
+      using Gamma weights and normalized to each monthly total.</p>
+    </div>
+    <div class="chart">
+      <svg viewBox="0 0 330 180" role="img" aria-label="Monthly rainfall target totals">
+        <g font-family="Segoe UI,Arial" font-size="11" fill="#53646b">
+          <line x1="40" y1="145" x2="315" y2="145" stroke="#87999f"/><line x1="40" y1="15" x2="40" y2="145" stroke="#87999f"/>
+          <rect x="62" y="66" width="40" height="79" fill="#0b9aa5"/><rect x="126" y="65" width="40" height="80" fill="#0b9aa5"/><rect x="190" y="26" width="40" height="119" fill="#087f8c"/><rect x="254" y="136" width="40" height="9" fill="#e3a52b"/>
+          <text x="82" y="160" text-anchor="middle">Nov</text><text x="146" y="160" text-anchor="middle">Dec</text><text x="210" y="160" text-anchor="middle">Jan</text><text x="274" y="160" text-anchor="middle">Feb</text>
+          <text x="82" y="60" text-anchor="middle">139.5</text><text x="146" y="59" text-anchor="middle">140.3</text><text x="210" y="20" text-anchor="middle">210.0</text><text x="274" y="131" text-anchor="middle">16.5</text>
+          <text x="42" y="12">mm</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+  <h2>6. Results: controlled 13-cell comparison</h2>
+  <table>
+    <tr><th>Metric</th><th>AgWise PRCP</th><th>IWMI synthetic PRCP</th><th>Change</th></tr>
+    <tr><td>Recommended date</td><td>30 Nov 2025</td><td>30 Nov 2025</td><td>Unchanged</td></tr>
+    <tr><td>Cultivar</td><td>Short</td><td>Short</td><td>Unchanged</td></tr>
+    <tr><td>Median HWAH</td><td>2,996 kg/ha</td><td>2,973 kg/ha</td><td>-23 (-0.77%)</td></tr>
+    <tr><td>Simulations</td><td>13</td><td>13</td><td>Matched</td></tr>
+  </table>
+  <div class="chart">
+    <svg viewBox="0 0 700 155" role="img" aria-label="Median yield comparison">
+      <g font-family="Segoe UI,Arial" font-size="13" fill="#53646b">
+        <text x="10" y="28">Median HWAH yield (kg/ha)</text>
+        <rect x="175" y="48" width="410" height="30" rx="4" fill="#0b9aa5"/><rect x="175" y="98" width="407" height="30" rx="4" fill="#e3a52b"/>
+        <text x="160" y="69" text-anchor="end">AgWise PRCP</text><text x="160" y="119" text-anchor="end">IWMI synthetic</text>
+        <text x="595" y="69">2,996</text><text x="592" y="119">2,973</text>
+      </g>
+    </svg>
+  </div>
+  <p class="small">The stable recommendation shows that the interim rainfall
+  substitution changed yield slightly but did not change the planting-date or
+  cultivar decision in this case.</p>
+  <div class="footer"><span>Evidence: DSSAT summaries and IWMI metadata</span><span>2 / 3</span></div>
+</section>
+
+<section class="page">
+  <div class="kicker">Interpretation and handover</div>
+  <h2>7. Spatial comparison and interpretation</h2>
+  <p>The earlier broad run used 62 cells and reported 2,976 kg/ha with a
+  2,025–3,132 kg/ha spatial range. The current localized result used 13 cells
+  and reported 2,973 kg/ha with a 2,895–3,065 kg/ha range.</p>
+  <table>
+    <tr><th>Run</th><th>Cells</th><th>Median</th><th>P10–P90 range</th><th>Meaning</th></tr>
+    <tr><td>Original broad run</td><td>62</td><td>2,976 kg/ha</td><td>2,025–3,132</td><td>Broader spatial heterogeneity</td></tr>
+    <tr><td>Current controlled run</td><td>13</td><td>2,973 kg/ha</td><td>2,895–3,065</td><td>Localized Chókwè subset</td></tr>
+  </table>
+  <div class="callout"><b>Key control:</b> the 62-cell and 13-cell results must
+  not be treated as a rainfall-only comparison. The valid rainfall sensitivity
+  result is the matched 13-cell comparison on page 2. Percentiles describe
+  spatial variation, not year-to-year weather risk.</div>
+  <h2>8. Deliverables</h2>
+  <div class="two">
+    <div>
+      <ul>
+        <li>Reproducible Chókwè YAML use case and Windows-safe execution.</li>
+        <li>DSSAT handoff with optional PRCP override and checkpoints.</li>
+        <li>Normalized advisory schema and Chókwè example.</li>
+        <li>IWMI STAC/context adapter with provenance and warnings.</li>
+      </ul>
+    </div>
+    <div>
+      <ul>
+        <li>Monthly IWMI exporter and 2001–09/2026 source.</li>
+        <li>Target-year synthesis modes and metadata sidecars.</li>
+        <li>Comparison workflow and integration tests.</li>
+        <li>Setup, Makefile, and scientific-limitations documentation.</li>
+      </ul>
+    </div>
+  </div>
+  <h2>9. Limitations</h2>
+  <ul>
+    <li>Synthetic rainfall does not recover observed wet-day timing, storm
+    persistence, extremes, spatial variation, or rainfall–temperature
+    dependence.</li>
+    <li>The advisory represents one season, one generic soil setup, and limited
+    cultivar coverage.</li>
+    <li>The IWMI station identifier returned by the API differs from the
+    requested identifier and requires provider confirmation.</li>
+    <li>No operational claim should be made until daily observations and
+    multi-season validation are available.</li>
+  </ul>
+  <h2>10. Recommended handover plan</h2>
+  <ol>
+    <li>Obtain IWMI daily observations with units, timestamps, coordinates,
+    quality flags, and missing-value rules.</li>
+    <li>Compare them with the AgWise reference over the common historical
+    period, ideally 1994–2016.</li>
+    <li>Assess bias, wet-day frequency, dry spells, extremes, and seasonal
+    totals; then integrate the validated series into AgWise.</li>
+    <li>Repeat matched-cell baseline/IWMI tests across multiple seasons before
+    operational advisory use.</li>
+  </ol>
+  <div class="preferred"><b>Conclusion.</b> The internship delivered a working,
+  transparent integration prototype. The synthetic experiment demonstrates the
+  interim interface; the preferred final solution is validated IWMI daily
+  observations integrated into AgWise.</div>
+  <p class="small">Repository evidence: <code>integration/</code>,
+  <code>main/Forecast/</code>, Chókwè DSSAT summaries, and the IWMI monthly
+  export metadata.</p>
+  <div class="footer"><span>AgWise–DSSAT–IWMI internship report</span><span>3 / 3</span></div>
+</section>
+</body>
+</html>

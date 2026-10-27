@@ -15,13 +15,12 @@ exposing ranked planting-date and cultivar results in an advisory payload, and
 testing how IWMI rainfall information could complement or eventually improve
 the precipitation input.
 
-The final operational direction is the integration of **validated IWMI daily
-observations into the AgWise observation/reference layer**. That approach is
-not yet complete because IWMI daily observations and their metadata have not
-yet been supplied. An interim experiment was therefore implemented using IWMI
-monthly analysis totals and reproducible synthetic daily disaggregation. The
-synthetic series is clearly labelled as experimental and is not presented as
-observed daily weather.
+The final operational direction is an **IWMI-supported, scenario-based DSSAT
+workflow**. The requested IWMI daily observations will replace the temporary
+synthetic rainfall input when available. An interim experiment was therefore
+implemented using IWMI monthly analysis totals and reproducible synthetic daily
+disaggregation. The synthetic series is clearly labelled as temporary and is
+not presented as observed daily weather.
 
 ## 2. Objectives and implemented workflow
 
@@ -37,18 +36,7 @@ The work aimed to:
 5. Test an IWMI rainfall sensitivity experiment and document the path toward
    daily-observation integration.
 
-```mermaid
-flowchart LR
-  A[ECMWF forecast + hindcast] --> B[AgWise bias correction]
-  R[Reference observations] --> B
-  B --> C[DSSAT weather/soil handoff]
-  C --> D[DSSAT simulations]
-  D --> E[Ranked advisory]
-  I[IWMI water context] --> E
-  M[IWMI monthly analysis] --> S[Synthetic daily rainfall<br/>interim experiment]
-  S -. PRCP override only .-> C
-  O[Future IWMI daily observations] -. reference/validation layer .-> B
-```
+![AgWise–DSSAT–IWMI integration workflow](./agwise_iwmi_workflow.svg)
 
 The Chókwè configuration uses a four-month season (`2025-11-01` to
 `2026-02-28`), one-month forecast lead, maize cultivar ID `900111`, and the
@@ -92,13 +80,15 @@ the IWMI analysis. For the 2025/26 season, no climatology fallback was needed.
 | Approach | Purpose | Status | Interpretation |
 |---|---|---|---|
 | **1. IWMI contextual advisory** | Add rainfall anomaly, ET, irrigation probability, and water-stress context | Implemented | Context is displayed and qualified; it does not rerank DSSAT treatments |
-| **2. Monthly-to-daily synthetic PRCP** | Test DSSAT sensitivity to IWMI monthly rainfall totals | Implemented as interim experiment | Synthetic daily rainfall replaces PRCP only; it is not observed daily weather |
-| **3. IWMI daily observations in AgWise** | Add validated daily observations to the AgWise reference/validation layer and support operational calibration | **Main target approach; pending IWMI delivery** | Preferred because it preserves observed daily timing and enables defensible validation/bias correction |
+| **2. Temporary synthetic PRCP** | Keep the scenario workflow testable while IWMI daily observations are unavailable | Implemented as a temporary bridge | Synthetic daily rainfall replaces PRCP only; it will be replaced by IWMI daily observations |
+| **3. IWMI-supported DSSAT scenarios** | Run DSSAT scenarios using validated IWMI daily rainfall and compare them with the AgWise baseline | **Main target approach; pending IWMI delivery** | Approaches 2 and 3 use the same scenario interface; only the rainfall source changes |
 
-Approach 3 is the main scientific and operational objective. Approach 2 is a
-temporary bridge that demonstrates the interface and allows controlled testing
-while IWMI daily observations, units, timestamps, spatial representation, and
-quality metadata are being confirmed.
+Approaches 2 and 3 use the same DSSAT scenario interface. Approach 2 uses
+synthetic daily rainfall only because the required IWMI daily observations are
+not yet available. Approach 3 is the intended version of that same scenario
+workflow: replace the temporary synthetic series with provider-confirmed IWMI
+daily observations and compare the resulting DSSAT scenarios with the AgWise
+baseline.
 
 ## 5. Results
 
@@ -154,14 +144,13 @@ station mismatch and product metadata must be resolved before operational use.
    timestamps, coordinates/grid, quality flags, and missing-value rules.
 2. Compare IWMI daily observations with the AgWise reference for the common
    historical period (ideally 1994–2016).
-3. Evaluate bias, wet-day frequency, dry spells, extremes, and seasonal totals.
-4. Add the validated daily series to the AgWise observation/reference layer and
-   rerun calibration and verification.
-5. Repeat baseline-versus-IWMI comparisons using the same DSSAT cells,
+3. Evaluate bias, wet-day frequency, dry spells, extremes, and seasonal totals;
+   then replace the temporary synthetic scenario input.
+4. Repeat baseline-versus-IWMI scenario comparisons using the same DSSAT cells,
    soils, cultivars, forecast period, and model settings.
 6. Only after multi-season validation consider operational advisory use.
 
 **Conclusion:** the internship delivered a working and transparent integration
-prototype. The synthetic monthly-to-daily experiment demonstrates the interim
-interface, but the preferred final solution is validated IWMI daily-observation
-integration into AgWise.
+prototype. The synthetic monthly-to-daily experiment is temporary; the
+preferred final solution is an IWMI-supported DSSAT scenario workflow using
+validated daily rainfall alongside the AgWise baseline.

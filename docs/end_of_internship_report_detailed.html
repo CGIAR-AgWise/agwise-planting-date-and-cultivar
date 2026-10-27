@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.26">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>end_of_internship_report_detailed</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="end_of_internship_report_detailed_files/libs/clipboard/clipboard.min.js"></script>
+<script src="end_of_internship_report_detailed_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="end_of_internship_report_detailed_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="end_of_internship_report_detailed_files/libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="end_of_internship_report_detailed_files/libs/quarto-html/popper.min.js"></script>
+<script src="end_of_internship_report_detailed_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="end_of_internship_report_detailed_files/libs/quarto-html/anchor.min.js"></script>
+<link href="end_of_internship_report_detailed_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="end_of_internship_report_detailed_files/libs/quarto-html/quarto-syntax-highlighting-587c61ba64f3a5504c4d52d930310e48.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="end_of_internship_report_detailed_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="end_of_internship_report_detailed_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="end_of_internship_report_detailed_files/libs/bootstrap/bootstrap-9e3ffae467580fdb927a41352e75a2e0.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="fullcontent quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+
+<main class="content" id="quarto-document-content">
+
+
+
+
+<section id="end-of-internship-report-detailed-integration-methods" class="level1">
+<h1>End-of-Internship Report — Detailed Integration Methods</h1>
+<section id="agwisedssatiwmi-integration-for-maize-advisory-development-in-chókwè-mozambique" class="level2">
+<h2 class="anchored" data-anchor-id="agwisedssatiwmi-integration-for-maize-advisory-development-in-chókwè-mozambique">AgWise–DSSAT–IWMI integration for maize advisory development in Chókwè, Mozambique</h2>
+<p><strong>Project period:</strong> 2026<br>
+<strong>Case study:</strong> Chókwè, Mozambique | Maize | 2025/26 season</p>
+</section>
+<section id="introduction" class="level2">
+<h2 class="anchored" data-anchor-id="introduction">1. Introduction</h2>
+<p>This report expands the original end-of-internship report by documenting the methodology and evidence for the three IWMI integration approaches developed during the internship:</p>
+<ol type="1">
+<li>IWMI water-context integration in the advisory layer.</li>
+<li>A temporary synthetic rainfall experiment using IWMI monthly analysis totals.</li>
+<li>The preferred operational approach: IWMI-supported, scenario-based DSSAT integration using daily observations when available.</li>
+</ol>
+<p>The normal AgWise–DSSAT workflow remains the foundation. AgWise provides the seasonal forecast, bias correction, and DSSAT weather preparation; DSSAT simulates planting-date and cultivar treatments; the advisory layer ranks and explains the results. IWMI information is added through explicitly labelled interfaces so contextual products are not mistaken for target-season weather inputs.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="./agwise_iwmi_workflow.svg" class="img-fluid figure-img"></p>
+<figcaption>AgWise–DSSAT–IWMI integration workflow</figcaption>
+</figure>
+</div>
+</section>
+<section id="shared-workflow-and-study-design" class="level2">
+<h2 class="anchored" data-anchor-id="shared-workflow-and-study-design">2. Shared workflow and study design</h2>
+<p>The Chókwè use case covers <code>2025-11-01</code> to <code>2026-02-28</code>, uses a one-month forecast lead, maize cultivar ID <code>900111</code>, and the manual extent <code>-23.5, 32.5, -25.5, 33.5</code> in <code>[N,W,S,E]</code> order. The shared DSSAT variables are daily <code>PRCP</code>, <code>TMAX</code>, <code>TMIN</code>, and <code>SRAD</code>.</p>
+<p>AgWise bias correction uses historical reference observations and model hindcasts to learn systematic forecast errors, then applies the correction to the new forecast. Corrected AgWise temperature and solar-radiation fields remain in the DSSAT handoff for the interim rainfall experiment. When enabled, the rainfall override changes only <code>PRCP</code>/DSSAT <code>RAIN</code> on overlapping dates.</p>
+<p>To keep results interpretable, comparisons must hold the following constant: forecast period, DSSAT executable, soil inputs, cultivar options, grid-cell set, forecast files, and model settings. The original broad run used 62 cells; the controlled current comparison used the same localized 13-cell set for both rainfall scenarios.</p>
+</section>
+<section id="methodology" class="level2">
+<h2 class="anchored" data-anchor-id="methodology">3. Methodology</h2>
+<section id="approach-1-iwmi-water-context-in-the-advisory-layer" class="level3">
+<h3 class="anchored" data-anchor-id="approach-1-iwmi-water-context-in-the-advisory-layer">3.1 Approach 1 — IWMI water context in the advisory layer</h3>
+<p><strong>Purpose.</strong> Add water-related information without changing the DSSAT simulation or silently altering the recommendation.</p>
+<p><strong>Inputs and processing.</strong> The IWMI adapter discovers STAC items, records the collection and asset provenance, samples the nearest raster cell when requested, applies scale and offset metadata, and preserves both decoded and raw values. The advisory separates temporal roles:</p>
+<ul>
+<li>Historical rainfall anomaly: contextual reference, not a current-season observation or forecast.</li>
+<li>ET fraction: displayed with the product-definition warning because linked metadata conflict for that collection.</li>
+<li>Irrigation probability: reported as a probability, not a binary irrigated classification.</li>
+<li>Evaporative stress: reported as a unitless index with provisional project bands; these are not an IWMI product legend.</li>
+</ul>
+<p>The normalized payload records source URLs, period, temporal role, coordinates, unit, scale, offset, and sampling method. Context values are displayed beside the DSSAT result and do not enter the treatment-ranking function.</p>
+</section>
+<section id="approach-2-synthetic-daily-rainfall-from-monthly-iwmi-analysis" class="level3">
+<h3 class="anchored" data-anchor-id="approach-2-synthetic-daily-rainfall-from-monthly-iwmi-analysis">3.2 Approach 2 — Synthetic daily rainfall from monthly IWMI analysis</h3>
+<p><strong>Purpose.</strong> Test the response of DSSAT to IWMI monthly rainfall totals while daily IWMI observations are unavailable.</p>
+<p>The Digital Twins <code>/chatbot/rainfall_analyses</code> export supplied 309 monthly values from 2001-01 through 2026-09. It is not a daily observational dataset: the metadata records <code>daily_observations: false</code>. The existing 2001–2016 values match all 192 overlapping months in the new export.</p>
+<p>For each month with target total (M) and (D) days:</p>
+<ol type="1">
+<li>Select the exact target-year <code>YYYY-MM</code> total when available.</li>
+<li>Set the number of wet days to (K=(1,(Df))), with (f=0.25) by default.</li>
+<li>Select (K) days reproducibly without replacement.</li>
+<li>Draw event weights (w_i(1.5,1.0)).</li>
+<li>Allocate rainfall using [ R_i=M. ]</li>
+</ol>
+<p>Dry days receive zero; the wet-day values sum to the monthly target, subject to output rounding. For 2025/26 the selected totals were 139.50, 140.35, 209.99, and 16.47 mm for November through February, with no climatology fallback. The resulting daily sequence is synthetic and is replicated across DSSAT forecast points. It does not reconstruct observed storm timing, persistence, extremes, spatial variation, or rainfall–temperature dependence.</p>
+<p>The synthetic file is passed as <code>IWMI_PRCP_CSV</code>. At the DSSAT handoff, synthetic rainfall replaces AgWise PRCP only on covered dates; AgWise <code>TMAX</code>, <code>TMIN</code>, and <code>SRAD</code> remain in use. The synthetic series is not sent through AgWise bias correction because exact IWMI monthly totals are the experimental target.</p>
+</section>
+<section id="approach-3-validated-iwmi-daily-observations-in-agwise" class="level3">
+<h3 class="anchored" data-anchor-id="approach-3-iwmi-supported-dssat-scenarios">3.3 Approach 3 — IWMI-supported DSSAT scenarios</h3>
+<p><strong>Purpose.</strong> Run DSSAT scenarios with provider-confirmed IWMI daily rainfall alongside the AgWise baseline. Approaches 2 and 3 use the same scenario interface; Approach 2 is temporary because daily observations are unavailable.</p>
+<p>This approach requires a provider-confirmed daily series with date/time convention, units, coordinates or grid definition, quality flags, missing-value rules, station/channel identity, and a documented historical overlap. The recommended sequence is:</p>
+<ol type="1">
+<li>Obtain daily observations for Chókwè and the longest common period, ideally 1994–2016.</li>
+<li>Validate units, timestamps, completeness, duplicates, missing values, and station location.</li>
+<li>Compare IWMI with the existing AgWise reference using monthly totals, wet-day frequency, dry-spell length, extremes, seasonal totals, bias, and correlation.</li>
+<li>Replace the temporary synthetic scenario input with the validated daily series.</li>
+<li>Compare rainfall totals, yields, rankings, and spatial results using matched cells and identical DSSAT settings.</li>
+<li>Repeat multi-season DSSAT and advisory comparisons before operational use.</li>
+</ol>
+<p>This approach is not yet runnable as an operational result because IWMI daily observations and complete metadata are still pending. The monthly analysis export is only a temporary input and cannot substitute for daily observations.</p>
+</section>
+</section>
+<section id="results-by-integration-approach" class="level2">
+<h2 class="anchored" data-anchor-id="results-by-integration-approach">4. Results by integration approach</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Approach</th>
+<th>What was measured</th>
+<th>Result</th>
+<th>Readiness</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1. Advisory context</td>
+<td>Availability, provenance, units, periods, and display of four IWMI layers</td>
+<td>Rainfall anomaly -12.91%; ET fraction 0.60%; irrigation probability 0.036; stress index 0.50; no DSSAT reranking</td>
+<td>Implemented as qualified context</td>
+</tr>
+<tr class="even">
+<td>2. Temporary synthetic PRCP</td>
+<td>Matched DSSAT treatment summary using 13 cells</td>
+<td>Recommendation remained 30 Nov 2025, Short; median yield changed 2,996 → 2,973 kg/ha (-23 kg/ha; -0.77%)</td>
+<td>Temporary bridge</td>
+</tr>
+<tr class="odd">
+<td>3. IWMI-supported scenarios</td>
+<td>Scenario comparison using provider-confirmed daily observations</td>
+<td>Pending IWMI daily data; same DSSAT scenario interface will be reused</td>
+<td>Main target</td>
+</tr>
+</tbody>
+</table>
+<section id="approach-1-result" class="level3">
+<h3 class="anchored" data-anchor-id="approach-1-result">4.1 Approach 1 result</h3>
+<p>The advisory successfully carried contextual IWMI values with source, sampling, temporal-role, and limitation metadata. The historical rainfall anomaly was not interpreted as a 2025/26 forecast. The context was therefore useful for interpretation, but it did not alter the DSSAT ranking.</p>
+</section>
+<section id="approach-2-result" class="level3">
+<h3 class="anchored" data-anchor-id="approach-2-result">4.2 Approach 2 result</h3>
+<p>The controlled 13-cell comparison produced:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Metric</th>
+<th style="text-align: right;">AgWise PRCP baseline</th>
+<th style="text-align: right;">IWMI synthetic PRCP</th>
+<th style="text-align: right;">Difference</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Recommended date</td>
+<td style="text-align: right;">30 Nov 2025</td>
+<td style="text-align: right;">30 Nov 2025</td>
+<td style="text-align: right;">Unchanged</td>
+</tr>
+<tr class="even">
+<td>Cultivar</td>
+<td style="text-align: right;">Short</td>
+<td style="text-align: right;">Short</td>
+<td style="text-align: right;">Unchanged</td>
+</tr>
+<tr class="odd">
+<td>Median HWAH</td>
+<td style="text-align: right;">2,996 kg/ha</td>
+<td style="text-align: right;">2,973 kg/ha</td>
+<td style="text-align: right;">-23 (-0.77%)</td>
+</tr>
+<tr class="even">
+<td>Number of simulations</td>
+<td style="text-align: right;">13</td>
+<td style="text-align: right;">13</td>
+<td style="text-align: right;">Matched</td>
+</tr>
+</tbody>
+</table>
+<p>The original broad 62-cell run reported 2,976 kg/ha and a 2,025–3,132 kg/ha spatial P10–P90 range. The current 13-cell run reported 2,973 kg/ha and a 2,895–3,065 kg/ha range. These broad and localized results are not a rainfall-only comparison because their spatial populations differ.</p>
+</section>
+<section id="approach-3-result-status" class="level3">
+<h3 class="anchored" data-anchor-id="approach-3-result-status">4.3 Approach 3 result status</h3>
+<p>There is no daily-observation scenario result yet. The completed result is a documented scenario design: once IWMI supplies a confirmed daily series, the temporary synthetic file can be replaced without changing the DSSAT scenario interface, advisory contract, or ranking logic.</p>
+</section>
+</section>
+<section id="conclusions-and-handover" class="level2">
+<h2 class="anchored" data-anchor-id="conclusions-and-handover">5. Conclusions and handover</h2>
+<p>All three integration surfaces are now defined. Approach 1 demonstrates safe contextual advisory enrichment. Approach 2 demonstrates the temporary rainfall-scenario interface while daily data are unavailable. Approach 3 is the main operational objective: use IWMI daily rainfall to support scenario-based DSSAT comparison with the AgWise baseline.</p>
+<p>The interim synthetic result is encouraging because the recommendation was stable, but it is not evidence that synthetic rainfall is equivalent to daily observations. The next milestone is to obtain and validate IWMI daily data, resolve the returned station-identifier mismatch, replace the temporary synthetic scenario input, and repeat the comparison over multiple seasons using identical DSSAT cells and inputs.</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

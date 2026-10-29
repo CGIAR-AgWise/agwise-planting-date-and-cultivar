@@ -39,9 +39,10 @@ IWMI context  ───┘
 The current example is **not an agronomic recommendation**. It uses one point,
 one regional cultivar, a generic soil profile, and one forecast season.
 
-## Synthetic rainfall experiment
+## Preferred IWMI rainfall integration
 
-[`synthetic_rainfall/`](./synthetic_rainfall/) contains an isolated experiment
+[`synthetic_rainfall/`](./synthetic_rainfall/) contains the workflow-proving
+stage of the preferred rainfall integration
 that uses IWMI monthly rainfall analysis to generate a synthetic daily rainfall
 series for the current four-month Chókwè use-case window,
 `2025-11-01` through `2026-02-28`. It can replace only the AgWise `PRCP` or
@@ -55,7 +56,7 @@ and random seed.
 
 ## Comparing AgWise PRCP with the IWMI rainfall override
 
-The IWMI integration is an experiment, so compare it against a baseline run
+The preferred IWMI integration should be compared against a baseline run
 that uses the normal AgWise bias-corrected `PRCP`. Keep the same use case,
 season, DSSAT executable, forecast files, and number of cores in both runs.
 Only the rainfall source should change.

@@ -60,8 +60,8 @@ ul.task-list li input[type="checkbox"] {
 <p>This report expands the original end-of-internship report by documenting the methodology and evidence for the three IWMI integration approaches developed during the internship:</p>
 <ol type="1">
 <li>IWMI water-context integration in the advisory layer.</li>
-<li>A temporary synthetic rainfall experiment using IWMI monthly analysis totals.</li>
-<li>The preferred operational approach: IWMI-supported, scenario-based DSSAT integration using daily observations when available.</li>
+<li>IWMI rainfall integration: synthetic daily rainfall first proves the workflow, then IWMI daily rainfall is plugged into the same path for accurate values.</li>
+<li>Scenario-based DSSAT integration, using IWMI insights and water context to weight and rank management scenarios.</li>
 </ol>
 <p>The normal AgWise–DSSAT workflow remains the foundation. AgWise provides the seasonal forecast, bias correction, and DSSAT weather preparation; DSSAT simulates planting-date and cultivar treatments; the advisory layer ranks and explains the results. IWMI information is added through explicitly labelled interfaces so contextual products are not mistaken for target-season weather inputs.</p>
 <div class="quarto-figure quarto-figure-center">
@@ -91,9 +91,9 @@ ul.task-list li input[type="checkbox"] {
 </ul>
 <p>The normalized payload records source URLs, period, temporal role, coordinates, unit, scale, offset, and sampling method. Context values are displayed beside the DSSAT result and do not enter the treatment-ranking function.</p>
 </section>
-<section id="approach-2-synthetic-daily-rainfall-from-monthly-iwmi-analysis" class="level3">
-<h3 class="anchored" data-anchor-id="approach-2-synthetic-daily-rainfall-from-monthly-iwmi-analysis">3.2 Approach 2 — Synthetic daily rainfall from monthly IWMI analysis</h3>
-<p><strong>Purpose.</strong> Test the response of DSSAT to IWMI monthly rainfall totals while daily IWMI observations are unavailable.</p>
+<section id="approach-2-iwmi-rainfall-integration" class="level3">
+<h3 class="anchored" data-anchor-id="approach-2-iwmi-rainfall-integration">3.2 Approach 2 — Preferred IWMI rainfall integration</h3>
+<p><strong>Purpose.</strong> Prove and then operationalize the IWMI rainfall input path in the DSSAT weather workflow. Synthetic daily rainfall first demonstrates that the workflow is executable; once IWMI provides daily rainfall, those observations replace the synthetic series in the same path for accurate values.</p>
 <p>The Digital Twins <code>/chatbot/rainfall_analyses</code> export supplied 309 monthly values from 2001-01 through 2026-09. It is not a daily observational dataset: the metadata records <code>daily_observations: false</code>. The existing 2001–2016 values match all 192 overlapping months in the new export.</p>
 <p>For each month with target total (M) and (D) days:</p>
 <ol type="1">
@@ -104,21 +104,20 @@ ul.task-list li input[type="checkbox"] {
 <li>Allocate rainfall using [ R_i=M. ]</li>
 </ol>
 <p>Dry days receive zero; the wet-day values sum to the monthly target, subject to output rounding. For 2025/26 the selected totals were 139.50, 140.35, 209.99, and 16.47 mm for November through February, with no climatology fallback. The resulting daily sequence is synthetic and is replicated across DSSAT forecast points. It does not reconstruct observed storm timing, persistence, extremes, spatial variation, or rainfall–temperature dependence.</p>
-<p>The synthetic file is passed as <code>IWMI_PRCP_CSV</code>. At the DSSAT handoff, synthetic rainfall replaces AgWise PRCP only on covered dates; AgWise <code>TMAX</code>, <code>TMIN</code>, and <code>SRAD</code> remain in use. The synthetic series is not sent through AgWise bias correction because exact IWMI monthly totals are the experimental target.</p>
+<p>The synthetic file is passed as <code>IWMI_PRCP_CSV</code>. At the DSSAT handoff, synthetic rainfall replaces AgWise PRCP only on covered dates; AgWise <code>TMAX</code>, <code>TMIN</code>, and <code>SRAD</code> remain in use. The synthetic series is not sent through AgWise bias correction because exact IWMI monthly totals are the workflow-proving target.</p>
 </section>
 <section id="approach-3-validated-iwmi-daily-observations-in-agwise" class="level3">
-<h3 class="anchored" data-anchor-id="approach-3-iwmi-supported-dssat-scenarios">3.3 Approach 3 — IWMI-supported DSSAT scenarios</h3>
-<p><strong>Purpose.</strong> Run DSSAT scenarios with provider-confirmed IWMI daily rainfall alongside the AgWise baseline. Approaches 2 and 3 use the same scenario interface; Approach 2 is temporary because daily observations are unavailable.</p>
-<p>This approach requires a provider-confirmed daily series with date/time convention, units, coordinates or grid definition, quality flags, missing-value rules, station/channel identity, and a documented historical overlap. The recommended sequence is:</p>
+<h3 class="anchored" data-anchor-id="approach-3-scenario-based-dssat-integration">3.3 Approach 3 — Scenario-based DSSAT integration</h3>
+<p><strong>Purpose.</strong> Run DSSAT under explicit management scenarios and use IWMI insights, water context, and data products to weight and rank those scenarios. This is distinct from Approach 2, which verifies the rainfall input path.</p>
+<p>The recommended sequence is:</p>
 <ol type="1">
-<li>Obtain daily observations for Chókwè and the longest common period, ideally 1994–2016.</li>
-<li>Validate units, timestamps, completeness, duplicates, missing values, and station location.</li>
-<li>Compare IWMI with the existing AgWise reference using monthly totals, wet-day frequency, dry-spell length, extremes, seasonal totals, bias, and correlation.</li>
-<li>Replace the temporary synthetic scenario input with the validated daily series.</li>
-<li>Compare rainfall totals, yields, rankings, and spatial results using matched cells and identical DSSAT settings.</li>
+<li>Define valid rainfed, supplemental-irrigation, and irrigated DSSAT management variants.</li>
+<li>Collect IWMI STAC/API evidence, including rainfall context, ET, irrigation probability, evaporative stress, and water access.</li>
+<li>Weight scenarios using feasibility, cost, risk, and yield criteria.</li>
+<li>Rank the scenarios and expose the preferred and conditional alternatives in the advisory.</li>
 <li>Repeat multi-season DSSAT and advisory comparisons before operational use.</li>
 </ol>
-<p>This approach is not yet runnable as an operational result because IWMI daily observations and complete metadata are still pending. The monthly analysis export is only a temporary input and cannot substitute for daily observations.</p>
+<p>Approach 2 is the preferred integration direction. Approach 3 is a separate future decision-support extension that can use the completed Approach 2 rainfall workflow while broader IWMI water context helps determine which management scenario is feasible and preferred.</p>
 </section>
 </section>
 <section id="results-by-integration-approach" class="level2">
@@ -146,16 +145,16 @@ ul.task-list li input[type="checkbox"] {
 <td>Implemented as qualified context</td>
 </tr>
 <tr class="even">
-<td>2. Temporary synthetic PRCP</td>
+<td>2. IWMI rainfall integration</td>
 <td>Matched DSSAT treatment summary using 13 cells</td>
 <td>Recommendation remained 30 Nov 2025, Short; median yield changed 2,996 → 2,973 kg/ha (-23 kg/ha; -0.77%)</td>
-<td>Temporary bridge</td>
+<td>Synthetic-data workflow proof complete; daily-data stage pending</td>
 </tr>
 <tr class="odd">
-<td>3. IWMI-supported scenarios</td>
-<td>Scenario comparison using provider-confirmed daily observations</td>
-<td>Pending IWMI daily data; same DSSAT scenario interface will be reused</td>
-<td>Main target</td>
+<td>3. Scenario-based DSSAT integration</td>
+<td>Weighted and ranked management scenarios using IWMI water evidence</td>
+<td>Scenario-ranking results pending full scenario execution and validated inputs</td>
+<td>Separate future extension</td>
 </tr>
 </tbody>
 </table>
@@ -206,12 +205,12 @@ ul.task-list li input[type="checkbox"] {
 </section>
 <section id="approach-3-result-status" class="level3">
 <h3 class="anchored" data-anchor-id="approach-3-result-status">4.3 Approach 3 result status</h3>
-<p>There is no daily-observation scenario result yet. The completed result is a documented scenario design: once IWMI supplies a confirmed daily series, the temporary synthetic file can be replaced without changing the DSSAT scenario interface, advisory contract, or ranking logic.</p>
+<p>There is no fully executed scenario-ranking result yet. The rainfall input workflow has been proven with synthetic data; IWMI daily rainfall will later replace that input without changing the DSSAT scenario interface or advisory contract. The remaining work is to execute and validate the weighted scenario ranking.</p>
 </section>
 </section>
 <section id="conclusions-and-handover" class="level2">
 <h2 class="anchored" data-anchor-id="conclusions-and-handover">5. Conclusions and handover</h2>
-<p>All three integration surfaces are now defined. Approach 1 demonstrates safe contextual advisory enrichment. Approach 2 demonstrates the temporary rainfall-scenario interface while daily data are unavailable. Approach 3 is the main operational objective: use IWMI daily rainfall to support scenario-based DSSAT comparison with the AgWise baseline.</p>
+<p>All three integration surfaces are now defined. Approach 1 demonstrates safe contextual advisory enrichment. Approach 2 proves the IWMI rainfall input path with synthetic data and will later use IWMI daily rainfall. Approach 3 is the separate scenario-based DSSAT layer that weights and ranks management alternatives using IWMI insights and water context.</p>
 <p>The interim synthetic result is encouraging because the recommendation was stable, but it is not evidence that synthetic rainfall is equivalent to daily observations. The next milestone is to obtain and validate IWMI daily data, resolve the returned station-identifier mismatch, replace the temporary synthetic scenario input, and repeat the comparison over multiple seasons using identical DSSAT cells and inputs.</p>
 </section>
 </section>

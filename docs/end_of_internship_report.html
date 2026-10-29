@@ -57,7 +57,7 @@ ul.task-list li input[type="checkbox"] {
 <section id="introduction" class="level2">
 <h2 class="anchored" data-anchor-id="introduction">1. Introduction</h2>
 <p>This internship developed and documented an integration between the AgWise seasonal climate-forecast pipeline, the DSSAT crop model, and IWMI water-context products for a maize advisory in Chókwè, Mozambique. The work addressed three practical needs: making the forecast-to-DSSAT workflow reproducible on Windows, exposing ranked planting-date and cultivar results in an advisory payload, and testing how IWMI rainfall information could complement or eventually improve the precipitation input.</p>
-<p>The final operational direction is an <strong>IWMI-supported, scenario-based DSSAT workflow</strong>. IWMI daily observations will replace the temporary synthetic rainfall input when available. An interim experiment was therefore implemented using IWMI monthly analysis totals and reproducible synthetic daily disaggregation. The synthetic series is clearly labelled as temporary and is not presented as observed daily weather.</p>
+<p><strong>Approach 2 is the preferred integration.</strong> It uses synthetic daily rainfall generated from IWMI monthly analysis totals while daily IWMI rainfall is unavailable. When daily data arrive, they will replace the synthetic series in the same workflow to produce accurate values. Approach 3 is a separate scenario-based DSSAT extension that uses IWMI ET, irrigation probability, evaporative-stress information, and water-access evidence to weight and rank management scenarios.</p>
 </section>
 <section id="objectives-and-implemented-workflow" class="level2">
 <h2 class="anchored" data-anchor-id="objectives-and-implemented-workflow">2. Objectives and implemented workflow</h2>
@@ -117,20 +117,20 @@ ul.task-list li input[type="checkbox"] {
 <td>Context is displayed and qualified; it does not rerank DSSAT treatments</td>
 </tr>
 <tr class="even">
-<td><strong>2. Monthly-to-daily synthetic PRCP</strong></td>
-<td>Test DSSAT sensitivity to IWMI monthly rainfall totals</td>
-<td>Implemented as interim experiment</td>
-<td>Synthetic daily rainfall replaces PRCP only; it is not observed daily weather</td>
+<td><strong>2. Preferred IWMI rainfall integration</strong></td>
+<td>Prove the DSSAT rainfall input path with synthetic daily rainfall, then replace it with IWMI daily rainfall</td>
+<td>Implemented synthetic-data stage; daily-data stage pending</td>
+<td>Preferred approach; daily data improve accuracy without changing the workflow</td>
 </tr>
 <tr class="odd">
-<td><strong>3. IWMI-supported DSSAT scenarios</strong></td>
-<td>Add validated daily observations to the AgWise reference/validation layer and support operational calibration</td>
-<td><strong>Main target approach; pending IWMI delivery</strong></td>
-<td>Preferred because it preserves observed daily timing and enables defensible validation/bias correction</td>
+<td><strong>3. Scenario-based DSSAT integration</strong></td>
+<td>Run management scenarios and weight/rank them using IWMI insights and water context</td>
+<td><strong>Scenario-ranking execution pending</strong></td>
+<td>Separate future decision-support extension built on the rainfall workflow</td>
 </tr>
 </tbody>
 </table>
-<p>Approaches 2 and 3 use the same DSSAT scenario interface. Approach 2 is temporary because IWMI daily observations are unavailable; Approach 3 replaces the synthetic rainfall input with provider-confirmed daily observations and compares the IWMI-supported scenario with the AgWise baseline.</p>
+<p>Approach 2 is the preferred rainfall integration: synthetic daily rainfall proves the workflow now, and provider-confirmed IWMI daily rainfall will replace it later in the same path. Approach 3 is separate: DSSAT management scenarios are weighted and ranked using IWMI insights and water context.</p>
 </section>
 <section id="results" class="level2">
 <h2 class="anchored" data-anchor-id="results">5. Results</h2>
@@ -204,7 +204,7 @@ IWMI synthetic    ████████████████████�
 <li>Repeat baseline-versus-IWMI scenario comparisons using the same DSSAT cells, soils, cultivars, forecast period, and model settings.</li>
 <li>Only after multi-season validation consider operational advisory use.</li>
 </ol>
-<p><strong>Conclusion:</strong> the internship delivered a working and transparent integration prototype. The synthetic monthly-to-daily experiment is temporary; the preferred final solution is an IWMI-supported DSSAT scenario workflow using validated daily rainfall alongside the AgWise baseline.</p>
+<p><strong>Conclusion:</strong> the internship delivered a working and transparent integration prototype. Approach 2 is the preferred solution: synthetic rainfall proves the workflow now and will later be replaced by validated IWMI daily rainfall. Approach 3 remains a separate scenario-based DSSAT extension for weighting and ranking management alternatives with IWMI water context.</p>
 </section>
 </section>
 </section>

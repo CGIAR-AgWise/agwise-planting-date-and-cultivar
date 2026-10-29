@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
   <title id="title">AgWise, DSSAT and IWMI integration workflow</title>
-  <desc id="desc">The main AgWise forecast workflow runs through bias correction, DSSAT handoff, DSSAT simulations and a ranked advisory. IWMI monthly rainfall is a temporary precipitation scenario input. IWMI water context is advisory-only. Future IWMI daily observations will support the intended DSSAT scenario workflow.</desc>
+  <desc id="desc">Approach 2 is the preferred IWMI rainfall integration. It is first proven with synthetic daily rainfall from monthly analysis totals and later uses IWMI daily rainfall in the same path. Approach 3 is a separate scenario-based DSSAT extension using IWMI evapotranspiration, irrigation probability, evaporative stress and water-access evidence to weight and rank management scenarios.</desc>
   <defs>
     <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
       <path d="M0,0 L12,6 L0,12 z" fill="#176b78"/>
@@ -70,8 +70,9 @@
   <text x="675" y="448" class="small" fill="#9a6112">PRCP override only</text>
 
   <rect x="55" y="480" width="250" height="74" class="box context"/>
-  <text x="180" y="511" class="label">IWMI water context</text>
-  <text x="180" y="536" class="small">(advisory information)</text>
+  <text x="180" y="503" class="label">IWMI scenario evidence</text>
+  <text x="180" y="526" class="small">rainfall • ET • irrigation</text>
+  <text x="180" y="547" class="small">stress • water access</text>
 
   <rect x="390" y="480" width="250" height="74" class="box context"/>
   <text x="515" y="511" class="label">Display context</text>
@@ -81,15 +82,15 @@
   <text x="682" y="505" class="small" fill="#2f8750">context only</text>
 
   <rect x="55" y="640" width="585" height="74" class="box future"/>
-  <text x="347" y="671" class="label">Future IWMI daily observations</text>
-  <text x="347" y="696" class="small">Input for IWMI-supported DSSAT scenarios</text>
+  <text x="347" y="671" class="label">Future IWMI daily rainfall</text>
+  <text x="347" y="696" class="small">replaces synthetic PRCP; architecture unchanged</text>
   <path d="M347 640 V585 H515 V424" class="green-line"/>
   <text x="535" y="604" class="small" fill="#3e73a1">future scenario input</text>
 
   <rect x="725" y="610" width="250" height="104" rx="12" fill="#f7fafb" stroke="#b9c9cd"/>
-  <text x="850" y="640" class="small">Main operational path</text>
+  <text x="850" y="640" class="small">Preferred operational path</text>
   <line x1="755" y1="665" x2="805" y2="665" stroke="#176b78" stroke-width="3" marker-end="url(#arrow)"/>
   <text x="820" y="670" class="small" text-anchor="start">AgWise + DSSAT</text>
   <line x1="755" y1="695" x2="805" y2="695" stroke="#c47b16" stroke-width="3" marker-end="url(#orange-arrow)"/>
-  <text x="820" y="700" class="small" text-anchor="start">Interim experiment</text>
+  <text x="820" y="700" class="small" text-anchor="start">Scenario extension</text>
 </svg>

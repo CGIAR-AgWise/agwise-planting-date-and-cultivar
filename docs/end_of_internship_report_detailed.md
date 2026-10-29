@@ -11,16 +11,20 @@ methodology and evidence for the three IWMI integration approaches developed
 during the internship:
 
 1. IWMI water-context integration in the advisory layer.
-2. An interim synthetic rainfall experiment using IWMI monthly analysis totals.
-3. The preferred operational approach: an IWMI-supported, scenario-based DSSAT
-   workflow that will use validated IWMI daily observations when available.
+2. The preferred IWMI rainfall integration into the DSSAT weather workflow.
+   Synthetic daily rainfall is used first to prove the workflow, then IWMI
+   daily rainfall is plugged into the same path for accurate values.
+3. Scenario-based DSSAT integration, using IWMI insights and water context to
+   weight and rank alternative management scenarios.
 
 The normal AgWise–DSSAT workflow remains the foundation. AgWise provides the
 seasonal forecast, bias correction, and DSSAT weather preparation; DSSAT
 simulates planting-date and cultivar treatments; the advisory layer ranks and
 explains the results. IWMI information is added through explicitly labelled
 interfaces so contextual products are not mistaken for target-season weather
-inputs.
+inputs. Daily rainfall can provide a weather input, while IWMI ET, irrigation
+probability, evaporative-stress information, and water-access evidence support
+scenario selection and feasibility. These roles must not be conflated.
 
 ![AgWise–DSSAT–IWMI integration workflow](./agwise_iwmi_workflow.svg)
 
@@ -68,10 +72,13 @@ The normalized payload records source URLs, period, temporal role, coordinates,
 unit, scale, offset, and sampling method. Context values are displayed beside
 the DSSAT result and do not enter the treatment-ranking function.
 
-### 3.2 Approach 2 — Synthetic daily rainfall from monthly IWMI analysis
+### 3.2 Approach 2 — IWMI rainfall integration into the DSSAT weather workflow
 
-**Purpose.** Test the response of DSSAT to IWMI monthly rainfall totals while
-daily IWMI observations are unavailable.
+**Purpose.** Prove and then operationalize the IWMI rainfall input path in the
+DSSAT weather workflow. This is one approach with two stages: synthetic daily
+rainfall is used first to demonstrate that the workflow is executable; once
+IWMI provides daily rainfall, those observations replace the synthetic series
+without changing the architecture.
 
 The Digital Twins `/chatbot/rainfall_analyses` export supplied 309 monthly
 values from 2001-01 through 2026-09. It is not a daily observational dataset:
@@ -103,46 +110,41 @@ synthetic rainfall replaces AgWise PRCP only on covered dates; AgWise
 through AgWise bias correction because exact IWMI monthly totals are the
 experimental target.
 
-### 3.3 Approach 3 — IWMI-supported DSSAT scenarios
+### 3.3 Approach 3 — Scenario-based DSSAT integration
 
-**Purpose.** Establish the preferred operational integration by using IWMI
-rainfall to support scenario-based DSSAT simulations alongside the AgWise
-baseline.
+**Purpose.** Run DSSAT under explicit management scenarios and use IWMI
+insights, water context, and data products to weight and rank those scenarios.
 
-Approach 2 and Approach 3 use the same DSSAT scenario interface. The
-difference is the rainfall input: Approach 2 uses temporary synthetic daily
-rainfall because observations are unavailable, while Approach 3 replaces that
-temporary input with provider-confirmed IWMI daily observations.
+This approach is distinct from Approach 2. Approach 2 verifies the rainfall
+input path. Approach 3 compares alternative DSSAT management pathways, such as
+rainfed, supplemental-irrigation, and irrigated scenarios. IWMI STAC and API
+evidence— including rainfall context, evapotranspiration, irrigation
+probability, evaporative stress, and water access—supports scenario weighting
+and ranking alongside feasibility, cost, risk, and yield.
 
-The daily IWMI series must include date/time
-convention, units, coordinates or grid definition, quality flags,
-missing-value rules, station/channel identity, and a documented historical
-overlap. The recommended sequence is:
+The recommended sequence is:
 
-1. Obtain daily observations for Chókwè and the longest common period,
-   ideally 1994–2016.
-2. Validate units, timestamps, completeness, duplicates, missing values, and
-   station location.
-3. Compare IWMI with the existing AgWise reference using monthly totals,
-   wet-day frequency, dry-spell length, extremes, seasonal totals, bias, and
-   correlation.
-4. Generate an IWMI-supported DSSAT scenario while retaining the AgWise run as
-   the baseline.
-5. Compare rainfall totals, yields, rankings, and spatial results using
-   matched cells and identical DSSAT settings.
-6. Repeat across seasons before considering operational advisory use.
+1. Define valid DSSAT management variants and required water access.
+2. Collect IWMI STAC/API evidence with provenance, temporal role, units, and
+   uncertainty.
+3. Weight scenarios using water feasibility and agreed yield, risk, and cost
+   criteria.
+4. Rank the scenarios and expose the preferred and conditional alternatives in
+   the advisory.
+5. Repeat across seasons before considering operational advisory use.
 
-This approach is not yet runnable as an operational result because IWMI daily
-observations and complete metadata are still pending. The monthly analysis
-export is only a temporary input and cannot substitute for daily observations.
+Approach 2 is the preferred integration direction. Approach 3 is a separate
+future decision-support extension that can use the completed Approach 2
+rainfall workflow while the broader IWMI water context helps determine which
+management scenario is feasible and preferred.
 
 ## 4. Results by integration approach
 
 | Approach | What was measured | Result | Readiness |
 |---|---|---|---|
 | 1. Advisory context | Availability, provenance, units, periods, and display of four IWMI layers | Rainfall anomaly -12.91%; ET fraction 0.60%; irrigation probability 0.036; stress index 0.50; no DSSAT reranking | Implemented as qualified context |
-| 2. Temporary synthetic PRCP | Matched DSSAT treatment summary using 13 cells | Recommendation remained 30 Nov 2025, Short; median yield changed 2,996 → 2,973 kg/ha (-23 kg/ha; -0.77%) | Temporary bridge |
-| 3. IWMI-supported scenarios | Scenario comparison using provider-confirmed daily observations | Pending IWMI daily data; same DSSAT scenario interface will be reused | Main target |
+| 2. Preferred IWMI rainfall integration | Matched DSSAT treatment summary using 13 cells | Recommendation remained 30 Nov 2025, Short; median yield changed 2,996 → 2,973 kg/ha (-23 kg/ha; -0.77%) | Synthetic-data workflow proof complete; daily-data stage pending |
+| 3. Scenario-based DSSAT integration | Weighted and ranked management scenarios using IWMI water evidence | Scenario-ranking results pending full scenario execution and validated inputs | Separate future extension |
 
 ### 4.1 Approach 1 result
 
@@ -169,18 +171,20 @@ rainfall-only comparison because their spatial populations differ.
 
 ### 4.3 Approach 3 result status
 
-There is no daily-observation scenario result yet. The completed result is a
-documented scenario design: once IWMI supplies a confirmed daily series, the
-temporary synthetic file can be replaced without changing the DSSAT scenario
-interface, advisory contract, or ranking logic.
+There is no fully executed scenario-ranking result yet. The rainfall input
+workflow has been proven with synthetic data; IWMI daily rainfall will later
+replace that input without changing the DSSAT scenario interface or advisory
+contract. The remaining work is to execute and validate the weighted scenario
+ranking.
 
 ## 5. Conclusions and handover
 
 All three integration surfaces are now defined. Approach 1 demonstrates safe
-contextual advisory enrichment. Approach 2 demonstrates the temporary
-rainfall-scenario interface while daily data are unavailable. Approach 3 is
-the main operational objective: use IWMI daily rainfall to support
-scenario-based DSSAT comparison with the AgWise baseline.
+contextual advisory enrichment. Approach 2 is the preferred IWMI rainfall
+integration: synthetic data prove the input path now and IWMI daily rainfall
+will provide accurate values later. Approach 3 is the separate scenario-based
+DSSAT layer that weights and ranks management alternatives using IWMI insights
+and water context.
 
 The interim synthetic result is encouraging because the recommendation was
 stable, but it is not evidence that synthetic rainfall is equivalent to daily

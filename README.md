@@ -333,7 +333,8 @@ make advisory \
   LOCATION=Chokwe CROP=Maize
 ```
 
-To run the opt-in synthetic IWMI rainfall experiment:
+To run the preferred IWMI rainfall integration workflow with its current
+synthetic-data stage:
 
 ```bash
 make iwmi-rainfall \
@@ -378,9 +379,11 @@ manual_extent: true
 extent: -23.5, 32.5, -25.5, 33.5
 ```
 
-The workflow can optionally replace DSSAT rainfall with the synthetic IWMI
-rainfall experiment. This changes only rainfall on dates covered by the
-override CSV; AgWise temperature and solar-radiation inputs remain in use:
+The preferred IWMI rainfall integration can replace DSSAT rainfall with the
+current synthetic IWMI rainfall stage. This changes only rainfall on dates
+covered by the override CSV; AgWise temperature and solar-radiation inputs
+remain in use. When IWMI provides daily rainfall, it will replace this
+synthetic file in the same workflow:
 
 ```text
 integration/synthetic_rainfall/output/

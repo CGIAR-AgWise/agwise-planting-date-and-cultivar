@@ -54,7 +54,7 @@ cannot recover the original daily observations. A JSON sidecar records the
 selected monthly totals, fallback months, wet-day fraction, Gamma parameters,
 and random seed.
 
-## Comparing AgWise PRCP with the IWMI rainfall override
+## Comparing AgWise PRCP with the preferred IWMI rainfall integration
 
 The preferred IWMI integration should be compared against a baseline run
 that uses the normal AgWise bias-corrected `PRCP`. Keep the same use case,
@@ -245,7 +245,7 @@ rainfall observation. The advisory therefore identifies the AgWise forecast
 IWMI composite as historical context. It does not download or infer a second
 current-season IWMI rainfall value.
 
-The separate monthly rainfall export used by the synthetic experiment comes
+The separate monthly rainfall export used by the synthetic-data stage comes
 from the Digital Twins `/chatbot/rainfall_analyses` endpoint. It is monthly
 analysis data, not daily observations. The exporter follows the generated
 `csv_url`, validates 309 monthly values from 2001-01 through 2026-09, and
@@ -305,7 +305,7 @@ The command expects the summary to contain `PDAT`, a cultivar column such as
 `Cultivar` or `INGENO`, and `HWAH`. Use `--allow-missing` to print the DSSAT
 recommendation when IWMI is temporarily unavailable.
 
-When the DSSAT weather table uses the synthetic rainfall experiment, pass
+When the DSSAT weather table uses the synthetic-data stage, pass
 `--rainfall-source "Synthetic IWMI rainfall override used by DSSAT"` so the
 terminal advisory states that provenance explicitly. `make advisory` sets this
 automatically when `IWMI_PRCP_CSV` is provided.
@@ -346,8 +346,9 @@ The Makefile uses content-keyed checkpoints in `.agwise/state/`. A repeated
 run reuses a non-empty DSSAT summary and advisory JSON only when the
 configuration, summary content, and relevant command inputs are unchanged.
 
-To run the opt-in synthetic IWMI rainfall experiment, first generate the
-daily replacement and then pass it as `IWMI_PRCP_CSV`. This changes only
+To run the current synthetic-data stage of the preferred IWMI rainfall
+integration, first generate the daily replacement and then pass it as
+`IWMI_PRCP_CSV`. This changes only
 `PRCP`/DSSAT `RAIN` on the dates covered by the CSV; `TMAX`, `TMIN`, and
 `SRAD` still come from AgWise. AgWise PRCP is retained outside the override
 date range so the DSSAT handoff can include the full forecast window:
@@ -374,8 +375,9 @@ make forecast \
 ```
 
 The override is applied while preparing the DSSAT handoff RDS files and is
-replicated across the forecast points. It is an experimental single-series
-rainfall substitution, not observed daily IWMI data.
+replicated across the forecast points. It is a synthetic single-series
+rainfall substitution, not observed daily IWMI data. When IWMI supplies daily
+rainfall, that file replaces the synthetic input in the same preferred path.
 This makes development reruns and recovery after an advisory failure faster
 without silently reusing stale outputs:
 

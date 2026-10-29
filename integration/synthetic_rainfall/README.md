@@ -1,6 +1,6 @@
-# Synthetic IWMI rainfall experiment
+# Preferred IWMI rainfall integration — synthetic-data stage
 
-This experiment uses the IWMI monthly rainfall analysis exported for the
+This workflow-proving stage uses the IWMI monthly rainfall analysis exported for the
 Chókwè-area station `s24851s29487e` / channel `cha1099` and creates a
 synthetic daily rainfall series for the existing four-month use-case window:
 
@@ -76,7 +76,7 @@ python integration/synthetic_rainfall/merge_prcp.py \
   --output integration/synthetic_rainfall/output/chokwe_2025_26_iwmi_prcp_weather.csv
 ```
 
-This is an experimental mixed-source input:
+This is a synthetic mixed-source input:
 
 ```text
 PRCP/RAIN: synthetic series constrained by IWMI monthly rainfall
@@ -85,10 +85,11 @@ TMIN:      AgWise
 SRAD:      AgWise
 ```
 
-It is not enabled by default. Pass the generated CSV as `IWMI_PRCP_CSV` to the
-opt-in forecast or workflow target. The resulting weather input must still be
-validated and compared with the normal AgWise run before being used for an
-advisory.
+Pass the generated CSV as `IWMI_PRCP_CSV` to the forecast or workflow target.
+This synthetic file is the current implementation stage of the preferred
+rainfall integration; when IWMI provides daily rainfall, it will replace this
+file in the same workflow. The resulting weather input must still be validated
+and compared with the normal AgWise run before being used for an advisory.
 
 The API metadata records the requested station and the station identifier
 returned by the service. The current export matches the existing 2001–2016

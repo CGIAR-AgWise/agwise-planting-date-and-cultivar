@@ -1,14 +1,15 @@
 # End-of-Internship Report — Detailed Integration Methods
-## AgWise–DSSAT–IWMI integration for maize advisory development in Chókwè, Mozambique
+## AgWise Planting Date and Cultivar, DSSAT, and IWMI Digital Twins integration for maize advisory development in Chókwè, Mozambique
 
 **Project period:** 2026  
 **Case study:** Chókwè, Mozambique | Maize | 2025/26 season
 
 ## 1. Introduction
 
-This report expands the original end-of-internship report by documenting the
-methodology and evidence for the three IWMI integration approaches developed
-during the internship:
+This report documents the integration of the AgWise Planting Date and Cultivar
+(PDate) advisory workflow, the DSSAT crop-growth model, and the IWMI Digital
+Twins water-management tool. It records the methodology and evidence for the
+three integration approaches developed during the internship:
 
 1. IWMI water-context integration in the advisory layer.
 2. The preferred IWMI rainfall integration into the DSSAT weather workflow.
@@ -17,14 +18,29 @@ during the internship:
 3. Scenario-based DSSAT integration, using IWMI insights and water context to
    weight and rank alternative management scenarios.
 
-The normal AgWise–DSSAT workflow remains the foundation. AgWise provides the
-seasonal forecast, bias correction, and DSSAT weather preparation; DSSAT
-simulates planting-date and cultivar treatments; the advisory layer ranks and
-explains the results. IWMI information is added through explicitly labelled
-interfaces so contextual products are not mistaken for target-season weather
-inputs. Daily rainfall can provide a weather input, while IWMI ET, irrigation
-probability, evaporative-stress information, and water-access evidence support
-scenario selection and feasibility. These roles must not be conflated.
+### 1.1 Problem and rationale
+
+Maize management decisions must be made before the season unfolds, while
+rainfall timing, water availability, soil conditions, and crop-development
+responses are uncertain. A useful digital advisory therefore needs to connect
+climate information to crop simulation and express the result as an actionable
+planting-date and cultivar recommendation rather than as a weather map alone.
+This is both an agronomic problem—matching management to water and crop
+requirements—and a data-science problem—combining forecasts, observations,
+spatial inputs, and uncertainty without overstating what the data support.
+
+The AgWise PDate workflow provides the forecast-to-advisory foundation.
+DSSAT simulates crop development and yield for alternative planting dates and
+cultivars. The IWMI Digital Twins tool contributes water-management evidence:
+rainfall products, evapotranspiration (ET), irrigation probability,
+evaporative-stress indicators, and water-access information. These values may
+serve different roles: rainfall can enter the DSSAT weather input, while the
+other water indicators provide contextual or scenario-selection evidence.
+
+This separation follows established crop-model decision-support practice:
+DSSAT is used to simulate management and yield responses, while external
+observations and contextual products are documented with their units,
+provenance, temporal role, and uncertainty [1–3].
 
 ![AgWise–DSSAT–IWMI integration workflow](./agwise_iwmi_workflow.svg)
 
@@ -72,6 +88,8 @@ The normalized payload records source URLs, period, temporal role, coordinates,
 unit, scale, offset, and sampling method. Context values are displayed beside
 the DSSAT result and do not enter the treatment-ranking function.
 
+![IWMI water-context integration](./iwmi_context_integration.svg)
+
 ### 3.2 Approach 2 — IWMI rainfall integration into the DSSAT weather workflow
 
 **Purpose.** Prove and then operationalize the IWMI rainfall input path in the
@@ -110,6 +128,8 @@ synthetic rainfall replaces AgWise PRCP only on covered dates; AgWise
 through AgWise bias correction because exact IWMI monthly totals are the
 experimental target.
 
+![Preferred IWMI rainfall integration](./iwmi_rainfall_integration.svg)
+
 ### 3.3 Approach 3 — Scenario-based DSSAT integration
 
 **Purpose.** Run DSSAT under explicit management scenarios and use IWMI
@@ -137,6 +157,8 @@ Approach 2 is the preferred integration direction. Approach 3 is a separate
 future decision-support extension that can use the completed Approach 2
 rainfall workflow while the broader IWMI water context helps determine which
 management scenario is feasible and preferred.
+
+![Scenario-based DSSAT integration](./iwmi_dssat_scenarios.svg)
 
 ## 4. Results by integration approach
 
@@ -192,3 +214,30 @@ observations. The next milestone is to obtain and validate IWMI daily data,
 resolve the returned station-identifier mismatch, replace the temporary
 synthetic scenario input, and repeat the comparison over multiple seasons
 using identical DSSAT cells and inputs.
+
+## 6. Discussion and checkpoint
+
+The preferred rainfall integration was selected because it changes the
+smallest necessary part of the existing AgWise–DSSAT workflow. The AgWise
+baseline remains available for comparison, and the rainfall source can be
+tested without changing temperature, radiation, soil, cultivar, or DSSAT
+logic. Synthetic rainfall was therefore a practical engineering bridge: it
+proved that the proposed connection was executable before daily IWMI rainfall
+was delivered. It is not evidence that the synthetic sequence reproduces
+observed storms or that its yield values are operationally accurate.
+
+Once IWMI supplies daily rainfall, the file can replace the synthetic input at
+the same handoff. The next scientific checkpoint is then a matched,
+multi-season validation of daily rainfall and DSSAT outputs. The separate
+scenario-based extension can build on this stable rainfall workflow by
+weighting rainfed, supplemental-irrigation, and irrigated DSSAT runs using
+IWMI water-management evidence, feasibility, cost, risk, and yield.
+
+## 7. Selected references
+
+1. DSSAT Foundation. *Decision Support System for Agrotechnology Transfer*.
+   https://dssat.net/
+2. AgWise. *CGIAR AgWise decision-support platform and documentation*.
+   https://github.com/CGIAR-AgWise
+3. IWMI. *Digital Twins and water-management information services*.
+   https://www.iwmi.org/

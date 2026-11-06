@@ -50,121 +50,91 @@ ul.task-list li input[type="checkbox"] {
 
 <section id="end-of-internship-report" class="level1">
 <h1>End-of-Internship Report</h1>
-<section id="agwisedssatiwmi-integration-for-maize-advisory-development-in-chókwè-mozambique" class="level2">
-<h2 class="anchored" data-anchor-id="agwisedssatiwmi-integration-for-maize-advisory-development-in-chókwè-mozambique">AgWise–DSSAT–IWMI integration for maize advisory development in Chókwè, Mozambique</h2>
+<section id="agwise-planting-date-and-cultivar-and-dssat-maize-advisory-development-in-chókwè-mozambique" class="level2">
+<h2 class="anchored" data-anchor-id="agwise-planting-date-and-cultivar-and-dssat-maize-advisory-development-in-chókwè-mozambique">AgWise Planting Date and Cultivar and DSSAT maize advisory development in Chókwè, Mozambique</h2>
 <p><strong>Project period:</strong> 2026 <strong>Case study:</strong> Chókwè, Mozambique | Maize | 2025/26 season <strong>Primary workflow:</strong> AgWise seasonal forecast → DSSAT → planting-date/cultivar advisory</p>
 </section>
 <section id="introduction" class="level2">
 <h2 class="anchored" data-anchor-id="introduction">1. Introduction</h2>
-<p>This internship developed and documented an integration between the AgWise seasonal climate-forecast pipeline, the DSSAT crop model, and IWMI water-context products for a maize advisory in Chókwè, Mozambique. The work addressed three practical needs: making the forecast-to-DSSAT workflow reproducible on Windows, exposing ranked planting-date and cultivar results in an advisory payload, and testing how IWMI rainfall information could complement or eventually improve the precipitation input.</p>
-<p><strong>Approach 2 is the preferred integration.</strong> It uses synthetic daily rainfall generated from IWMI monthly analysis totals while daily IWMI rainfall is unavailable. When daily data arrive, they will replace the synthetic series in the same workflow to produce accurate values. Approach 3 is a separate scenario-based DSSAT extension that uses IWMI ET, irrigation probability, evaporative-stress information, and water-access evidence to weight and rank management scenarios.</p>
+<p>Maize planting-date and cultivar decisions must be made before the season unfolds, even though rainfall timing, soil conditions, and crop responses are uncertain. This creates an agronomic and data-science challenge: seasonal climate information must be converted into a reproducible crop simulation and then into an actionable advisory.</p>
+<p>This internship implemented and tested the AgWise Planting Date and Cultivar (PDate) workflow with DSSAT for a maize advisory in Chókwè, Mozambique. The work focused on reproducible Windows execution, DSSAT-compatible weather and soil preparation, spatial treatment ranking, and a controlled rainfall-input comparison.</p>
 </section>
-<section id="objectives-and-implemented-workflow" class="level2">
-<h2 class="anchored" data-anchor-id="objectives-and-implemented-workflow">2. Objectives and implemented workflow</h2>
+<section id="objectives-and-study-design" class="level2">
+<h2 class="anchored" data-anchor-id="objectives-and-study-design">2. Objectives and study design</h2>
 <p>The work aimed to:</p>
 <ol type="1">
 <li>Run the Mozambique Chókwè use case from YAML configuration through DSSAT.</li>
-<li>Apply the existing AgWise daily bias-correction workflow to forecast precipitation, temperature, and solar radiation.</li>
-<li>Prepare DSSAT-compatible weather and soil inputs and rank planting-date/ cultivar treatments.</li>
-<li>Add IWMI context without allowing uncertain products to silently change the DSSAT ranking.</li>
-<li>Test an IWMI rainfall sensitivity experiment and document the path toward daily-observation integration.</li>
+<li>Apply AgWise daily bias correction to precipitation, temperature, and solar radiation forecasts.</li>
+<li>Prepare DSSAT-compatible weather and soil inputs and rank planting-date and cultivar treatments.</li>
+<li>Test an alternative rainfall input by changing only precipitation while retaining the other AgWise weather variables.</li>
+<li>Compare the resulting DSSAT output with a baseline run using the normal AgWise workflow.</li>
 </ol>
-<img src="agwise_iwmi_workflow.svg" alt="AgWise–DSSAT–IWMI integration workflow" style="width:100%;height:auto;display:block;margin:0 auto 4mm">
-<p>The Chókwè configuration uses a four-month season (<code>2025-11-01</code> to <code>2026-02-28</code>), one-month forecast lead, maize cultivar ID <code>900111</code>, and the manual extent <code>-23.5, 32.5, -25.5, 33.5</code> in <code>[N,W,S,E]</code> order.</p>
+<p>The Chókwè configuration uses a four-month season (<code>2025-11-01</code> to <code>2026-02-28</code>), one-month forecast lead, maize cultivar ID <code>900111</code>, and the manual extent <code>-23.5, 32.5, -25.5, 33.5</code> in <code>[N,W,S,E]</code> order. The controlled comparison used the same 13 localized, crop-masked cells for both runs.</p>
 </section>
 <section id="methodology" class="level2">
 <h2 class="anchored" data-anchor-id="methodology">3. Methodology</h2>
-<section id="forecast-and-bias-correction" class="level3">
-<h3 class="anchored" data-anchor-id="forecast-and-bias-correction">3.1 Forecast and bias correction</h3>
-<p>AgWise downloads forecast and hindcast data for <code>PRCP</code>, <code>TMAX</code>, <code>TMIN</code>, and <code>SRAD</code>. Historical observations and hindcasts are used to learn systematic model errors; the learned correction is applied to the new forecast. The corrected fields are regridded and sampled at DSSAT soil/crop points.</p>
-<p>Bias correction is applied to the AgWise model forecast, not to the IWMI synthetic series. In the interim experiment, the corrected AgWise <code>TMAX</code>, <code>TMIN</code>, and <code>SRAD</code> remain unchanged. Only <code>PRCP</code> is optionally replaced at the DSSAT handoff.</p>
+<section id="agwise-baseline" class="level3">
+<h3 class="anchored" data-anchor-id="agwise-baseline">3.1 AgWise baseline</h3>
+<p>The baseline run used the normal AgWise workflow without any IWMI rainfall or other IWMI data in the weather or DSSAT execution path. AgWise downloads forecast and hindcast data for <code>PRCP</code>, <code>TMAX</code>, <code>TMIN</code>, and <code>SRAD</code>. Historical observations and hindcasts are used to learn systematic model errors, and the correction is applied to the new forecast. The corrected fields are then prepared for DSSAT.</p>
+<p>This baseline is essential because it provides the reference against which the alternative-rainfall run can be evaluated. The DSSAT executable, soil inputs, cultivar options, forecast period, grid-cell set, and model settings were held constant.</p>
 </section>
-<section id="iwmi-data-and-synthetic-rainfall" class="level3">
-<h3 class="anchored" data-anchor-id="iwmi-data-and-synthetic-rainfall">3.2 IWMI data and synthetic rainfall</h3>
-<p>The IWMI Digital Twins <code>/chatbot/rainfall_analyses</code> export produced <strong>309 monthly values covering 2001-01 through 2026-09</strong>. The API response was a generated CSV report, not a daily observational series. The export matches the existing 2001–2016 repository values over all 192 overlapping months. Metadata records <code>daily_observations: false</code>; the returned station identifier still requires confirmation with IWMI.</p>
-<p>For each target month, the generator:</p>
+<section id="iwmi-rainfall-input" class="level3">
+<h3 class="anchored" data-anchor-id="iwmi-rainfall-input">3.2 IWMI rainfall input</h3>
+<p>The IWMI Digital Twins <code>/chatbot/rainfall_analyses</code> export supplied <strong>309 monthly values covering 2001-01 through 2026-09</strong>. The API response was a generated CSV report, not a daily observational dataset. The export matched the existing 2001–2016 repository values over all 192 overlapping months. Metadata records <code>daily_observations: false</code>, and the returned station identifier still requires confirmation with IWMI.</p>
+<p>For each month, the generator:</p>
 <ol type="1">
-<li>Selects the exact <code>YYYY-MM</code> total when available.</li>
-<li>Selects reproducible wet days (default fraction 0.25).</li>
-<li>Draws positive Gamma weights, (w_i Gamma(1.5,1.0)).</li>
-<li>Allocates (R_i = M w_i / _j w_j), preserving monthly total (M).</li>
+<li>Selects the exact target-year monthly total when available.</li>
+<li>Selects a reproducible set of wet days using a default wet-day fraction of 0.25.</li>
+<li>Draws positive Gamma-distributed event weights.</li>
+<li>Allocates the monthly total across the selected wet days.</li>
 </ol>
-<p>Thus the daily sequence is synthetic, while the monthly total is constrained by the IWMI analysis. For the 2025/26 season, no climatology fallback was needed.</p>
+<p>The resulting daily values are synthetic, but their monthly sums preserve the selected IWMI monthly totals. For the 2025/26 season, the selected totals were 139.50 mm for November, 140.35 mm for December, 209.99 mm for January, and 16.47 mm for February. No climatology fallback was required.</p>
+<p>At the DSSAT handoff, the synthetic IWMI series replaces only <code>PRCP</code>/<code>RAIN</code> on covered dates. AgWise <code>TMAX</code>, <code>TMIN</code>, and <code>SRAD</code> remain unchanged. The synthetic series is not passed through AgWise bias correction because the purpose of this phase is to test the input connection while preserving the selected IWMI monthly totals. When IWMI supplies daily observations, those observations will replace the synthetic series at this same handoff.</p>
 </section>
 </section>
-<section id="three-integration-approaches" class="level2">
-<h2 class="anchored" data-anchor-id="three-integration-approaches">4. Three integration approaches</h2>
+<section id="results" class="level2">
+<h2 class="anchored" data-anchor-id="results">4. Results</h2>
+<p>The comparison below is controlled: the AgWise-only baseline and the IWMI-derived rainfall run use the same 13 cells and DSSAT settings. The only weather-input change is the rainfall series.</p>
 <table class="caption-top table">
 <colgroup>
-<col style="width: 25%">
-<col style="width: 25%">
-<col style="width: 25%">
-<col style="width: 25%">
+<col style="width: 27%">
+<col style="width: 36%">
+<col style="width: 36%">
 </colgroup>
 <thead>
 <tr class="header">
-<th>Approach</th>
-<th>Purpose</th>
-<th>Status</th>
-<th>Interpretation</th>
+<th>Metric</th>
+<th style="text-align: right;">AgWise-only baseline</th>
+<th style="text-align: right;">IWMI-derived synthetic rainfall</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><strong>1. IWMI contextual advisory</strong></td>
-<td>Add rainfall anomaly, ET, irrigation probability, and water-stress context</td>
-<td>Implemented</td>
-<td>Context is displayed and qualified; it does not rerank DSSAT treatments</td>
+<td>Rainfall source in DSSAT</td>
+<td style="text-align: right;">AgWise bias-corrected PRCP</td>
+<td style="text-align: right;">Synthetic daily rainfall constrained by IWMI monthly totals</td>
 </tr>
 <tr class="even">
-<td><strong>2. Preferred IWMI rainfall integration</strong></td>
-<td>Prove the DSSAT rainfall input path with synthetic daily rainfall, then replace it with IWMI daily rainfall</td>
-<td>Implemented synthetic-data stage; daily-data stage pending</td>
-<td>Preferred approach; daily data improve accuracy without changing the workflow</td>
-</tr>
-<tr class="odd">
-<td><strong>3. Scenario-based DSSAT integration</strong></td>
-<td>Run management scenarios and weight/rank them using IWMI insights and water context</td>
-<td><strong>Scenario-ranking execution pending</strong></td>
-<td>Separate future decision-support extension built on the rainfall workflow</td>
-</tr>
-</tbody>
-</table>
-<p>Approach 2 is the preferred rainfall integration: synthetic daily rainfall proves the workflow now, and provider-confirmed IWMI daily rainfall will replace it later in the same path. Approach 3 is separate: DSSAT management scenarios are weighted and ranked using IWMI insights and water context.</p>
-</section>
-<section id="results" class="level2">
-<h2 class="anchored" data-anchor-id="results">5. Results</h2>
-<p>The end-to-end workflow completed successfully for Chókwè. The recommended treatment was stable:</p>
-<table class="caption-top table">
-<thead>
-<tr class="header">
-<th>Metric</th>
-<th style="text-align: right;">13-cell AgWise reference</th>
-<th style="text-align: right;">13-cell IWMI synthetic PRCP</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
 <td>Recommended planting date</td>
 <td style="text-align: right;">30 Nov 2025</td>
 <td style="text-align: right;">30 Nov 2025</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Cultivar</td>
 <td style="text-align: right;">Short</td>
 <td style="text-align: right;">Short</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Median simulated yield</td>
 <td style="text-align: right;">2,996 kg/ha</td>
 <td style="text-align: right;">2,973 kg/ha</td>
 </tr>
-<tr class="even">
-<td>Change</td>
+<tr class="odd">
+<td>Difference</td>
 <td style="text-align: right;">—</td>
 <td style="text-align: right;">-23 kg/ha (-0.77%)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>DSSAT simulations</td>
 <td style="text-align: right;">13</td>
 <td style="text-align: right;">13</td>
@@ -173,38 +143,38 @@ ul.task-list li input[type="checkbox"] {
 </table>
 <pre class="text"><code>Median HWAH yield (kg/ha)
 
-AgWise PRCP       ██████████████████████████████  2,996
-IWMI synthetic    █████████████████████████████   2,973</code></pre>
-<p>The earlier broad run used 62 cells and reported 2,976 kg/ha with a 2,025–3,132 kg/ha spatial range. The current localized run used 13 cells and reported 2,973 kg/ha with a 2,895–3,065 kg/ha range. This is not a controlled rainfall comparison because the spatial populations differ. The valid rainfall sensitivity comparison is the matched 13-cell result above.</p>
+AgWise-only baseline       ██████████████████████████████  2,996
+IWMI synthetic rainfall    █████████████████████████████   2,973</code></pre>
+<p>The recommendation was unchanged: both runs selected 30 November 2025 and the Short cultivar. The median yield difference was small in this controlled 13-cell comparison, but it should not be interpreted as validation that synthetic rainfall is equivalent to observed daily rainfall. The experiment demonstrates that the IWMI rainfall input can pass through the pipeline and produce a complete DSSAT and advisory result.</p>
+<p>An earlier broad run used 62 cells and reported approximately 2,976 kg/ha with a 2,025–3,132 kg/ha spatial range. That result is not directly comparable to the current 13-cell comparison because the spatial populations differ.</p>
 </section>
 <section id="deliverables-limitations-and-next-steps" class="level2">
-<h2 class="anchored" data-anchor-id="deliverables-limitations-and-next-steps">6. Deliverables, limitations, and next steps</h2>
+<h2 class="anchored" data-anchor-id="deliverables-limitations-and-next-steps">5. Deliverables, limitations, and next steps</h2>
 <section id="deliverables" class="level3">
 <h3 class="anchored" data-anchor-id="deliverables">Deliverables</h3>
 <ul>
 <li>Reproducible Chókwè YAML use case and Windows-safe execution.</li>
-<li>DSSAT handoff with optional PRCP override and checkpointed workflow.</li>
-<li>Normalized advisory JSON schema and current Chókwè example.</li>
-<li>IWMI adapter for contextual STAC values with provenance and warnings.</li>
+<li>AgWise bias-correction and DSSAT handoff documentation.</li>
+<li>A controlled AgWise-only baseline and IWMI-derived rainfall comparison.</li>
+<li>Optional rainfall replacement at the DSSAT handoff without changing AgWise temperature or solar-radiation inputs.</li>
 <li>IWMI monthly exporter, target-year synthesis modes, metadata sidecars, and tests.</li>
-<li>Documentation for setup, Makefile commands, comparison design, and scientific limitations.</li>
+<li>Advisory output containing the planting-date and cultivar results and rainfall provenance.</li>
 </ul>
 </section>
 <section id="limitations" class="level3">
 <h3 class="anchored" data-anchor-id="limitations">Limitations</h3>
-<p>The synthetic rainfall does not recover observed wet-day timing, storm persistence, extremes, spatial rainfall variation, or rainfall–temperature dependence. The advisory represents one season, one generic soil setup, and limited cultivar coverage. Yield percentiles describe spatial variation across the selected DSSAT cells, not year-to-year weather uncertainty. The IWMI station mismatch and product metadata must be resolved before operational use.</p>
+<p>Synthetic daily rainfall cannot recover observed wet-day timing, storm persistence, extremes, spatial rainfall variation, or rainfall–temperature dependence. The current result covers one season, a generic soil setup, limited cultivar coverage, and 13 localized cells. Yield percentiles describe spatial variation across those cells, not year-to-year weather uncertainty. The IWMI station-identifier mismatch and product metadata must be resolved before operational use.</p>
 </section>
-<section id="recommended-next-steps" class="level3">
-<h3 class="anchored" data-anchor-id="recommended-next-steps">Recommended next steps</h3>
+<section id="next-steps" class="level3">
+<h3 class="anchored" data-anchor-id="next-steps">Next steps</h3>
 <ol type="1">
-<li>Obtain IWMI daily observations for Chókwè with documented units, timestamps, coordinates/grid, quality flags, and missing-value rules.</li>
-<li>Compare IWMI daily observations with the AgWise reference for the common historical period (ideally 1994–2016).</li>
-<li>Evaluate bias, wet-day frequency, dry spells, extremes, and seasonal totals.</li>
-<li>Replace the temporary synthetic scenario input with the validated daily series.</li>
-<li>Repeat baseline-versus-IWMI scenario comparisons using the same DSSAT cells, soils, cultivars, forecast period, and model settings.</li>
-<li>Only after multi-season validation consider operational advisory use.</li>
+<li>Obtain IWMI daily rainfall for Chókwè with documented units, timestamps, coordinates or grid definition, quality flags, missing-value rules, and confirmed station/channel identity.</li>
+<li>Replace the synthetic rainfall file with the IWMI daily observations in the same DSSAT input path.</li>
+<li>Validate daily totals, wet-day frequency, dry spells, extremes, seasonal totals, completeness, and bias against the AgWise reference.</li>
+<li>Repeat the controlled comparison over multiple seasons using identical cells, soils, cultivars, forecast periods, and model settings.</li>
+<li>Confirm whether the observed-data results support operational advisory use.</li>
 </ol>
-<p><strong>Conclusion:</strong> the internship delivered a working and transparent integration prototype. Approach 2 is the preferred solution: synthetic rainfall proves the workflow now and will later be replaced by validated IWMI daily rainfall. Approach 3 remains a separate scenario-based DSSAT extension for weighting and ranking management alternatives with IWMI water context.</p>
+<p><strong>Conclusion:</strong> the internship delivered a working and transparent rainfall integration checkpoint. The AgWise-only baseline was compared with an IWMI-derived synthetic rainfall run, demonstrating that the proposed input path is executable. Synthetic rainfall is being used because IWMI daily data were not yet available; it is a workflow-proving substitute, not a claim of observational accuracy. The next phase is to plug the IWMI daily rainfall into the same validated workflow and quantify the resulting changes.</p>
 </section>
 </section>
 </section>
